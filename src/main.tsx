@@ -312,7 +312,9 @@ root.render(
       {/* Only include Analytics in production environment with lazy loading and error boundary */}
       {import.meta.env.PROD && (
         <AnalyticsErrorBoundary>
-          <Analytics />
+          <Suspense fallback={null}>
+            <Analytics />
+          </Suspense>
         </AnalyticsErrorBoundary>
       )}
     </Suspense>
@@ -403,7 +405,7 @@ if ('serviceWorker' in navigator) {
 // Clear caches on initial load
 clearCachesForTroubleshooting();
 
-// Service Worker Registration - with additional logging
+// Service Worker Registration - with improved error handling
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
     console.log('Registering service worker...');
@@ -426,6 +428,7 @@ if ('serviceWorker' in navigator) {
       })
       .catch(error => {
         console.error('Service worker registration failed:', error);
+        // Continue app execution even if service worker fails
       });
   });
 }

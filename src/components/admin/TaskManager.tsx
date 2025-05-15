@@ -28,7 +28,7 @@ import { showErrorToast, showSuccessToast } from '../../utils/notifications';
 
 interface TaskManagerProps {
   tasks: Task[];
-  onCreateTask: (task: NewTask) => void;
+  onCreateTask: (task: NewTask, sectionId?: string) => void;
   onDeleteTask: (taskId: string) => void;
   onUpdateTask: (taskId: string, updates: Partial<Task>) => void;
   showTaskForm?: boolean;
@@ -225,8 +225,8 @@ export function TaskManager({
         // Add to local state immediately
         setLocalTasks(prev => [optimisticTask, ...prev]);
         
-        // Make actual API call
-        await onCreateTask(enhancedTask);
+        // Make actual API call - pass sectionId as second parameter
+        await onCreateTask(enhancedTask, sectionId);
         showSuccessToast('Task created successfully');
       } else {
         // Similar handling for non-section tasks

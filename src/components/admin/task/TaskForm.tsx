@@ -219,11 +219,11 @@ export function TaskForm({ onSubmit, sectionId, isSectionAdmin = false }: TaskFo
 
   return (
     <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm overflow-hidden">
-      <div className="px-4 sm:px-6 py-4 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
-        <h3 className="text-lg font-semibold text-gray-800 dark:text-white">
+      <div className="px-3 sm:px-6 py-3 sm:py-4 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
+        <h3 className="text-base sm:text-lg font-semibold text-gray-800 dark:text-white">
           Create New Task
           {isSectionAdmin && sectionId && (
-            <span className="ml-2 text-sm text-green-600 dark:text-green-400 font-normal">
+            <span className="ml-2 text-xs sm:text-sm text-green-600 dark:text-green-400 font-normal">
               (Section Task)
             </span>
           )}
@@ -231,31 +231,41 @@ export function TaskForm({ onSubmit, sectionId, isSectionAdmin = false }: TaskFo
         
         <button
           onClick={() => setShowAdvanced(!showAdvanced)}
-          className="text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 text-sm flex items-center gap-1"
+          className="text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 text-xs sm:text-sm flex items-center gap-1 py-1 px-2 rounded-lg hover:bg-blue-50 dark:hover:bg-blue-900/20"
+          type="button"
         >
           {showAdvanced ? (
             <>
-              <ChevronUp className="w-4 h-4" />
+              <ChevronUp className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
               <span className="hidden sm:inline">Hide Advanced</span>
+              <span className="sm:hidden">Simple</span>
             </>
           ) : (
             <>
-              <ChevronDown className="w-4 h-4" />
+              <ChevronDown className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
               <span className="hidden sm:inline">Show Advanced</span>
+              <span className="sm:hidden">Advanced</span>
             </>
           )}
         </button>
       </div>
       
-      <form onSubmit={handleSubmit} className="p-4 sm:p-6">
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6 mb-4 sm:mb-6">
-          <div className="sm:col-span-2">
+      <form onSubmit={handleSubmit} className="p-3 sm:p-6 space-y-4 sm:space-y-6">
+        {success && (
+          <div className="p-2 sm:p-3 bg-green-50 dark:bg-green-900/20 rounded-lg mb-4 flex items-start gap-2">
+            <CheckCircle className="w-4 h-4 sm:w-5 sm:h-5 text-green-600 dark:text-green-400 flex-shrink-0 mt-0.5" />
+            <span className="text-green-700 dark:text-green-300 text-sm">Task created successfully!</span>
+          </div>
+        )}
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
+          <div className="col-span-1 sm:col-span-2">
             <label htmlFor="name" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-              Task Name*
+              Task Name <span className="text-red-500">*</span>
             </label>
             <div className="relative">
-              <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                <ListTodo className="h-5 w-5 text-gray-400" />
+              <div className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 pointer-events-none">
+                <ListTodo className="w-4 h-4 sm:w-5 sm:h-5" />
               </div>
               <input
                 type="text"
@@ -263,33 +273,34 @@ export function TaskForm({ onSubmit, sectionId, isSectionAdmin = false }: TaskFo
                 name="name"
                 value={taskDetails.name}
                 onChange={handleChange}
-                className={`w-full pl-10 pr-4 py-2 border rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm sm:text-base
-                  ${errors.name ? 'border-red-500 dark:border-red-500' : 'dark:border-gray-600 dark:bg-gray-700 dark:text-white'}`}
+                className={`w-full pl-10 pr-4 py-2.5 border ${
+                  errors.name ? 'border-red-500 dark:border-red-500' : 'border-gray-300 dark:border-gray-600'
+                } rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white text-sm sm:text-base`}
                 placeholder="Enter task name"
               />
             </div>
             {errors.name && (
-              <p className="mt-1 text-sm text-red-600 dark:text-red-400 flex items-center gap-1">
-                <AlertCircle className="w-4 h-4" />
+              <p className="mt-1 text-xs text-red-500 flex items-center gap-1">
+                <AlertCircle className="w-3 h-3" />
                 {errors.name}
               </p>
             )}
           </div>
-          
+
           <div>
             <label htmlFor="category" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-              Category*
+              Category
             </label>
             <div className="relative">
-              <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                <Tag className="h-5 w-5 text-gray-400" />
+              <div className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 pointer-events-none">
+                <Tag className="w-4 h-4 sm:w-5 sm:h-5" />
               </div>
               <select
                 id="category"
                 name="category"
                 value={taskDetails.category}
                 onChange={handleChange}
-                className="w-full pl-10 pr-4 py-2 border dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white text-sm sm:text-base"
+                className="w-full pl-10 pr-4 py-2.5 border border-gray-300 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white appearance-none text-sm sm:text-base"
               >
                 <option value="assignment">Assignment</option>
                 <option value="blc">BLC</option>
@@ -306,43 +317,101 @@ export function TaskForm({ onSubmit, sectionId, isSectionAdmin = false }: TaskFo
                 <option value="task">Task</option>
                 <option value="others">Others</option>
               </select>
+              <div className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 pointer-events-none">
+                <ChevronDown className="w-4 h-4" />
+              </div>
             </div>
           </div>
-          
+
           <div>
             <label htmlFor="dueDate" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-              Due Date*
+              Due Date <span className="text-red-500">*</span>
             </label>
             <div className="relative">
-              <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                <Calendar className="h-5 w-5 text-gray-400" />
+              <div className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 pointer-events-none">
+                <Calendar className="w-4 h-4 sm:w-5 sm:h-5" />
               </div>
               <input
                 type="date"
                 id="dueDate"
                 name="dueDate"
-                min={getMinDate()}
                 value={taskDetails.dueDate}
                 onChange={handleChange}
-                className={`w-full pl-10 pr-4 py-2 border rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm sm:text-base
-                  ${errors.dueDate ? 'border-red-500 dark:border-red-500' : 'dark:border-gray-600 dark:bg-gray-700 dark:text-white'}`}
+                min={getMinDate()}
+                className={`w-full pl-10 pr-4 py-2.5 border ${
+                  errors.dueDate ? 'border-red-500 dark:border-red-500' : 'border-gray-300 dark:border-gray-600'
+                } rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white text-sm sm:text-base`}
               />
             </div>
             {errors.dueDate && (
-              <p className="mt-1 text-sm text-red-600 dark:text-red-400 flex items-center gap-1">
-                <AlertCircle className="w-4 h-4" />
+              <p className="mt-1 text-xs text-red-500 flex items-center gap-1">
+                <AlertCircle className="w-3 h-3" />
                 {errors.dueDate}
               </p>
             )}
           </div>
-          
-          <div className="sm:col-span-2">
+
+          {showAdvanced && (
+            <>
+              <div>
+                <label htmlFor="priority" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  Priority
+                </label>
+                <div className="relative">
+                  <div className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 pointer-events-none">
+                    <Flag className="w-4 h-4 sm:w-5 sm:h-5" />
+                  </div>
+                  <select
+                    id="priority"
+                    name="priority"
+                    value={taskDetails.priority}
+                    onChange={handleChange}
+                    className="w-full pl-10 pr-4 py-2.5 border border-gray-300 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white appearance-none text-sm sm:text-base"
+                  >
+                    <option value="high">High</option>
+                    <option value="medium">Medium</option>
+                    <option value="low">Low</option>
+                  </select>
+                  <div className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 pointer-events-none">
+                    <ChevronDown className="w-4 h-4" />
+                  </div>
+                </div>
+              </div>
+
+              <div>
+                <label htmlFor="status" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  Status
+                </label>
+                <div className="relative">
+                  <div className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 pointer-events-none">
+                    <ListTodo className="w-4 h-4 sm:w-5 sm:h-5" />
+                  </div>
+                  <select
+                    id="status"
+                    name="status"
+                    value={taskDetails.status}
+                    onChange={handleChange}
+                    className="w-full pl-10 pr-4 py-2.5 border border-gray-300 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white appearance-none text-sm sm:text-base"
+                  >
+                    <option value="my-tasks">To Do</option>
+                    <option value="in-progress">In Progress</option>
+                    <option value="completed">Completed</option>
+                  </select>
+                  <div className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 pointer-events-none">
+                    <ChevronDown className="w-4 h-4" />
+                  </div>
+                </div>
+              </div>
+            </>
+          )}
+
+          <div className="col-span-1 sm:col-span-2">
             <label htmlFor="description" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-              Description*
+              Description <span className="text-red-500">*</span>
             </label>
             <div className="relative">
-              <div className="absolute top-3 left-3 pointer-events-none">
-                <AlignLeft className="h-5 w-5 text-gray-400" />
+              <div className="absolute left-3 top-3 text-gray-400 pointer-events-none">
+                <AlignLeft className="w-4 h-4 sm:w-5 sm:h-5" />
               </div>
               <textarea
                 id="description"
@@ -350,65 +419,66 @@ export function TaskForm({ onSubmit, sectionId, isSectionAdmin = false }: TaskFo
                 value={taskDetails.description}
                 onChange={handleChange}
                 rows={4}
-                className={`w-full pl-10 pr-4 py-2 border rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm sm:text-base
-                  ${errors.description ? 'border-red-500 dark:border-red-500' : 'dark:border-gray-600 dark:bg-gray-700 dark:text-white'}`}
+                className={`w-full pl-10 pr-4 py-2 border ${
+                  errors.description ? 'border-red-500 dark:border-red-500' : 'border-gray-300 dark:border-gray-600'
+                } rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white text-sm sm:text-base`}
                 placeholder="Enter task description"
               ></textarea>
             </div>
             {errors.description && (
-              <p className="mt-1 text-sm text-red-600 dark:text-red-400 flex items-center gap-1">
-                <AlertCircle className="w-4 h-4" />
+              <p className="mt-1 text-xs text-red-500 flex items-center gap-1">
+                <AlertCircle className="w-3 h-3" />
                 {errors.description}
               </p>
             )}
           </div>
-          
+
           {showAdvanced && (
             <>
-              <div className="sm:col-span-2">
-                <label htmlFor="links" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                  Links
+              <div className="col-span-1 sm:col-span-2">
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                  Add Links
                 </label>
-                <div className="flex items-center gap-2 mb-2 flex-wrap sm:flex-nowrap">
-                  <div className="relative flex-1 min-w-0">
-                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                      <Link2 className="h-5 w-5 text-gray-400" />
+                <div className="flex">
+                  <div className="relative flex-1">
+                    <div className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 pointer-events-none">
+                      <Link2 className="w-4 h-4 sm:w-5 sm:h-5" />
                     </div>
                     <input
-                      type="url"
-                      id="link"
+                      type="text"
                       value={linkInput}
                       onChange={(e) => setLinkInput(e.target.value)}
-                      className="w-full pl-10 pr-4 py-2 border dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white text-sm sm:text-base"
-                      placeholder="https://example.com"
+                      className="w-full pl-10 pr-4 py-2.5 border border-gray-300 dark:border-gray-600 rounded-l-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white text-sm sm:text-base"
+                      placeholder="Enter URL"
                     />
                   </div>
                   <button
                     type="button"
                     onClick={addLink}
-                    className="inline-flex items-center px-3 py-2 border border-transparent text-sm sm:text-base leading-4 font-medium rounded-xl text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 dark:focus:ring-offset-gray-800 whitespace-nowrap"
+                    disabled={!linkInput.trim()}
+                    className="px-3 py-2.5 bg-blue-600 text-white rounded-r-xl hover:bg-blue-700 disabled:bg-blue-300 disabled:cursor-not-allowed flex items-center justify-center"
                   >
-                    <Plus className="w-4 h-4 mr-1" />
-                    Add Link
+                    <Plus className="w-4 h-4 sm:w-5 sm:h-5" />
+                    <span className="sr-only">Add link</span>
                   </button>
                 </div>
-                
+
                 {links.length > 0 && (
                   <div className="mt-2 space-y-2">
                     {links.map((link, index) => (
-                      <div key={index} className="flex items-center justify-between px-3 py-2 bg-gray-50 dark:bg-gray-700 rounded-lg">
+                      <div key={index} className="flex items-center justify-between py-1 px-3 bg-gray-50 dark:bg-gray-700 rounded-lg">
                         <a
                           href={link}
                           target="_blank"
                           rel="noopener noreferrer"
-                          className="text-blue-600 dark:text-blue-400 hover:underline text-sm truncate max-w-[calc(100%-30px)]"
+                          className="text-blue-600 dark:text-blue-400 text-sm truncate max-w-[85%]"
                         >
                           {link}
                         </a>
                         <button
                           type="button"
                           onClick={() => removeLink(index)}
-                          className="text-gray-400 hover:text-red-600 dark:hover:text-red-400"
+                          className="text-gray-500 hover:text-red-500 dark:text-gray-400 dark:hover:text-red-400 ml-2"
                         >
                           <X className="w-4 h-4" />
                         </button>
@@ -417,46 +487,34 @@ export function TaskForm({ onSubmit, sectionId, isSectionAdmin = false }: TaskFo
                   </div>
                 )}
               </div>
-              
-              <div className="sm:col-span-2">
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                  File Attachments
+
+              <div className="col-span-1 sm:col-span-2">
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                  Attachments
                 </label>
-                
-                <div className="mt-1 border-2 border-dashed dark:border-gray-600 rounded-xl px-6 py-8 text-center flex flex-col items-center cursor-pointer hover:border-gray-400 dark:hover:border-gray-500 transition-colors">
-                  <Upload className="w-8 h-8 text-gray-400 mb-2" />
-                  <div className="text-sm text-gray-600 dark:text-gray-400">
-                    <label htmlFor="file-upload" className="relative cursor-pointer text-blue-600 dark:text-blue-400 hover:underline">
-                      <span>Upload files</span>
-                      <input
-                        id="file-upload"
-                        name="file-upload"
-                        type="file"
-                        multiple
-                        className="sr-only"
-                        onChange={handleFileUpload}
-                      />
-                    </label>
-                    <p className="mt-1">Drag and drop or click to select files</p>
-                  </div>
+                <div className="flex items-center justify-center w-full">
+                  <label 
+                    htmlFor="file-upload" 
+                    className="w-full flex flex-col items-center justify-center px-4 py-4 bg-white dark:bg-gray-800 text-gray-500 rounded-xl border-2 border-dashed border-gray-300 dark:border-gray-600 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700/50"
+                  >
+                    <Upload className="w-6 h-6 text-gray-400 dark:text-gray-500" />
+                    <p className="mt-1 text-sm text-center">Drag & drop files here, or click to select files</p>
+                    <input id="file-upload" type="file" className="hidden" onChange={handleFileUpload} multiple />
+                  </label>
                 </div>
-                
+
                 {fileUrls.length > 0 && (
-                  <div className="mt-4 space-y-2">
+                  <div className="mt-2 space-y-2">
                     {files.map((file, index) => (
-                      <div key={index} className="flex items-center justify-between px-3 py-2 bg-gray-50 dark:bg-gray-700 rounded-lg">
-                        <div className="flex items-center text-sm">
-                          <div className="font-medium text-gray-900 dark:text-white truncate max-w-[200px] sm:max-w-[300px]">
-                            {file.name}
-                          </div>
-                          <div className="ml-2 text-gray-500 dark:text-gray-400 text-xs">
-                            {(file.size / 1024).toFixed(1)} KB
-                          </div>
+                      <div key={index} className="flex items-center justify-between py-2 px-3 bg-gray-50 dark:bg-gray-700 rounded-lg">
+                        <div className="flex items-center gap-2 truncate max-w-[85%]">
+                          <span className="text-sm text-gray-700 dark:text-gray-300 truncate">{file.name}</span>
+                          <span className="text-xs text-gray-500">({(file.size / 1024).toFixed(1)} KB)</span>
                         </div>
                         <button
                           type="button"
                           onClick={() => removeFile(index)}
-                          className="text-gray-400 hover:text-red-600 dark:hover:text-red-400"
+                          className="text-gray-500 hover:text-red-500 dark:text-gray-400 dark:hover:text-red-400 ml-2"
                         >
                           <X className="w-4 h-4" />
                         </button>
@@ -465,80 +523,21 @@ export function TaskForm({ onSubmit, sectionId, isSectionAdmin = false }: TaskFo
                   </div>
                 )}
               </div>
-              
-              <div className="sm:col-span-2">
-                <label htmlFor="status" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                  Status
-                </label>
-                <select
-                  id="status"
-                  name="status"
-                  value={taskDetails.status}
-                  onChange={handleChange}
-                  className="w-full px-4 py-2 border dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white text-sm sm:text-base"
-                >
-                  <option value="my-tasks">To Do</option>
-                  <option value="in-progress">In Progress</option>
-                  <option value="completed">Completed</option>
-                </select>
-              </div>
-              
-              <div>
-                <label htmlFor="priority" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                  Priority
-                </label>
-                <div className="relative">
-                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                    <Flag className="h-5 w-5 text-gray-400" />
-                  </div>
-                  <select
-                    id="priority"
-                    name="priority"
-                    value={taskDetails.priority || 'medium'}
-                    onChange={handleChange}
-                    className="w-full pl-10 pr-4 py-2 border dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white text-sm sm:text-base"
-                  >
-                    <option value="high">High</option>
-                    <option value="medium">Medium</option>
-                    <option value="low">Low</option>
-                  </select>
-                </div>
-              </div>
             </>
           )}
         </div>
-        
-        <div className="flex flex-col sm:flex-row sm:justify-end gap-3 mt-6">
+
+        <div className="flex justify-end mt-4 sm:mt-6">
           <button
             type="submit"
             disabled={isSubmitting}
-            className={`w-full sm:w-auto px-6 py-3 rounded-xl font-medium text-white ${
-              isSubmitting ? 'bg-blue-400 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-700'
-            } transition-colors flex justify-center items-center gap-2 text-sm sm:text-base`}
+            className={`px-5 py-2.5 bg-blue-600 text-white rounded-xl hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 shadow-sm text-sm sm:text-base font-medium ${
+              isSubmitting ? 'opacity-70 cursor-not-allowed' : ''
+            }`}
           >
-            {isSubmitting ? (
-              <>
-                <svg className="animate-spin h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                </svg>
-                Creating Task...
-              </>
-            ) : (
-              <>
-                <Plus className="w-5 h-5" />
-                Create Task
-              </>
-            )}
+            {isSubmitting ? 'Creating...' : 'Create Task'}
           </button>
         </div>
-        
-        {success && (
-          <div className="mt-4 p-3 bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-300 rounded-xl text-sm flex items-center gap-2">
-            <CheckCircle className="w-5 h-5" />
-            Task created successfully!
-          </div>
-        )}
       </form>
     </div>
   );

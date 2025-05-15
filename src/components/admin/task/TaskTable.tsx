@@ -151,12 +151,12 @@ export function TaskTable({
 
   return (
     <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm overflow-hidden" ref={tableRef}>
-      <div className="p-4 border-b border-gray-200 dark:border-gray-700 flex flex-col sm:flex-row justify-between gap-4">
+      <div className="p-3 sm:p-4 border-b border-gray-200 dark:border-gray-700 flex flex-col sm:flex-row justify-between gap-4">
         <h3 className="text-lg font-semibold text-gray-800 dark:text-white flex items-center gap-2">
           Tasks
           {isSectionAdmin && (
-            <span className="text-sm text-green-600 dark:text-green-400 font-normal flex items-center gap-1">
-              <Building className="w-4 h-4" />
+            <span className="text-xs sm:text-sm text-green-600 dark:text-green-400 font-normal flex items-center gap-1">
+              <Building className="w-3 h-3 sm:w-4 sm:h-4" />
               Section Tasks
             </span>
           )}
@@ -169,13 +169,13 @@ export function TaskTable({
         </div>
       </div>
 
-      {/* Grid View */}
-      {viewMode === 'grid' && (
-        <div className="p-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+      {/* Grid View - Always used on mobile */}
+      {(viewMode === 'grid' || isMobileView) && (
+        <div className="p-3 sm:p-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
           {tasks.map(task => (
             <div 
               key={task.id}
-              className={`relative p-4 border rounded-xl transition-all ${
+              className={`relative p-3 sm:p-4 border rounded-xl transition-all ${
                 selectedTaskIds.includes(task.id) 
                   ? 'border-blue-500 dark:border-blue-400 bg-blue-50 dark:bg-blue-900/10' 
                   : 'border-gray-200 dark:border-gray-700 hover:border-blue-300 dark:hover:border-blue-700'
@@ -188,22 +188,22 @@ export function TaskTable({
                   className="p-1 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700"
                 >
                   {selectedTaskIds.includes(task.id) ? (
-                    <CheckSquare className="w-5 h-5 text-blue-500 dark:text-blue-400" />
+                    <CheckSquare className="w-4 h-4 sm:w-5 sm:h-5 text-blue-500 dark:text-blue-400" />
                   ) : (
-                    <Square className="w-5 h-5 text-gray-400 dark:text-gray-500" />
+                    <Square className="w-4 h-4 sm:w-5 sm:h-5 text-gray-400 dark:text-gray-500" />
                   )}
                 </button>
               </div>
               
-              <div className="mb-3 flex items-start">
-                <h4 className="font-medium text-gray-900 dark:text-white break-words pr-7">
+              <div className="mb-2 sm:mb-3 flex items-start">
+                <h4 className="font-medium text-gray-900 dark:text-white break-words pr-7 text-sm sm:text-base">
                   {task.name}
                 </h4>
               </div>
               
-              <div className="space-y-3 mb-4">
-                <div className="flex flex-wrap items-center gap-2 mb-2">
-                  <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium ${getStatusColor(task.status)}`}>
+              <div className="space-y-2 sm:space-y-3 mb-3 sm:mb-4">
+                <div className="flex flex-wrap items-center gap-2 mb-1 sm:mb-2">
+                  <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${getStatusColor(task.status)}`}>
                     {getStatusIcon(task.status)}
                     {getStatusLabel(task.status)}
                   </span>
@@ -216,19 +216,19 @@ export function TaskTable({
                 </div>
                 
                 <div>
-                  <span className={`text-sm flex items-center gap-1 ${
+                  <span className={`text-xs sm:text-sm flex items-center gap-1 ${
                     isOverdue(task.dueDate, task.status) 
                       ? 'text-red-600 dark:text-red-400' 
                       : 'text-gray-600 dark:text-gray-400'
                   }`}>
                     {isOverdue(task.dueDate, task.status) && (
-                      <AlertTriangle className="w-3.5 h-3.5" />
+                      <AlertTriangle className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
                     )}
                     Due: {formatDate(task.dueDate)}
                   </span>
                 </div>
                 
-                <div className="text-sm text-gray-600 dark:text-gray-400 line-clamp-2">
+                <div className="text-xs sm:text-sm text-gray-600 dark:text-gray-400 line-clamp-2">
                   {truncateText(task.description, 120)}
                 </div>
               </div>
@@ -236,10 +236,11 @@ export function TaskTable({
               <div className="flex justify-end gap-2 pt-2 border-t border-gray-100 dark:border-gray-700">
                 <button
                   onClick={() => setEditingTask(task)}
-                  className="p-2 text-blue-600 hover:bg-blue-50 dark:text-blue-400 dark:hover:bg-blue-900/10 rounded-lg transition-colors"
+                  className="p-2.5 text-blue-600 hover:bg-blue-100 active:bg-blue-200 dark:text-blue-400 dark:hover:bg-blue-900/20 dark:active:bg-blue-900/30 rounded-lg transition-colors flex items-center gap-1.5"
                   aria-label={`Edit ${task.name}`}
                 >
-                  <Edit2 className="w-4 h-4" />
+                  <Edit2 className="w-4 h-4 sm:w-4.5 sm:h-4.5" />
+                  <span className="text-xs font-medium hidden xs:inline">Edit</span>
                 </button>
                 <button
                   onClick={() => setTaskToDelete(task.id)}
@@ -253,63 +254,64 @@ export function TaskTable({
           ))}
         </div>
       )}
-
-      {/* Table View */}
+      
+      {/* Table View - Only on desktop */}
       {viewMode === 'table' && !isMobileView && (
         <div className="overflow-x-auto">
-          <table className="w-full">
-            <thead>
-              <tr className="bg-gray-50 dark:bg-gray-700/50">
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 w-10">
-                  <button 
-                    onClick={onSelectAll}
-                    className="p-1 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600"
-                    aria-label="Select all tasks"
-                  >
-                    {selectedTaskIds.length === tasks.length && tasks.length > 0 ? (
-                      <CheckSquare className="w-4 h-4 text-blue-500 dark:text-blue-400" />
-                    ) : (
-                      <Square className="w-4 h-4 text-gray-400 dark:text-gray-500" />
-                    )}
-                  </button>
-                </th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                  <button 
-                    onClick={() => onSort('name')}
-                    className="flex items-center hover:text-gray-700 dark:hover:text-gray-300"
-                  >
-                    Task Name {renderSortIndicator('name')}
-                  </button>
-                </th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                  <button 
-                    onClick={() => onSort('category')}
-                    className="flex items-center hover:text-gray-700 dark:hover:text-gray-300"
-                  >
-                    Category {renderSortIndicator('category')}
-                  </button>
-                </th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                  <button 
-                    onClick={() => onSort('dueDate')}
-                    className="flex items-center hover:text-gray-700 dark:hover:text-gray-300"
-                  >
-                    Due Date {renderSortIndicator('dueDate')}
-                  </button>
-                </th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                  Status
-                </th>
-                {tasks.some(t => t.priority) && (
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                    <button 
-                      onClick={() => onSort('priority')}
-                      className="flex items-center hover:text-gray-700 dark:hover:text-gray-300"
+          <table className="w-full table-auto">
+            <thead className="bg-gray-50 dark:bg-gray-900/30">
+              <tr>
+                <th className="p-4 w-8">
+                  <div className="flex items-center justify-center">
+                    <button
+                      onClick={onSelectAll}
+                      className="p-1 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-700"
+                      aria-label="Select all tasks"
                     >
-                      Priority {renderSortIndicator('priority')}
+                      {selectedTaskIds.length > 0 && selectedTaskIds.length === tasks.length ? (
+                        <CheckSquare className="w-5 h-5 text-blue-500 dark:text-blue-400" />
+                      ) : (
+                        <Square className="w-5 h-5 text-gray-400 dark:text-gray-500" />
+                      )}
                     </button>
-                  </th>
-                )}
+                  </div>
+                </th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                  <button
+                    onClick={() => onSort('name')}
+                    className="flex items-center focus:outline-none hover:text-gray-700 dark:hover:text-gray-200"
+                  >
+                    Task Name
+                    {renderSortIndicator('name')}
+                  </button>
+                </th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                  <button
+                    onClick={() => onSort('category')}
+                    className="flex items-center focus:outline-none hover:text-gray-700 dark:hover:text-gray-200"
+                  >
+                    Category
+                    {renderSortIndicator('category')}
+                  </button>
+                </th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                  <button
+                    onClick={() => onSort('dueDate')}
+                    className="flex items-center focus:outline-none hover:text-gray-700 dark:hover:text-gray-200"
+                  >
+                    Due Date
+                    {renderSortIndicator('dueDate')}
+                  </button>
+                </th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                  <button
+                    onClick={() => onSort('status')}
+                    className="flex items-center focus:outline-none hover:text-gray-700 dark:hover:text-gray-200"
+                  >
+                    Status
+                    {renderSortIndicator('status')}
+                  </button>
+                </th>
                 <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                   Actions
                 </th>
@@ -318,62 +320,73 @@ export function TaskTable({
             <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
               {tasks.map(task => (
                 <tr 
-                  key={task.id} 
-                  className={`hover:bg-gray-50 dark:hover:bg-gray-700/30 transition-colors ${
-                    selectedTaskIds.includes(task.id) 
-                      ? 'bg-blue-50 dark:bg-blue-900/10' 
-                      : ''
-                  }`}
+                  key={task.id}
+                  className={
+                    selectedTaskIds.includes(task.id)
+                      ? 'bg-blue-50 dark:bg-blue-900/10'
+                      : 'bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700/30'
+                  }
                 >
-                  <td className="px-4 py-3 text-sm whitespace-nowrap">
-                    <button 
-                      onClick={() => onToggleSelection(task.id)}
-                      className="p-1 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700"
-                    >
-                      {selectedTaskIds.includes(task.id) ? (
-                        <CheckSquare className="w-4 h-4 text-blue-500 dark:text-blue-400" />
-                      ) : (
-                        <Square className="w-4 h-4 text-gray-400 dark:text-gray-500" />
-                      )}
-                    </button>
+                  <td className="p-4">
+                    <div className="flex items-center justify-center">
+                      <button
+                        onClick={() => onToggleSelection(task.id)}
+                        className="p-1 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-700"
+                      >
+                        {selectedTaskIds.includes(task.id) ? (
+                          <CheckSquare className="w-5 h-5 text-blue-500 dark:text-blue-400" />
+                        ) : (
+                          <Square className="w-5 h-5 text-gray-400 dark:text-gray-500" />
+                        )}
+                      </button>
+                    </div>
                   </td>
-                  <td className="px-4 py-3 text-sm font-medium text-gray-900 dark:text-white">
-                    {task.name}
+                  <td className="px-4 py-2.5">
+                    <div className="text-sm font-medium text-gray-900 dark:text-white">
+                      {task.name}
+                    </div>
+                    <div className="text-xs text-gray-500 dark:text-gray-400 line-clamp-1">
+                      {truncateText(task.description, 50)}
+                    </div>
                   </td>
-                  <td className="px-4 py-3 text-sm text-gray-700 dark:text-gray-300 capitalize">
-                    {task.category.replace(/-/g, ' ')}
+                  <td className="px-4 py-2.5">
+                    <div className="text-sm capitalize text-gray-900 dark:text-white">
+                      {task.category.replace(/-/g, ' ')}
+                    </div>
+                    {task.priority && (
+                      <div className="mt-1">{getPriorityBadge(task.priority)}</div>
+                    )}
                   </td>
-                  <td className="px-4 py-3 text-sm text-gray-700 dark:text-gray-300">
-                    <span className={isOverdue(task.dueDate, task.status) ? 'text-red-600 dark:text-red-400 font-medium flex items-center gap-1' : ''}>
+                  <td className="px-4 py-2.5">
+                    <span className={`text-sm flex items-center gap-1 ${
+                      isOverdue(task.dueDate, task.status) 
+                        ? 'text-red-600 dark:text-red-400' 
+                        : 'text-gray-600 dark:text-gray-400'
+                    }`}>
                       {isOverdue(task.dueDate, task.status) && (
                         <AlertTriangle className="w-3.5 h-3.5" />
                       )}
                       {formatDate(task.dueDate)}
                     </span>
                   </td>
-                  <td className="px-4 py-3 text-sm">
+                  <td className="px-4 py-2.5">
                     <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium ${getStatusColor(task.status)}`}>
                       {getStatusIcon(task.status)}
                       {getStatusLabel(task.status)}
                     </span>
                   </td>
-                  {tasks.some(t => t.priority) && (
-                    <td className="px-4 py-3 text-sm">
-                      {getPriorityBadge(task.priority)}
-                    </td>
-                  )}
-                  <td className="px-4 py-3 text-sm">
-                    <div className="flex items-center justify-end gap-2">
+                  <td className="px-4 py-2.5 text-right">
+                    <div className="flex items-center justify-end space-x-2">
                       <button
                         onClick={() => setEditingTask(task)}
-                        className="p-1 text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+                        className="p-2.5 text-blue-600 hover:bg-blue-100 active:bg-blue-200 dark:text-blue-400 dark:hover:bg-blue-900/20 dark:active:bg-blue-900/30 rounded-lg transition-colors"
                         aria-label={`Edit ${task.name}`}
                       >
-                        <Edit2 className="w-4 h-4" />
+                        <Edit2 className="w-4.5 h-4.5" />
                       </button>
                       <button
                         onClick={() => setTaskToDelete(task.id)}
-                        className="p-1 text-gray-400 hover:text-red-600 dark:hover:text-red-400 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+                        className="p-1.5 text-red-600 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-900/10 rounded-lg transition-colors"
                         aria-label={`Delete ${task.name}`}
                       >
                         <Trash2 className="w-4 h-4" />
@@ -386,90 +399,8 @@ export function TaskTable({
           </table>
         </div>
       )}
-
-      {/* Mobile card view */}
-      {viewMode === 'table' && isMobileView && (
-        <div className="p-3">
-          <div className="space-y-3">
-            {tasks.map(task => (
-              <div 
-                key={task.id}
-                className={`relative p-4 border rounded-xl ${
-                  selectedTaskIds.includes(task.id) 
-                    ? 'border-blue-500 dark:border-blue-400 bg-blue-50 dark:bg-blue-900/10' 
-                    : 'border-gray-200 dark:border-gray-700'
-                }`}
-              >
-                {/* Selection checkbox */}
-                <div className="absolute top-2.5 right-2.5">
-                  <button 
-                    onClick={() => onToggleSelection(task.id)}
-                    className="p-1 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700"
-                  >
-                    {selectedTaskIds.includes(task.id) ? (
-                      <CheckSquare className="w-5 h-5 text-blue-500 dark:text-blue-400" />
-                    ) : (
-                      <Square className="w-5 h-5 text-gray-400 dark:text-gray-500" />
-                    )}
-                  </button>
-                </div>
-                
-                <div className="flex items-start justify-between mb-2">
-                  <h4 className="font-medium text-gray-900 dark:text-white break-words pr-7">
-                    {truncateText(task.name, 40)}
-                  </h4>
-                </div>
-                
-                <div className="flex flex-wrap items-center gap-2 mb-2">
-                  <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium ${getStatusColor(task.status)}`}>
-                    {getStatusIcon(task.status)}
-                    {getStatusLabel(task.status)}
-                  </span>
-                  
-                  {task.priority && getPriorityBadge(task.priority)}
-                </div>
-                
-                <div className="flex flex-col sm:flex-row gap-3 text-sm">
-                  <div>
-                    <span className="text-gray-500 dark:text-gray-400 block">Category:</span>
-                    <span className="text-gray-700 dark:text-gray-300 capitalize">{task.category.replace(/-/g, ' ')}</span>
-                  </div>
-                  <div>
-                    <span className="text-gray-500 dark:text-gray-400 block">Due Date:</span>
-                    <span className={`flex items-center gap-1 ${isOverdue(task.dueDate, task.status) ? 'text-red-600 dark:text-red-400 font-medium' : 'text-gray-700 dark:text-gray-300'}`}>
-                      {isOverdue(task.dueDate, task.status) && (
-                        <AlertTriangle className="w-3.5 h-3.5" />
-                      )}
-                      {formatDate(task.dueDate)}
-                    </span>
-                  </div>
-                </div>
-                
-                <div className="flex justify-end gap-2 pt-2 border-t border-gray-100 dark:border-gray-700 mt-3">
-                  <button
-                    onClick={() => setEditingTask(task)}
-                    className="p-2 text-blue-600 hover:bg-blue-50 dark:text-blue-400 dark:hover:bg-blue-900/10 rounded-lg transition-colors flex items-center gap-1 text-sm"
-                    aria-label={`Edit ${task.name}`}
-                  >
-                    <Edit2 className="w-4 h-4" />
-                    Edit
-                  </button>
-                  <button
-                    onClick={() => setTaskToDelete(task.id)}
-                    className="p-2 text-red-600 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-900/10 rounded-lg transition-colors flex items-center gap-1 text-sm"
-                    aria-label={`Delete ${task.name}`}
-                  >
-                    <Trash2 className="w-4 h-4" />
-                    Delete
-                  </button>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* Task Edit Modal */}
+      
+      {/* Task edit modal */}
       {editingTask && (
         <TaskEditModal
           task={editingTask}
@@ -478,24 +409,26 @@ export function TaskTable({
         />
       )}
       
-      {/* Delete Confirmation Modal */}
+      {/* Delete confirmation modal */}
       {taskToDelete && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white dark:bg-gray-800 rounded-xl p-6 max-w-md w-full">
-            <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">Confirm Delete</h3>
-            <p className="text-gray-600 dark:text-gray-400 mb-4">
+        <div className="fixed inset-0 bg-black bg-opacity-30 flex items-center justify-center z-50 p-4">
+          <div className="bg-white dark:bg-gray-800 rounded-xl shadow-xl max-w-md w-full p-6 space-y-4">
+            <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
+              Delete Task
+            </h3>
+            <p className="text-gray-600 dark:text-gray-400">
               Are you sure you want to delete this task? This action cannot be undone.
             </p>
-            <div className="flex justify-end gap-3">
+            <div className="flex justify-end gap-3 pt-2">
               <button
                 onClick={() => setTaskToDelete(null)}
-                className="px-4 py-2 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700"
+                className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg"
               >
                 Cancel
               </button>
               <button
                 onClick={handleDeleteTask}
-                className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700"
+                className="px-4 py-2 text-sm font-medium text-white bg-red-600 hover:bg-red-700 rounded-lg"
               >
                 Delete
               </button>

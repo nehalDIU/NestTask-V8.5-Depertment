@@ -1,5 +1,5 @@
-import { useState, useEffect } from 'react';
-import { X, Tag, Calendar, AlignLeft, Link2, Upload, CheckCircle } from 'lucide-react';
+import { useState, useEffect, useCallback, useRef } from 'react';
+import { X, Tag, Calendar, AlignLeft, Link2, Upload, CheckCircle, AlertCircle, ChevronDown, Flag, FileText, Paperclip, Eye, Edit3, Info } from 'lucide-react';
 import type { Task } from '../../../types';
 import type { TaskPriority } from '../../../types/task';
 
@@ -27,6 +27,55 @@ export function TaskEditModal({ task, onClose, onUpdate }: TaskEditModalProps) {
   const [links, setLinks] = useState<string[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showSuccess, setShowSuccess] = useState(false);
+  const [showAdvanced, setShowAdvanced] = useState(false);
+  const [showPreview, setShowPreview] = useState(false);
+  const [isKeyboardUser, setIsKeyboardUser] = useState(false);
+  const [touchStart, setTouchStart] = useState<{x: number, y: number} | null>(null);
+  
+  const modalRef = useRef<HTMLDivElement>(null);
+  const nameInputRef = useRef<HTMLInputElement>(null);
+  
+  // Focus first input on mount for better keyboard accessibility
+  useEffect(() => {
+    setTimeout(() => {
+      if (nameInputRef.current) {
+        nameInputRef.current.focus();
+      }
+    }, 100);
+  }, []);
+  
+  // Handle touch gestures for mobile
+  const handleTouchStart = (e: React.TouchEvent) => {
+    setTouchStart({
+      x: e.touches[0].clientX,
+      y: e.touches[0].clientY
+    });
+  };
+  
+  const handleTouchEnd = (e: React.TouchEvent) => {
+    if (!touchStart) return;
+    
+    const touchEndX = e.changedTouches[0].clientX;
+    const touchEndY = e.changedTouches[0].clientY;
+    const deltaX = touchStart.x - touchEndX;
+    const deltaY = touchStart.y - touchEndY;
+    
+    // Simple swipe down detection - close modal
+    if (deltaY < -100 && Math.abs(deltaX) < 50) {
+      onClose();
+    }
+    
+    setTouchStart(null);
+  };
+  
+  // Store form elements to restore focus
+  const formElementRefs = useRef<Record<string, HTMLElement | null>>({});
+  
+  const storeRef = useCallback((el: HTMLElement | null, name: string) => {
+    if (el) {
+      formElementRefs.current[name] = el;
+    }
+  }, []);
   
   // Extract existing attachments from description and clean description
   useEffect(() => {
@@ -44,13 +93,38 @@ export function TaskEditModal({ task, onClose, onUpdate }: TaskEditModalProps) {
         ''
       ).trim();
       
-      // Extract links
+      // Extract section ID from description
+      const sectionIdRegex = /\*This task is assigned to section ID: ([a-f0-9-]+)\*/g;
+      const sectionIdMatch = sectionIdRegex.exec(cleanDescription);
+      
+      if (sectionIdMatch) {
+        // Remove the section ID line from the description
+        cleanDescription = cleanDescription.replace(sectionIdRegex, '').trim();
+      }
+      
+      // Check for inline attachment references
+      const inlineAttachmentRegex = /\[([^\]]+)\]\(attachment:([^)]+)\)/g;
+      let inlineMatch;
+      
+      while ((inlineMatch = inlineAttachmentRegex.exec(cleanDescription)) !== null) {
+        const [fullMatch, text] = inlineMatch;
+        // If there's an inline attachment reference, extract it and remove from description
+        if (!matches.includes(text)) {
+          matches.push(text);
+        }
+        cleanDescription = cleanDescription.replace(fullMatch, '').trim();
+      }
+      
+      // Extract links and attachments separately from the full description
       let match;
       while ((match = regex.exec(task.description)) !== null) {
         const [fullMatch, text, url] = match;
         
         if (url.startsWith('attachment:')) {
-          matches.push(text);
+          // Extract attachment references that might not have been caught above
+          if (!matches.includes(text)) {
+            matches.push(text);
+          }
         } else if (!url.startsWith('attachment:') && text === url) {
           existingLinks.push(url);
         }
@@ -61,9 +135,30 @@ export function TaskEditModal({ task, onClose, onUpdate }: TaskEditModalProps) {
       setFormData(prev => ({ ...prev, description: cleanDescription }));
     }
   }, [task.description]);
+
+  // Detect keyboard users for focus styles
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Tab') {
+        setIsKeyboardUser(true);
+      }
+    };
+
+    const handleMouseDown = () => {
+      setIsKeyboardUser(false);
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    window.addEventListener('mousedown', handleMouseDown);
+
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+      window.removeEventListener('mousedown', handleMouseDown);
+    };
+  }, []);
   
   // Validation function
-  const validate = (): boolean => {
+  const validate = useCallback((): boolean => {
     const newErrors: Record<string, string> = {};
     let isValid = true;
     
@@ -93,11 +188,34 @@ export function TaskEditModal({ task, onClose, onUpdate }: TaskEditModalProps) {
     
     setErrors(newErrors);
     return isValid;
-  };
+  }, [formData]);
   
   // Handle input changes
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
+  const handleChange = useCallback((e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
+    
+    // Special handling for due date on mobile
+    if (name === 'dueDate' && value) {
+      try {
+        // Validate date format
+        const date = new Date(value);
+        if (isNaN(date.getTime())) {
+          setErrors(prev => ({
+            ...prev,
+            [name]: 'Please enter a valid date'
+          }));
+          return;
+        }
+      } catch (error) {
+        console.error('Date parsing error:', error);
+        setErrors(prev => ({
+          ...prev,
+          [name]: 'Invalid date format'
+        }));
+        return;
+      }
+    }
+    
     setFormData(prev => ({
       ...prev,
       [name]: value,
@@ -110,23 +228,32 @@ export function TaskEditModal({ task, onClose, onUpdate }: TaskEditModalProps) {
         [name]: '',
       }));
     }
-  };
+    
+    // Provide haptic feedback on mobile if available
+    if ('vibrate' in navigator && 'ontouchstart' in window) {
+      try {
+        navigator.vibrate(5); // Subtle feedback
+      } catch (e) {
+        // Ignore if vibration API not available
+      }
+    }
+  }, [errors]);
   
   // Add link
-  const addLink = () => {
+  const addLink = useCallback(() => {
     if (linkInput.trim() && !links.includes(linkInput)) {
       setLinks(prev => [...prev, linkInput]);
       setLinkInput('');
     }
-  };
+  }, [linkInput, links]);
   
   // Remove link
-  const removeLink = (index: number) => {
+  const removeLink = useCallback((index: number) => {
     setLinks(prev => prev.filter((_, i) => i !== index));
-  };
+  }, []);
   
   // Handle file upload
-  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileUpload = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files) {
       const newFiles = Array.from(e.target.files);
       setFiles(prev => [...prev, ...newFiles]);
@@ -135,24 +262,24 @@ export function TaskEditModal({ task, onClose, onUpdate }: TaskEditModalProps) {
       const newUrls = newFiles.map(file => URL.createObjectURL(file));
       setFileUrls(prev => [...prev, ...newUrls]);
     }
-  };
+  }, []);
   
   // Remove file
-  const removeFile = (index: number) => {
+  const removeFile = useCallback((index: number) => {
     if (fileUrls[index]) {
       URL.revokeObjectURL(fileUrls[index]);
     }
     setFiles(prev => prev.filter((_, i) => i !== index));
     setFileUrls(prev => prev.filter((_, i) => i !== index));
-  };
+  }, [fileUrls]);
   
   // Remove existing attachment
-  const removeAttachment = (index: number) => {
+  const removeAttachment = useCallback((index: number) => {
     setAttachments(prev => prev.filter((_, i) => i !== index));
-  };
+  }, []);
   
   // Handle form submission
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = useCallback(async (e: React.FormEvent) => {
     e.preventDefault();
     
     if (!validate()) return;
@@ -160,11 +287,21 @@ export function TaskEditModal({ task, onClose, onUpdate }: TaskEditModalProps) {
     setIsSubmitting(true);
     
     try {
-      // In a real app, you would upload files to a server and get URLs
-      // For now, we'll just add placeholder URLs to the description
-      let enhancedDescription = formData.description || '';
+      // Clean and prepare description
+      let enhancedDescription = formData.description?.trim() || '';
       
-      // Add links to description
+      // Remove any existing attachment or link references if they exist at the end of description
+      enhancedDescription = enhancedDescription
+        .replace(/\n\n\*\*Attachments:\*\*\n((?:- \[[^\]]+\]\([^)]+\)\n)*)/g, '')
+        .replace(/\n\n\*\*Links:\*\*\n((?:- \[[^\]]+\]\([^)]+\)\n)*)/g, '')
+        .trim();
+      
+      // Preserve section ID if present
+      if (task.sectionId) {
+        enhancedDescription += `\n\n*This task is assigned to section ID: ${task.sectionId}*`;
+      }
+      
+      // Add links to description if any exist
       if (links.length > 0) {
         enhancedDescription += '\n\n**Links:**\n';
         links.forEach(link => {
@@ -172,19 +309,16 @@ export function TaskEditModal({ task, onClose, onUpdate }: TaskEditModalProps) {
         });
       }
       
-      // Add existing attachments
-      if (attachments.length > 0) {
+      // Add attachments section if any exist
+      if (attachments.length > 0 || files.length > 0) {
         enhancedDescription += '\n\n**Attachments:**\n';
+        
+        // Add existing attachments
         attachments.forEach(attachment => {
           enhancedDescription += `- [${attachment}](attachment:${attachment})\n`;
         });
-      }
-      
-      // Add new files
-      if (files.length > 0) {
-        if (attachments.length === 0) {
-          enhancedDescription += '\n\n**Attachments:**\n';
-        }
+        
+        // Add new files
         files.forEach(file => {
           enhancedDescription += `- [${file.name}](attachment:${file.name})\n`;
         });
@@ -207,19 +341,19 @@ export function TaskEditModal({ task, onClose, onUpdate }: TaskEditModalProps) {
     } finally {
       setIsSubmitting(false);
     }
-  };
+  }, [formData, links, attachments, files, validate, onUpdate, task.id, task.sectionId, onClose]);
   
-  const getMinDate = () => {
+  const getMinDate = useCallback(() => {
     const today = new Date();
     return today.toISOString().split('T')[0];
-  };
+  }, []);
   
   // Handle modal backdrop click
-  const handleBackdropClick = (e: React.MouseEvent<HTMLDivElement>) => {
+  const handleBackdropClick = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
     if (e.target === e.currentTarget) {
       onClose();
     }
-  };
+  }, [onClose]);
   
   // Handle escape key press
   useEffect(() => {
@@ -236,43 +370,93 @@ export function TaskEditModal({ task, onClose, onUpdate }: TaskEditModalProps) {
     };
   }, [onClose]);
 
+  // Format markdown content for preview
+  const renderMarkdownPreview = useCallback((content: string): string => {
+    if (!content) return '';
+    
+    // Replace line breaks with HTML breaks
+    let formatted = content.replace(/\n/g, '<br>');
+    
+    // Format bold text
+    formatted = formatted.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
+    
+    // Format italics
+    formatted = formatted.replace(/\*([^*]+)\*/g, '<em>$1</em>');
+    
+    // Format attachment links specially
+    formatted = formatted.replace(
+      /\[([^\]]+)\]\(attachment:([^)]+)\)/g, 
+      '<span class="inline-flex items-center gap-1 px-2 py-0.5 bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300 rounded-full text-xs"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"></path></svg>$1</span>'
+    );
+    
+    // Format regular links
+    formatted = formatted.replace(
+      /\[([^\]]+)\]\((?!attachment:)([^)]+)\)/g, 
+      '<a href="$2" class="text-blue-600 dark:text-blue-400 hover:underline" target="_blank">$1</a>'
+    );
+    
+    return formatted;
+  }, []);
+
   return (
     <div
-      className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50 overflow-y-auto"
+      className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-2 sm:p-4 z-50 overflow-y-auto animate-fadeIn"
       onClick={handleBackdropClick}
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="edit-task-title"
     >
-      <div className="bg-white dark:bg-gray-800 rounded-2xl max-w-4xl w-full max-h-[90vh] overflow-y-auto shadow-xl relative">
+      <div 
+        className="bg-white dark:bg-gray-800 rounded-2xl max-w-4xl w-full max-h-[90vh] overflow-y-auto shadow-xl relative animate-slideIn"
+        ref={modalRef}
+        onTouchStart={handleTouchStart}
+        onTouchEnd={handleTouchEnd}
+      >
+        {/* Swipe indicator for mobile */}
+        <div className="absolute left-0 right-0 flex justify-center -top-1">
+          <div className="w-12 h-1.5 bg-gray-300 dark:bg-gray-600 rounded-full transform translate-y-1 opacity-80"></div>
+        </div>
+        
         {/* Modal Header */}
-        <div className="sticky top-0 px-6 py-4 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between bg-white dark:bg-gray-800 z-10">
-          <h3 className="text-xl font-semibold text-gray-900 dark:text-white">Edit Task</h3>
+        <div className="sticky top-0 px-4 sm:px-6 py-3 sm:py-4 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between bg-white dark:bg-gray-800 z-10 shadow-sm">
+          <h3 className="text-lg sm:text-xl font-semibold text-gray-900 dark:text-white" id="edit-task-title">
+            Edit Task
+          </h3>
           <button
             onClick={onClose}
-            className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300 rounded-full p-1 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+            className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300 rounded-full p-2 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500"
+            aria-label="Close dialog"
           >
-            <X className="w-6 h-6" />
+            <X className="w-5 h-5 sm:w-6 sm:h-6" />
           </button>
         </div>
 
         {/* Form */}
-        <form onSubmit={handleSubmit} className="p-6">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <form onSubmit={handleSubmit} className="p-4 sm:p-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
             <div className="space-y-4 md:col-span-2">
-            <div>
+              <div>
                 <label htmlFor="name" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                   Task Name<span className="text-red-500">*</span>
-              </label>
+                </label>
                 <input
                   type="text"
                   id="name"
                   name="name"
+                  ref={nameInputRef}
                   value={formData.name || ''}
                   onChange={handleChange}
-                  className={`w-full px-4 py-2 border dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white
-                    ${errors.name ? 'border-red-500 dark:border-red-500' : ''}`}
+                  className={`w-full px-4 py-2.5 sm:py-3 border dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white text-sm sm:text-base
+                    ${errors.name ? 'border-red-500 dark:border-red-500' : ''} ${isKeyboardUser ? 'focus:ring-2' : 'focus:ring-0'}`}
                   placeholder="Enter task name"
+                  aria-required="true"
+                  aria-invalid={!!errors.name}
                 />
                 {errors.name && (
-                  <p className="mt-1 text-sm text-red-600 dark:text-red-400">{errors.name}</p>
+                  <p className="mt-1.5 text-xs sm:text-sm text-red-600 dark:text-red-400 flex items-start gap-1">
+                    <AlertCircle className="w-3.5 h-3.5 mt-0.5 flex-shrink-0" />
+                    {errors.name}
+                  </p>
                 )}
               </div>
             </div>
@@ -283,14 +467,16 @@ export function TaskEditModal({ task, onClose, onUpdate }: TaskEditModalProps) {
               </label>
               <div className="relative">
                 <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                  <Tag className="h-5 w-5 text-gray-400" />
+                  <Tag className="h-4 w-4 sm:h-5 sm:w-5 text-gray-400" />
                 </div>
                 <select
                   id="category"
                   name="category"
+                  ref={(el) => storeRef(el, 'category')}
                   value={formData.category || ''}
                   onChange={handleChange}
-                  className="w-full pl-10 pr-4 py-2 border dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white"
+                  className="w-full pl-10 pr-10 py-2.5 sm:py-3 border dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white text-sm sm:text-base appearance-none"
+                  aria-required="true"
                 >
                   <option value="assignment">Assignment</option>
                   <option value="blc">BLC</option>
@@ -307,6 +493,9 @@ export function TaskEditModal({ task, onClose, onUpdate }: TaskEditModalProps) {
                   <option value="task">Task</option>
                   <option value="others">Others</option>
                 </select>
+                <div className="absolute inset-y-0 right-0 flex items-center pr-2 pointer-events-none">
+                  <ChevronDown className="h-4 w-4 text-gray-500" />
+                </div>
               </div>
             </div>
 
@@ -316,212 +505,379 @@ export function TaskEditModal({ task, onClose, onUpdate }: TaskEditModalProps) {
               </label>
               <div className="relative">
                 <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                  <Calendar className="h-5 w-5 text-gray-400" />
+                  <Calendar className="h-4 w-4 sm:h-5 sm:w-5 text-gray-400" />
                 </div>
                 <input
                   type="date"
                   id="dueDate"
                   name="dueDate"
+                  ref={(el) => storeRef(el, 'dueDate')}
                   value={formData.dueDate || ''}
                   min={formData.status === 'completed' ? undefined : getMinDate()}
                   onChange={handleChange}
-                  className={`w-full pl-10 pr-4 py-2 border dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white
+                  className={`w-full pl-10 pr-4 py-2.5 sm:py-3 border dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white text-sm sm:text-base
                     ${errors.dueDate ? 'border-red-500 dark:border-red-500' : ''}`}
+                  aria-required="true"
+                  aria-invalid={!!errors.dueDate}
+                  onClick={(e) => {
+                    // Force open native date picker on mobile
+                    const input = e.currentTarget;
+                    input.showPicker && input.showPicker();
+                  }}
                 />
                 {errors.dueDate && (
-                  <p className="mt-1 text-sm text-red-600 dark:text-red-400">{errors.dueDate}</p>
+                  <p className="mt-1.5 text-xs sm:text-sm text-red-600 dark:text-red-400 flex items-start gap-1">
+                    <AlertCircle className="w-3.5 h-3.5 mt-0.5 flex-shrink-0" />
+                    {errors.dueDate}
+                  </p>
                 )}
               </div>
             </div>
 
             <div>
-              <label htmlFor="status" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                Status
-              </label>
-              <select
-                id="status"
-                name="status"
-                value={formData.status || ''}
-                onChange={handleChange}
-                className="w-full px-4 py-2 border dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white"
-              >
-                <option value="my-tasks">To Do</option>
-                <option value="in-progress">In Progress</option>
-                <option value="completed">Completed</option>
-              </select>
+              <div className="flex justify-between items-center mb-1">
+                <label htmlFor="status" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                  Status
+                </label>
+                <button 
+                  type="button"
+                  onClick={() => setShowAdvanced(!showAdvanced)}
+                  className="text-xs text-blue-600 dark:text-blue-400 hover:underline flex items-center gap-1"
+                >
+                  {showAdvanced ? 'Hide' : 'Show'} Advanced
+                  <ChevronDown className={`h-3 w-3 transition-transform ${showAdvanced ? 'rotate-180' : ''}`} />
+                </button>
+              </div>
+              <div className="relative">
+                <select
+                  id="status"
+                  name="status"
+                  value={formData.status || ''}
+                  onChange={handleChange}
+                  className="w-full px-4 py-2.5 sm:py-3 border dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white text-sm sm:text-base appearance-none"
+                >
+                  <option value="my-tasks">To Do</option>
+                  <option value="in-progress">In Progress</option>
+                  <option value="completed">Completed</option>
+                </select>
+                <div className="absolute inset-y-0 right-0 flex items-center pr-2 pointer-events-none">
+                  <ChevronDown className="h-4 w-4 text-gray-500" />
+                </div>
+              </div>
             </div>
 
-            <div className="md:col-span-2">
-              <label htmlFor="description" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                Description<span className="text-red-500">*</span>
-              </label>
-              <div className="relative">
-                <div className="absolute top-3 left-3 pointer-events-none">
-                  <AlignLeft className="h-5 w-5 text-gray-400" />
-                </div>
-                <textarea
-                  id="description"
-                  name="description"
-                  value={formData.description || ''}
-                  onChange={handleChange}
-                  rows={4}
-                  className={`w-full pl-10 pr-4 py-2 border dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white resize-none
-                    ${errors.description ? 'border-red-500 dark:border-red-500' : ''}`}
-                  placeholder="Enter task description"
-                ></textarea>
-                {errors.description && (
-                  <p className="mt-1 text-sm text-red-600 dark:text-red-400">{errors.description}</p>
-                )}
-              </div>
-            </div>
-            
-            <div className="md:col-span-2">
-              <div className="pb-4 border-b border-gray-200 dark:border-gray-700">
-                <h4 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">Links</h4>
-                <div className="flex items-center gap-2 mb-2 flex-wrap sm:flex-nowrap">
-                  <div className="relative flex-1 min-w-0">
-                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                      <Link2 className="h-5 w-5 text-gray-400" />
-                    </div>
-                    <input
-                      type="url"
-                      id="link"
-                      value={linkInput}
-                      onChange={(e) => setLinkInput(e.target.value)}
-                      className="w-full pl-10 pr-4 py-2 border dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white text-sm"
-                      placeholder="https://example.com"
-                    />
+            {showAdvanced && (
+              <div>
+                <label htmlFor="priority" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  Priority
+                </label>
+                <div className="relative">
+                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                    <Flag className="h-4 w-4 sm:h-5 sm:w-5 text-gray-400" />
                   </div>
-                  <button
-                    type="button"
-                    onClick={addLink}
-                    className="px-3 py-2 bg-blue-600 text-white rounded-xl hover:bg-blue-700 transition-colors flex items-center whitespace-nowrap text-sm"
+                  <select
+                    id="priority"
+                    name="priority"
+                    value={formData.priority || 'medium'}
+                    onChange={handleChange}
+                    className="w-full pl-10 pr-10 py-2.5 sm:py-3 border dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white text-sm sm:text-base appearance-none"
                   >
-                    Add Link
-                  </button>
-                </div>
-                
-                {links.length > 0 && (
-                  <div className="mt-3 space-y-2">
-                    {links.map((link, index) => (
-                      <div key={index} className="flex items-center justify-between px-3 py-2 bg-gray-50 dark:bg-gray-700 rounded-lg">
-                        <a
-                          href={link}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="text-blue-600 dark:text-blue-400 hover:underline text-sm truncate max-w-[calc(100%-30px)]"
-                        >
-                          {link}
-                        </a>
-                        <button
-                          type="button"
-                          onClick={() => removeLink(index)}
-                          className="text-gray-400 hover:text-red-600 dark:hover:text-red-400"
-                        >
-                          <X className="w-4 h-4" />
-                        </button>
-                      </div>
-                    ))}
+                    <option value="high">High</option>
+                    <option value="medium">Medium</option>
+                    <option value="low">Low</option>
+                  </select>
+                  <div className="absolute inset-y-0 right-0 flex items-center pr-2 pointer-events-none">
+                    <ChevronDown className="h-4 w-4 text-gray-500" />
                   </div>
+                </div>
+              </div>
+            )}
+
+            <div className="md:col-span-2">
+              <div className="flex justify-between items-center mb-1">
+                <label htmlFor="description" className="text-sm font-medium text-gray-700 dark:text-gray-300 flex items-center gap-2">
+                  Description<span className="text-red-500">*</span>
+                  {attachments.length > 0 && (
+                    <span className="text-xs text-blue-600 dark:text-blue-400 flex items-center gap-1">
+                      <Paperclip className="w-3 h-3" /> {attachments.length} attachment{attachments.length !== 1 ? 's' : ''}
+                    </span>
+                  )}
+                  <div className="relative group">
+                    <Info className="w-3.5 h-3.5 text-gray-400 hover:text-gray-600 cursor-help dark:hover:text-gray-200" />
+                    <div className="absolute left-0 bottom-full mb-2 w-60 p-2 bg-white dark:bg-gray-800 rounded shadow-lg text-xs border border-gray-200 dark:border-gray-700 hidden group-hover:block z-10">
+                      <p>Use markdown formatting:</p>
+                      <p><code>**bold**</code> for <strong>bold text</strong></p>
+                      <p><code>*italic*</code> for <em>italic text</em></p>
+                      <p>New lines create paragraphs</p>
+                    </div>
+                  </div>
+                </label>
+                <button
+                  type="button"
+                  onClick={() => setShowPreview(!showPreview)}
+                  className="text-xs text-blue-600 dark:text-blue-400 hover:underline flex items-center gap-1"
+                  aria-label={showPreview ? "Edit description" : "Preview description"}
+                >
+                  {showPreview ? (
+                    <>
+                      <Edit3 className="h-3.5 w-3.5" />
+                      Edit
+                    </>
+                  ) : (
+                    <>
+                      <Eye className="h-3.5 w-3.5" />
+                      Preview
+                    </>
+                  )}
+                </button>
+              </div>
+              <div className="relative">
+                {!showPreview ? (
+                  <>
+                    <div className="absolute top-3 left-3 pointer-events-none">
+                      <AlignLeft className="h-4 w-4 sm:h-5 sm:w-5 text-gray-400" />
+                    </div>
+                    <textarea
+                      id="description"
+                      name="description"
+                      value={formData.description || ''}
+                      onChange={handleChange}
+                      rows={4}
+                      onFocus={() => {
+                        // On mobile, scroll to keep the textarea in view when keyboard appears
+                        if ('ontouchstart' in window) {
+                          setTimeout(() => {
+                            modalRef.current?.scrollTo({
+                              top: modalRef.current.scrollTop + 200,
+                              behavior: 'smooth'
+                            });
+                          }, 300);
+                        }
+                      }}
+                      className={`w-full pl-10 pr-4 py-2.5 sm:py-3 border dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white text-sm sm:text-base
+                        ${errors.description ? 'border-red-500 dark:border-red-500' : ''}`}
+                      placeholder="Enter task description"
+                      aria-required="true"
+                      aria-invalid={!!errors.description}
+                    ></textarea>
+                  </>
+                ) : (
+                  <div 
+                    className="w-full px-4 py-2.5 sm:py-3 border dark:border-gray-600 rounded-xl bg-gray-50 dark:bg-gray-700 text-sm sm:text-base text-gray-700 dark:text-gray-200 min-h-[6rem]"
+                    dangerouslySetInnerHTML={{ __html: renderMarkdownPreview(formData.description || '') }}
+                  ></div>
+                )}
+                {errors.description && !showPreview && (
+                  <p className="mt-1.5 text-xs sm:text-sm text-red-600 dark:text-red-400 flex items-start gap-1">
+                    <AlertCircle className="w-3.5 h-3.5 mt-0.5 flex-shrink-0" />
+                    {errors.description}
+                  </p>
                 )}
               </div>
+              
+              {/* Section ID display if present */}
+              {task.sectionId && (
+                <div className="mt-2 text-xs text-gray-500 dark:text-gray-400 flex items-center gap-1">
+                  <span className="font-medium">Section ID:</span> 
+                  <code className="bg-gray-100 dark:bg-gray-700 px-1.5 py-0.5 rounded text-gray-800 dark:text-gray-200 font-mono">
+                    {task.sectionId}
+                  </code>
+                </div>
+              )}
             </div>
             
-            <div className="md:col-span-2">
-              <div className="pb-4">
-                <h4 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">Attachments</h4>
-                
-                {/* Existing attachments */}
-                {attachments.length > 0 && (
-                  <div className="mb-4">
-                    <h5 className="text-xs text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-2">Current Attachments</h5>
-                    <div className="space-y-2">
-                      {attachments.map((attachment, index) => (
-                        <div key={index} className="flex items-center justify-between px-3 py-2 bg-gray-50 dark:bg-gray-700 rounded-lg">
-                          <div className="text-sm text-gray-700 dark:text-gray-300 truncate max-w-[calc(100%-30px)]">
-                            {attachment}
-                          </div>
-                          <button
-                            type="button"
-                            onClick={() => removeAttachment(index)}
-                            className="text-gray-400 hover:text-red-600 dark:hover:text-red-400"
-                          >
-                            <X className="w-4 h-4" />
-                          </button>
+            {showAdvanced && (
+              <>
+                <div className="md:col-span-2">
+                  <div className="pb-4 border-b border-gray-200 dark:border-gray-700">
+                    <h4 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">Links</h4>
+                    <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
+                      <div className="relative flex-1 min-w-0">
+                        <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                          <Link2 className="h-4 w-4 sm:h-5 sm:w-5 text-gray-400" />
                         </div>
-                      ))}
+                        <input
+                          type="url"
+                          id="link"
+                          value={linkInput}
+                          onChange={(e) => setLinkInput(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter' && linkInput.trim()) {
+                              e.preventDefault();
+                              addLink();
+                            }
+                          }}
+                          className="w-full pl-10 pr-4 py-2.5 sm:py-3 border dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white text-sm"
+                          placeholder="https://example.com"
+                        />
+                      </div>
+                      <button
+                        type="button"
+                        onClick={addLink}
+                        className="px-4 py-2.5 sm:py-3 bg-blue-600 text-white rounded-xl hover:bg-blue-700 transition-colors flex items-center justify-center text-sm min-w-[100px]"
+                        disabled={!linkInput.trim()}
+                      >
+                        Add Link
+                      </button>
                     </div>
-                  </div>
-                )}
-                
-                {/* File Upload */}
-                <div className="border-2 border-dashed dark:border-gray-600 rounded-xl px-4 sm:px-6 py-6 sm:py-8 text-center flex flex-col items-center cursor-pointer hover:border-gray-400 dark:hover:border-gray-500 transition-colors">
-                  <Upload className="w-8 h-8 text-gray-400 mb-2" />
-                  <div className="text-sm text-gray-600 dark:text-gray-400">
-                    <label htmlFor="file-upload" className="relative cursor-pointer text-blue-600 dark:text-blue-400 hover:underline">
-                      <span>Upload files</span>
-                      <input
-                        id="file-upload"
-                        name="file-upload"
-                        type="file"
-                        multiple
-                        className="sr-only"
-                        onChange={handleFileUpload}
-                      />
-                    </label>
-                    <p className="mt-1 text-xs sm:text-sm">Drag and drop or click to select</p>
+                    
+                    {links.length > 0 && (
+                      <div className="mt-3 space-y-2">
+                        {links.map((link, index) => (
+                          <div key={index} className="flex items-center justify-between px-3 py-2.5 bg-gray-50 dark:bg-gray-700 rounded-lg">
+                            <a
+                              href={link}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-blue-600 dark:text-blue-400 hover:underline text-sm truncate max-w-[calc(100%-40px)]"
+                            >
+                              {link}
+                            </a>
+                            <button
+                              type="button"
+                              onClick={() => removeLink(index)}
+                              className="text-gray-400 hover:text-red-600 dark:hover:text-red-400 p-1.5 rounded-full hover:bg-gray-200 dark:hover:bg-gray-600"
+                              aria-label={`Remove link ${link}`}
+                            >
+                              <X className="w-4 h-4" />
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 </div>
                 
-                {/* New files */}
-                {files.length > 0 && (
-                  <div className="mt-4">
-                    <h5 className="text-xs text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-2">New Attachments</h5>
-                    <div className="space-y-2">
-                      {files.map((file, index) => (
-                        <div key={index} className="flex items-center justify-between px-3 py-2 bg-gray-50 dark:bg-gray-700 rounded-lg">
-                          <div className="flex items-center text-sm">
-                            <div className="font-medium text-gray-900 dark:text-white truncate max-w-[200px] sm:max-w-[300px]">
-                              {file.name}
-                            </div>
-                            <div className="ml-2 text-gray-500 dark:text-gray-400 text-xs">
-                              {(file.size / 1024).toFixed(1)} KB
-                            </div>
-                          </div>
+                <div className="md:col-span-2">
+                  <div className="pb-4">
+                    <h4 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-3 flex items-center justify-between">
+                      <span className="flex items-center gap-2">
+                        <FileText className="w-4 h-4" /> Attachments
+                      </span>
+                      {attachments.length > 0 && (
+                        <div className="relative group">
                           <button
                             type="button"
-                            onClick={() => removeFile(index)}
-                            className="text-gray-400 hover:text-red-600 dark:hover:text-red-400"
+                            className="text-xs text-gray-500 dark:text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 flex items-center gap-1"
+                            aria-label="How to use attachments"
                           >
-                            <X className="w-4 h-4" />
+                            <Info className="w-3.5 h-3.5" />
+                            <span className="hidden xs:inline">How to use</span>
                           </button>
+                          <div className="absolute right-0 bottom-full mb-2 w-60 p-2 bg-white dark:bg-gray-800 rounded shadow-lg text-xs border border-gray-200 dark:border-gray-700 hidden group-hover:block z-10">
+                            <p>To reference an attachment in your description:</p>
+                            <code className="block mt-1 p-1 bg-gray-100 dark:bg-gray-700 rounded">
+                              See my [filename.csv](attachment:filename.csv)
+                            </code>
+                          </div>
                         </div>
-                      ))}
-                    </div>
+                      )}
+                    </h4>
+                    
+                    {/* Existing attachments */}
+                    {attachments.length > 0 && (
+                      <div className="mb-4">
+                        <h5 className="text-xs text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-2">
+                          Current Attachments
+                        </h5>
+                        <div className="space-y-2">
+                          {attachments.map((attachment, index) => (
+                            <div key={index} className="flex items-center justify-between px-3 py-2.5 bg-gray-50 dark:bg-gray-700 rounded-lg">
+                              <div className="text-sm text-gray-700 dark:text-gray-300 truncate max-w-[calc(100%-40px)] flex items-center gap-2">
+                                <Upload className="w-4 h-4 text-gray-400 flex-shrink-0" />
+                                <span className="font-medium">{attachment}</span>
+                              </div>
+                              <button
+                                type="button"
+                                onClick={() => removeAttachment(index)}
+                                className="text-gray-400 hover:text-red-600 dark:hover:text-red-400 p-1.5 rounded-full hover:bg-gray-200 dark:hover:bg-gray-600"
+                                aria-label={`Remove attachment ${attachment}`}
+                              >
+                                <X className="w-4 h-4" />
+                              </button>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                    
+                    {/* File Upload */}
+                    <label 
+                      htmlFor="file-upload" 
+                      className="border-2 border-dashed dark:border-gray-600 rounded-xl p-4 sm:p-6 text-center flex flex-col items-center cursor-pointer hover:border-gray-400 dark:hover:border-gray-500 transition-colors"
+                    >
+                      <Upload className="w-7 h-7 sm:w-8 sm:h-8 text-gray-400 mb-2" />
+                      <div className="text-sm text-gray-600 dark:text-gray-400">
+                        <span className="text-blue-600 dark:text-blue-400 font-medium hover:underline">
+                          Upload files
+                        </span>
+                        <input
+                          id="file-upload"
+                          name="file-upload"
+                          type="file"
+                          multiple
+                          className="sr-only"
+                          onChange={handleFileUpload}
+                        />
+                        <p className="mt-1 text-xs sm:text-sm">Drag and drop or click to select</p>
+                      </div>
+                    </label>
+                    
+                    {/* New files */}
+                    {files.length > 0 && (
+                      <div className="mt-4">
+                        <h5 className="text-xs text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-2">
+                          New Attachments
+                        </h5>
+                        <div className="space-y-2">
+                          {files.map((file, index) => (
+                            <div key={index} className="flex items-center justify-between px-3 py-2.5 bg-gray-50 dark:bg-gray-700 rounded-lg">
+                              <div className="flex items-center text-sm truncate max-w-[calc(100%-40px)]">
+                                <div className="font-medium text-gray-900 dark:text-white truncate">
+                                  {file.name}
+                                </div>
+                                <div className="ml-2 text-gray-500 dark:text-gray-400 text-xs whitespace-nowrap">
+                                  ({(file.size / 1024).toFixed(1)} KB)
+                                </div>
+                              </div>
+                              <button
+                                type="button"
+                                onClick={() => removeFile(index)}
+                                className="text-gray-400 hover:text-red-600 dark:hover:text-red-400 p-1.5 rounded-full hover:bg-gray-200 dark:hover:bg-gray-600"
+                                aria-label={`Remove file ${file.name}`}
+                              >
+                                <X className="w-4 h-4" />
+                              </button>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
                   </div>
-                )}
-              </div>
-            </div>
+                </div>
+              </>
+            )}
           </div>
           
           <div className="flex flex-col sm:flex-row sm:justify-end gap-3 mt-6">
-              <button
-                type="button"
-                onClick={onClose}
-              className="px-6 py-2 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-xl hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
-              >
-                Cancel
-              </button>
-              <button
-                type="submit"
+            <button
+              type="button"
+              onClick={onClose}
+              className="px-5 py-2.5 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-xl hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500 text-sm font-medium"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
               disabled={isSubmitting}
-              className={`px-6 py-2 rounded-xl font-medium text-white ${
+              className={`px-5 py-2.5 rounded-xl font-medium text-white ${
                 isSubmitting ? 'bg-blue-400 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-700'
-              } transition-colors flex justify-center items-center gap-2`}
+              } transition-colors flex justify-center items-center gap-2 text-sm focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500`}
+              aria-busy={isSubmitting}
             >
               {isSubmitting ? (
                 <>
-                  <svg className="animate-spin h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                  <svg className="animate-spin h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                     <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                     <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                   </svg>
@@ -530,13 +886,13 @@ export function TaskEditModal({ task, onClose, onUpdate }: TaskEditModalProps) {
               ) : (
                 'Update Task'
               )}
-              </button>
+            </button>
           </div>
           
           {showSuccess && (
-            <div className="mt-4 p-3 bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-300 rounded-xl text-sm flex items-center gap-2">
-              <CheckCircle className="w-5 h-5" />
-              Task updated successfully!
+            <div className="mt-4 p-3 bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-300 rounded-xl text-sm flex items-center gap-2 animate-fadeIn">
+              <CheckCircle className="w-5 h-5 flex-shrink-0" />
+              <span>Task updated successfully!</span>
             </div>
           )}
         </form>

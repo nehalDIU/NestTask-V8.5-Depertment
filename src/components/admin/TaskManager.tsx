@@ -439,11 +439,11 @@ export function TaskManager({
   };
 
   return (
-    <div className="space-y-6 px-2 sm:px-0">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+    <div className="space-y-4 sm:space-y-6 px-1 sm:px-0">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4">
         <div className="flex flex-wrap items-center justify-start gap-2">
           <button
-            className="flex-1 sm:flex-none px-3 py-2.5 sm:py-2 sm:px-4 bg-blue-600 text-white rounded-xl hover:bg-blue-700 transition-colors flex items-center justify-center gap-1 sm:gap-2 text-xs sm:text-sm font-medium shadow-sm whitespace-nowrap"
+            className="flex-1 sm:flex-none px-3 py-2 sm:py-2 sm:px-4 bg-blue-600 text-white rounded-xl hover:bg-blue-700 transition-colors flex items-center justify-center gap-1 sm:gap-2 text-xs sm:text-sm font-medium shadow-sm whitespace-nowrap"
             onClick={() => setShowTaskForm(!showTaskForm)}
             disabled={isLoading}
           >
@@ -462,8 +462,8 @@ export function TaskManager({
             onClick={() => setShowFilters(!showFilters)}
             disabled={isLoading}
           >
-            <Filter className="w-4 h-4" />
-            <span className="sm:inline">Filters</span>
+            <Filter className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+            <span>Filters</span>
           </button>
           
           <div className="flex items-center border border-gray-200 dark:border-gray-700 rounded-xl overflow-hidden">
@@ -472,14 +472,14 @@ export function TaskManager({
               onClick={() => setViewMode('table')}
               title="Table view"
             >
-              <List className="w-4 h-4" />
+              <List className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
             </button>
             <button
               className={`px-3 py-2 flex items-center justify-center ${viewMode === 'grid' ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300' : 'bg-white dark:bg-gray-800'}`}
               onClick={() => setViewMode('grid')}
               title="Grid view"
             >
-              <LayoutGrid className="w-4 h-4" />
+              <LayoutGrid className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
             </button>
           </div>
           
@@ -490,8 +490,8 @@ export function TaskManager({
               disabled={isLoading || filteredTasks.length === 0}
               title="Export to CSV"
             >
-              <Download className="w-4 h-4" />
-              <span className="sm:inline">Export</span>
+              <Download className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+              <span>Export</span>
             </button>
           </div>
         </div>
@@ -499,50 +499,53 @@ export function TaskManager({
         <div className="relative flex-1 sm:max-w-xs">
           <input
             type="text"
+            placeholder="Search tasks..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            placeholder="Search tasks..."
-            className="w-full pl-10 pr-10 py-2 border dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white text-sm"
+            className="w-full px-4 py-2 pe-10 border dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white text-sm"
+            disabled={isLoading}
           />
-          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
-          {searchTerm && (
-            <button
-              onClick={() => setSearchTerm('')}
-              className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
-            >
-              <X className="w-4 h-4" />
-            </button>
-          )}
+          <div className="absolute inset-y-0 right-0 flex items-center pr-3 text-gray-500 dark:text-gray-400">
+            {searchTerm ? (
+              <button
+                onClick={() => setSearchTerm('')}
+                className="hover:text-gray-700 dark:hover:text-gray-300"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            ) : (
+              <Search className="w-4 h-4" />
+            )}
+          </div>
         </div>
       </div>
       
-      {/* Filters Section */}
       {showFilters && (
-        <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-4">
-          <div className="flex items-center justify-between mb-4">
+        <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-3 sm:p-4">
+          <div className="flex items-center justify-between mb-3 sm:mb-4">
             <h3 className="text-sm font-medium text-gray-700 dark:text-gray-300">
               Filter Tasks
             </h3>
             <div className="flex items-center gap-2">
               <button
                 onClick={resetFilters}
-                className="text-xs flex items-center gap-1 text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300"
+                className="text-xs flex items-center gap-1 text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 py-1 px-2"
               >
-                <RotateCcw className="w-3.5 h-3.5" />
-                Reset Filters
+                <RotateCcw className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
+                Reset
               </button>
             </div>
           </div>
           
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 text-sm">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 text-sm">
             <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+              <label className="block text-xs sm:text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                 Status
               </label>
               <select
                 value={statusFilter}
                 onChange={(e) => setStatusFilter(e.target.value)}
-                className="w-full px-4 py-2 border dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white text-sm"
+                className="w-full px-3 py-2 border dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white text-xs sm:text-sm"
               >
                 <option value="all">All Statuses</option>
                 <option value="my-tasks">To Do</option>
@@ -552,13 +555,13 @@ export function TaskManager({
             </div>
             
             <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+              <label className="block text-xs sm:text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                 Category
               </label>
               <select
                 value={categoryFilter}
                 onChange={(e) => setCategoryFilter(e.target.value)}
-                className="w-full px-4 py-2 border dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white text-sm"
+                className="w-full px-3 py-2 border dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white text-xs sm:text-sm"
               >
                 <option value="all">All Categories</option>
                 <option value="assignment">Assignment</option>
@@ -579,13 +582,13 @@ export function TaskManager({
             </div>
             
             <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+              <label className="block text-xs sm:text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                 Priority
               </label>
               <select
                 value={priorityFilter}
                 onChange={(e) => setPriorityFilter(e.target.value)}
-                className="w-full px-4 py-2 border dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white text-sm"
+                className="w-full px-3 py-2 border dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white text-xs sm:text-sm"
               >
                 <option value="all">All Priorities</option>
                 <option value="high">High</option>
@@ -594,63 +597,14 @@ export function TaskManager({
               </select>
             </div>
             
-            <div className="sm:col-span-2 lg:col-span-1">
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                Sort By
-              </label>
-              <div className="flex gap-2">
-                <select
-                  value={sortBy}
-                  onChange={(e) => setSortBy(e.target.value as any)}
-                  className="flex-1 px-3 py-2 border dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white text-sm"
-                >
-                  <option value="dueDate">Due Date</option>
-                  <option value="createdAt">Creation Date</option>
-                  <option value="name">Task Name</option>
-                  <option value="category">Category</option>
-                  <option value="priority">Priority</option>
-                </select>
-                <button
-                  onClick={() => setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc')}
-                  className="px-3 py-2 border dark:border-gray-600 rounded-xl bg-gray-50 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-600"
-                >
-                  {sortOrder === 'asc' ? <SortAsc className="w-4 h-4" /> : <SortDesc className="w-4 h-4" />}
-                </button>
-              </div>
-            </div>
-            
             <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                Start Date
-              </label>
-              <input
-                type="date"
-                value={startDate}
-                onChange={(e) => setStartDate(e.target.value)}
-                className="w-full px-4 py-2 border dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white text-sm"
-              />
-            </div>
-            
-            <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                End Date
-              </label>
-              <input
-                type="date"
-                value={endDate}
-                onChange={(e) => setEndDate(e.target.value)}
-                className="w-full px-4 py-2 border dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white text-sm"
-              />
-            </div>
-            
-            <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+              <label className="block text-xs sm:text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                 Page Size
               </label>
               <select
                 value={pageSize}
                 onChange={(e) => setPageSize(Number(e.target.value))}
-                className="w-full px-4 py-2 border dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white text-sm"
+                className="w-full px-3 py-2 border dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white text-xs sm:text-sm"
               >
                 <option value="5">5 per page</option>
                 <option value="10">10 per page</option>
@@ -658,6 +612,32 @@ export function TaskManager({
                 <option value="50">50 per page</option>
                 <option value="100">100 per page</option>
               </select>
+            </div>
+
+            <div className="sm:col-span-2">
+              <label className="block text-xs sm:text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                Date Range
+              </label>
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <input
+                    type="date"
+                    value={startDate}
+                    onChange={(e) => setStartDate(e.target.value)}
+                    className="w-full px-3 py-2 border dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white text-xs sm:text-sm"
+                    placeholder="Start date"
+                  />
+                </div>
+                <div>
+                  <input
+                    type="date"
+                    value={endDate}
+                    onChange={(e) => setEndDate(e.target.value)}
+                    className="w-full px-3 py-2 border dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white text-xs sm:text-sm"
+                    placeholder="End date"
+                  />
+                </div>
+              </div>
             </div>
           </div>
         </div>
@@ -675,31 +655,31 @@ export function TaskManager({
             <button
               onClick={() => handleBulkStatusUpdate('completed')}
               disabled={isProcessingBulk}
-              className="px-3 py-1.5 text-xs sm:text-sm bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:bg-green-300 disabled:cursor-not-allowed flex items-center gap-1"
+              className="px-2.5 py-1.5 text-xs bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:bg-green-300 disabled:cursor-not-allowed flex items-center gap-1"
             >
-              <CheckSquare className="w-3.5 h-3.5" />
-              Mark Completed
+              <CheckSquare className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
+              <span className="sm:inline">Complete</span>
             </button>
             <button
               onClick={() => handleBulkStatusUpdate('in-progress')}
               disabled={isProcessingBulk}
-              className="px-3 py-1.5 text-xs sm:text-sm bg-yellow-600 text-white rounded-lg hover:bg-yellow-700 disabled:bg-yellow-300 disabled:cursor-not-allowed flex items-center gap-1"
+              className="px-2.5 py-1.5 text-xs bg-yellow-600 text-white rounded-lg hover:bg-yellow-700 disabled:bg-yellow-300 disabled:cursor-not-allowed flex items-center gap-1"
             >
-              <CheckSquare className="w-3.5 h-3.5" />
-              Mark In Progress
+              <CheckSquare className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
+              <span className="sm:inline">Progress</span>
             </button>
             <button
               onClick={handleBulkDelete}
               disabled={isProcessingBulk}
-              className="px-3 py-1.5 text-xs sm:text-sm bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:bg-red-300 disabled:cursor-not-allowed flex items-center gap-1"
+              className="px-2.5 py-1.5 text-xs bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:bg-red-300 disabled:cursor-not-allowed flex items-center gap-1"
             >
-              <Trash2 className="w-3.5 h-3.5" />
-              Delete
+              <Trash2 className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
+              <span className="sm:inline">Delete</span>
             </button>
             <button
               onClick={() => setSelectedTaskIds([])}
               disabled={isProcessingBulk}
-              className="px-3 py-1.5 text-xs sm:text-sm bg-gray-600 text-white rounded-lg hover:bg-gray-700 disabled:bg-gray-300 disabled:cursor-not-allowed"
+              className="px-2.5 py-1.5 text-xs bg-gray-600 text-white rounded-lg hover:bg-gray-700 disabled:bg-gray-300 disabled:cursor-not-allowed"
             >
               Cancel
             </button>
@@ -709,8 +689,8 @@ export function TaskManager({
       
       {isLoading ? (
         <div className="flex items-center justify-center py-12">
-          <Loader2 className="w-8 h-8 text-blue-500 animate-spin" />
-          <span className="ml-3 text-gray-600 dark:text-gray-400">Loading tasks...</span>
+          <Loader2 className="w-6 h-6 sm:w-8 sm:h-8 text-blue-500 animate-spin" />
+          <span className="ml-3 text-gray-600 dark:text-gray-400 text-sm sm:text-base">Loading tasks...</span>
         </div>
       ) : (
         <>
@@ -724,8 +704,8 @@ export function TaskManager({
           )}
           
           {filteredTasks.length === 0 ? (
-            <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-12 text-center">
-              <p className="text-gray-500 dark:text-gray-400 mb-4">
+            <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6 sm:p-12 text-center">
+              <p className="text-gray-500 dark:text-gray-400 mb-4 text-sm sm:text-base">
                 {tasks.length === 0 
                   ? 'No tasks available yet' 
                   : 'No tasks match your search criteria'}
@@ -733,9 +713,9 @@ export function TaskManager({
               {tasks.length > 0 && (
                 <button
                   onClick={resetFilters}
-                  className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm inline-flex items-center gap-2"
+                  className="px-3 sm:px-4 py-1.5 sm:py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-xs sm:text-sm inline-flex items-center gap-2"
                 >
-                  <RotateCcw className="w-4 h-4" />
+                  <RotateCcw className="w-3 h-3 sm:w-4 sm:h-4" />
                   Reset Filters
                 </button>
               )}
@@ -743,71 +723,82 @@ export function TaskManager({
           ) : (
             <>
               {/* Task Analytics - moved to appear after the task form */}
-              <div className="mb-6">
+              <div className="mb-4 sm:mb-6">
                 <TaskStats tasks={filteredTasks} />
               </div>
 
               {/* Task Table with bulk selection */}
-              <div>
-                <TaskTable 
-                  tasks={paginatedTasks} 
-                  onDeleteTask={handleDeleteTask} 
-                  onUpdateTask={handleUpdateTask}
-                  isSectionAdmin={isSectionAdmin}
-                  viewMode={viewMode}
-                  selectedTaskIds={selectedTaskIds}
-                  onToggleSelection={toggleTaskSelection}
-                  onSelectAll={selectAllTasks}
-                  sortBy={sortBy}
-                  sortOrder={sortOrder}
-                  onSort={(field) => {
-                    if (sortBy === field) {
-                      setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc');
-                    } else {
-                      setSortBy(field as any);
-                      setSortOrder('asc');
-                    }
-                  }}
-                />
-                
-                {/* Pagination */}
-                {totalPages > 1 && (
-                  <div className="flex items-center justify-between mt-4 text-sm">
-                    <div className="text-gray-600 dark:text-gray-400">
-                      Showing {Math.min((page - 1) * pageSize + 1, filteredTasks.length)} to {Math.min(page * pageSize, filteredTasks.length)} of {filteredTasks.length} tasks
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <button
-                        onClick={() => setPage(Math.max(1, page - 1))}
-                        disabled={page === 1}
-                        className="p-2 rounded-lg border dark:border-gray-700 disabled:opacity-50 disabled:cursor-not-allowed"
-                      >
-                        <ChevronLeft className="w-4 h-4" />
-                      </button>
-                      
-                      <select
-                        value={page}
-                        onChange={(e) => setPage(Number(e.target.value))}
-                        className="bg-white dark:bg-gray-800 border dark:border-gray-700 rounded-lg px-2 py-1"
-                      >
-                        {Array.from({ length: totalPages }, (_, i) => (
-                          <option key={i + 1} value={i + 1}>
-                            Page {i + 1}
-                          </option>
-                        ))}
-                      </select>
-                      
-                      <button
-                        onClick={() => setPage(Math.min(totalPages, page + 1))}
-                        disabled={page === totalPages}
-                        className="p-2 rounded-lg border dark:border-gray-700 disabled:opacity-50 disabled:cursor-not-allowed"
-                      >
-                        <ChevronRight className="w-4 h-4" />
-                      </button>
-                    </div>
+              <TaskTable
+                tasks={paginatedTasks}
+                onDeleteTask={handleDeleteTask}
+                onUpdateTask={handleUpdateTask}
+                isSectionAdmin={isSectionAdmin}
+                viewMode={viewMode}
+                selectedTaskIds={selectedTaskIds}
+                onToggleSelection={toggleTaskSelection}
+                onSelectAll={selectAllTasks}
+                sortBy={sortBy}
+                sortOrder={sortOrder}
+                onSort={(field) => {
+                  if (sortBy === field) {
+                    setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc');
+                  } else {
+                    setSortBy(field as any);
+                    setSortOrder('asc');
+                  }
+                }}
+              />
+              
+              {/* Pagination Controls */}
+              {totalPages > 1 && (
+                <div className="flex flex-wrap items-center justify-between gap-3 mt-4 text-sm">
+                  <div className="text-gray-600 dark:text-gray-400">
+                    Showing {Math.min((page - 1) * pageSize + 1, sortedTasks.length)} - {Math.min(page * pageSize, sortedTasks.length)} of {sortedTasks.length}
                   </div>
-                )}
-              </div>
+                  
+                  <div className="flex items-center justify-center gap-1">
+                    <button 
+                      onClick={() => setPage(1)} 
+                      disabled={page === 1}
+                      className="p-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                      aria-label="First page"
+                    >
+                      <ChevronLeft className="w-3 h-3 sm:w-4 sm:h-4" />
+                      <ChevronLeft className="w-3 h-3 sm:w-4 sm:h-4 -ml-2" />
+                    </button>
+                    <button 
+                      onClick={() => setPage(p => Math.max(1, p - 1))} 
+                      disabled={page === 1}
+                      className="p-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                      aria-label="Previous page"
+                    >
+                      <ChevronLeft className="w-3 h-3 sm:w-4 sm:h-4" />
+                    </button>
+                    
+                    <div className="px-2 sm:px-3 py-1 text-xs sm:text-sm">
+                      {page} / {totalPages}
+                    </div>
+                    
+                    <button 
+                      onClick={() => setPage(p => Math.min(totalPages, p + 1))} 
+                      disabled={page === totalPages}
+                      className="p-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                      aria-label="Next page"
+                    >
+                      <ChevronRight className="w-3 h-3 sm:w-4 sm:h-4" />
+                    </button>
+                    <button 
+                      onClick={() => setPage(totalPages)} 
+                      disabled={page === totalPages}
+                      className="p-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                      aria-label="Last page"
+                    >
+                      <ChevronRight className="w-3 h-3 sm:w-4 sm:h-4" />
+                      <ChevronRight className="w-3 h-3 sm:w-4 sm:h-4 -ml-2" />
+                    </button>
+                  </div>
+                </div>
+              )}
             </>
           )}
         </>

@@ -390,6 +390,10 @@ export const TaskStats = memo(({ tasks }: TaskStatsProps) => {
   // Time filter handler
   const handleTimeFilterChange = useCallback((filter: 'all' | '30days' | '7days') => {
     setTimeFilter(filter);
+    setAnimateChart(false);
+    setTimeout(() => {
+      setAnimateChart(true);
+    }, 100);
   }, []);
 
   // Chart type handler
@@ -719,204 +723,318 @@ export const TaskStats = memo(({ tasks }: TaskStatsProps) => {
     </div>
   ), [timelineChartData, timelineStats]);
 
+  // Memoize chart data
+  const getCategoryChartData = useCallback(() => {
+    const labels = Object.keys(categoryStats).map(getCategoryName);
+    const data = Object.values(categoryStats);
+
+    return {
+      labels,
+      datasets: [
+        {
+          label: 'Tasks by Category',
+          data,
+          backgroundColor: Object.keys(categoryStats).map((_, i) => categoryColorMap[i % categoryColorMap.length]),
+          borderWidth: 1,
+        },
+      ],
+    };
+  }, [categoryStats, getCategoryName]);
+
+  const getStatusChartData = useCallback(() => {
+    const statuses = ['To Do', 'In Progress', 'Completed', 'Overdue'];
+    const statusValues = [statusStats.todo, statusStats.inProgress, statusStats.completed, statusStats.overdue];
+    
+    return {
+      labels: statuses,
+      datasets: [
+        {
+          label: 'Tasks by Status',
+          data: statusValues,
+          backgroundColor: ['rgba(59, 130, 246, 0.7)', 'rgba(245, 158, 11, 0.7)', 'rgba(16, 185, 129, 0.7)', 'rgba(239, 68, 68, 0.7)'],
+          borderWidth: 1,
+        },
+      ],
+    };
+  }, [statusStats]);
+
+  const getTimelineChartData = useCallback(() => {
+    const timelineLabels = ['Today', 'Tomorrow', 'This Week', 'Later', 'Overdue'];
+    const timelineValues = [
+      timelineStats.today,
+      timelineStats.tomorrow,
+      timelineStats.thisWeek,
+      timelineStats.later,
+      timelineStats.overdue,
+    ];
+
+    return {
+      labels: timelineLabels,
+      datasets: [
+        {
+          label: 'Task Timeline',
+          data: timelineValues,
+          backgroundColor: [
+            'rgba(239, 68, 68, 0.7)',    // red - today
+            'rgba(245, 158, 11, 0.7)',   // yellow - tomorrow
+            'rgba(249, 115, 22, 0.7)',   // orange - this week
+            'rgba(59, 130, 246, 0.7)',   // blue - later
+            'rgba(168, 85, 247, 0.7)',   // purple - overdue
+          ],
+          borderWidth: 1,
+        },
+      ],
+    };
+  }, [timelineStats]);
+
+  // Function to get data for export
+  const getExportData = useCallback(() => {
+    const data = [];
+    
+    // Add status data
+    data.push(['Status', 'Count', 'Percentage']);
+    data.push(['To Do', statusStats.todo, `${getPercentage(statusStats.todo)}%`]);
+    data.push(['In Progress', statusStats.inProgress, `${getPercentage(statusStats.inProgress)}%`]);
+    data.push(['Completed', statusStats.completed, `${getPercentage(statusStats.completed)}%`]);
+    data.push(['Overdue', statusStats.overdue, `${getPercentage(statusStats.overdue)}%`]);
+    
+    // Add categories
+    data.push([]);
+    data.push(['Category', 'Count', 'Percentage']);
+    Object.entries(categoryStats).forEach(([category, count]) => {
+      data.push([getCategoryName(category), count, `${getPercentage(count)}%`]);
+    });
+    
+    // Add timeline
+    data.push([]);
+    data.push(['Timeline', 'Count', 'Percentage']);
+    data.push(['Today', timelineStats.today, `${getPercentage(timelineStats.today)}%`]);
+    data.push(['Tomorrow', timelineStats.tomorrow, `${getPercentage(timelineStats.tomorrow)}%`]);
+    data.push(['This Week', timelineStats.thisWeek, `${getPercentage(timelineStats.thisWeek)}%`]);
+    data.push(['Later', timelineStats.later, `${getPercentage(timelineStats.later)}%`]);
+    data.push(['Overdue', timelineStats.overdue, `${getPercentage(timelineStats.overdue)}%`]);
+    
+    return data;
+  }, [statusStats, categoryStats, timelineStats, getPercentage, getCategoryName]);
+
   // Rendering the component with performance optimizations
   return (
-    <div className="bg-white dark:bg-gray-800 rounded-xl shadow-md overflow-hidden border border-gray-100 dark:border-gray-700 transition-all duration-300 hover:shadow-lg">
-      <div className="px-3 sm:px-4 py-3 sm:py-4 border-b border-gray-200 dark:border-gray-700 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 sm:gap-0 bg-gradient-to-r from-gray-50 to-white dark:from-gray-800 dark:to-gray-750">
-        <div>
-          <h3 className="text-sm sm:text-base font-semibold text-gray-800 dark:text-white">Task Analytics</h3>
-          <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
-            {filteredTasks.length} total task{filteredTasks.length !== 1 ? 's' : ''}
-          </p>
-        </div>
-        
-        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 sm:gap-3 w-full sm:w-auto">
-          {/* Time Filter */}
-          <div className="flex items-center bg-gray-100 dark:bg-gray-700 rounded-lg p-0.5 h-8 self-end">
-            <button
-              className={`text-xs px-2 py-1 rounded-md transition-colors ${
-                timeFilter === 'all' 
-                  ? 'bg-white dark:bg-gray-800 text-blue-600 dark:text-blue-400 shadow-sm' 
-                  : 'text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
-              }`}
-              onClick={() => handleTimeFilterChange('all')}
-            >
-              All Time
-            </button>
-            <button
-              className={`text-xs px-2 py-1 rounded-md transition-colors ${
-                timeFilter === '30days' 
-                  ? 'bg-white dark:bg-gray-800 text-blue-600 dark:text-blue-400 shadow-sm' 
-                  : 'text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
-              }`}
-              onClick={() => handleTimeFilterChange('30days')}
-            >
-              30 Days
-            </button>
-            <button
-              className={`text-xs px-2 py-1 rounded-md transition-colors ${
-                timeFilter === '7days' 
-                  ? 'bg-white dark:bg-gray-800 text-blue-600 dark:text-blue-400 shadow-sm' 
-                  : 'text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
-              }`}
-              onClick={() => handleTimeFilterChange('7days')}
-            >
-              7 Days
-            </button>
+    <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm overflow-hidden" ref={chartRef}>
+      <div className="p-3 sm:p-4 border-b border-gray-200 dark:border-gray-700">
+        <div className="flex flex-wrap sm:flex-nowrap items-center justify-between gap-3">
+          <div className="flex flex-col">
+            <h3 className="text-base sm:text-lg font-semibold text-gray-900 dark:text-white">Task Analytics</h3>
+            <p className="text-xs sm:text-sm text-gray-500 dark:text-gray-400">
+              {filteredTasks.length} tasks {timeFilter !== 'all' ? (timeFilter === '7days' ? '(last 7 days)' : '(last 30 days)') : ''}
+            </p>
           </div>
-          
-          {/* Action Buttons */}
-          <div className="flex items-center gap-1 self-end">
-            <CSVLink 
-              data={
-                activeChart === 'status' 
-                  ? csvData.statusData 
-                  : activeChart === 'category' 
-                    ? csvData.categoryData 
-                    : csvData.timelineData
-              }
-              filename={`task-analytics-${activeChart}-${new Date().toISOString().split('T')[0]}.csv`}
-              className="p-1.5 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-md transition-colors"
-              target="_blank"
-              onClick={handleExport}
-            >
-              <Download size={16} />
-            </CSVLink>
-            <button
-              onClick={handlePrint}
-              className="p-1.5 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-md transition-colors"
-              aria-label="Print report"
-            >
-              <FileText size={16} />
-            </button>
-          </div>
-          
-          {/* Chart Type Selector */}
-          <div className="flex items-center gap-1.5 sm:gap-2 bg-gray-100/80 dark:bg-gray-700/50 p-0.5 rounded-lg">
-            <button 
-              className={`p-1.5 rounded-md transition-all duration-150 ${
-                activeChart === 'status' 
-                  ? 'bg-white dark:bg-gray-800 text-blue-600 dark:text-blue-400 shadow-sm' 
-                  : 'text-gray-500 hover:bg-gray-200/50 dark:text-gray-400 dark:hover:bg-gray-700'
-              }`}
-              onClick={() => handleChartTypeChange('status')}
-              title="Status Distribution"
-            >
-              <PieChart className="w-4 h-4" />
-            </button>
-            <button 
-              className={`p-1.5 rounded-md transition-all duration-150 ${
-                activeChart === 'category' 
-                  ? 'bg-white dark:bg-gray-800 text-blue-600 dark:text-blue-400 shadow-sm' 
-                  : 'text-gray-500 hover:bg-gray-200/50 dark:text-gray-400 dark:hover:bg-gray-700'
-              }`}
-              onClick={() => handleChartTypeChange('category')}
-              title="Category Distribution"
-            >
-              <BarChart2 className="w-4 h-4" />
-            </button>
-            <button 
-              className={`p-1.5 rounded-md transition-all duration-150 ${
-                activeChart === 'timeline' 
-                  ? 'bg-white dark:bg-gray-800 text-blue-600 dark:text-blue-400 shadow-sm'
-                  : 'text-gray-500 hover:bg-gray-200/50 dark:text-gray-400 dark:hover:bg-gray-700'
-              }`}
-              onClick={() => handleChartTypeChange('timeline')}
-              title="Timeline Distribution"
-            >
-              <Calendar className="w-4 h-4" />
-            </button>
-            <button 
-              className={`p-1.5 rounded-md transition-all duration-150 ${
-                activeChart === 'trend' 
-                  ? 'bg-white dark:bg-gray-800 text-blue-600 dark:text-blue-400 shadow-sm'
-                  : 'text-gray-500 hover:bg-gray-200/50 dark:text-gray-400 dark:hover:bg-gray-700'
-              }`}
-              onClick={() => handleChartTypeChange('trend')}
-              title="Trend Analysis"
-            >
-              <LineChart className="w-4 h-4" />
-            </button>
+
+          <div className="flex flex-wrap gap-2 sm:gap-3">
+            <div className="inline-flex rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden">
+              <button
+                onClick={() => handleTimeFilterChange('all')}
+                className={`px-2 sm:px-3 py-1 text-xs sm:text-sm ${
+                  timeFilter === 'all'
+                    ? 'bg-blue-600 text-white'
+                    : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700'
+                }`}
+              >
+                All Time
+              </button>
+              <button
+                onClick={() => handleTimeFilterChange('30days')}
+                className={`px-2 sm:px-3 py-1 text-xs sm:text-sm ${
+                  timeFilter === '30days'
+                    ? 'bg-blue-600 text-white'
+                    : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700'
+                }`}
+              >
+                30 Days
+              </button>
+              <button
+                onClick={() => handleTimeFilterChange('7days')}
+                className={`px-2 sm:px-3 py-1 text-xs sm:text-sm ${
+                  timeFilter === '7days'
+                    ? 'bg-blue-600 text-white'
+                    : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700'
+                }`}
+              >
+                7 Days
+              </button>
+            </div>
+            
+            <div className="inline-flex text-xs sm:text-sm">
+              <CSVLink
+                data={getExportData()}
+                filename={`task-stats-${new Date().toISOString().slice(0, 10)}.csv`}
+                className="px-2 sm:px-3 py-1 rounded-lg bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 border border-gray-200 dark:border-gray-700 inline-flex items-center gap-1"
+              >
+                <Download className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
+                <span className="hidden sm:inline">Export</span>
+              </CSVLink>
+            </div>
           </div>
         </div>
       </div>
 
       <div className="p-3 sm:p-4">
-        {filteredTasks.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-8 sm:py-10">
-            <Archive className="w-10 h-10 text-gray-300 dark:text-gray-600 mb-2" />
-            <p className="text-sm text-gray-500 dark:text-gray-400">No tasks available</p>
-            <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">Create tasks to see analytics</p>
-          </div>
-        ) : (
-          <div 
-            className={`transition-opacity duration-300 ${animateChart ? 'opacity-100' : 'opacity-0'}`} 
-            ref={chartRef}
-          >
-            {/* Render only the active chart for better performance */}
-            {activeChart === 'status' && StatusChart}
-            {activeChart === 'category' && CategoryChart}
-            {activeChart === 'timeline' && TimelineChart}
-            
-            {/* Trend Chart - keep this part inline since it's simpler */}
-            {activeChart === 'trend' && (
-              <div className="space-y-4">
-                <div className="flex justify-between items-center">
-                  <h4 className="text-sm font-medium text-gray-700 dark:text-gray-300">Task Completion Trend</h4>
-                  <div className="bg-blue-50 dark:bg-blue-900/20 py-1 px-2 rounded-md">
-                    <span className="text-xs font-medium text-blue-600 dark:text-blue-400 flex items-center">
-                      <Zap className="w-3 h-3 mr-1" />
-                      {completionRate}% Completed
-                    </span>
-                  </div>
-                </div>
-                
-                {/* Insight cards */}
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-4">
-                  <div className="bg-gradient-to-br from-blue-50 to-blue-100/50 dark:from-blue-800/20 dark:to-blue-900/10 p-3 rounded-lg border border-blue-100 dark:border-blue-900/30 shadow-sm">
-                    <div className="flex items-center gap-2 mb-1">
-                      <CheckSquare className="w-4 h-4 text-blue-500 dark:text-blue-400" />
-                      <span className="text-xs font-medium text-gray-700 dark:text-gray-300">Completion Rate</span>
-                    </div>
-                    <div className="flex items-end mt-1">
-                      <span className="text-xl font-bold text-gray-800 dark:text-white">{completionRate}%</span>
-                      <span className="text-xs text-green-600 dark:text-green-400 ml-2 flex items-center">
-                        <ArrowUpRight className="w-3 h-3 mr-0.5" />
-                        Last 7 days
-                      </span>
-                    </div>
-                  </div>
-                  
-                  <div className="bg-gradient-to-br from-orange-50 to-orange-100/50 dark:from-orange-800/20 dark:to-orange-900/10 p-3 rounded-lg border border-orange-100 dark:border-orange-900/30 shadow-sm">
-                    <div className="flex items-center gap-2 mb-1">
-                      <Clock className="w-4 h-4 text-orange-500 dark:text-orange-400" />
-                      <span className="text-xs font-medium text-gray-700 dark:text-gray-300">In Progress</span>
-                    </div>
-                    <div className="flex items-end mt-1">
-                      <span className="text-xl font-bold text-gray-800 dark:text-white">{statusStats.inProgress}</span>
-                      <span className="text-xs text-orange-600 dark:text-orange-400 ml-2 flex items-center">
-                        {filteredTasks.length > 0 ? Math.round((statusStats.inProgress / filteredTasks.length) * 100) : 0}% of tasks
-                      </span>
-                    </div>
-                  </div>
-                  
-                  <div className="bg-gradient-to-br from-red-50 to-red-100/50 dark:from-red-800/20 dark:to-red-900/10 p-3 rounded-lg border border-red-100 dark:border-red-900/30 shadow-sm">
-                    <div className="flex items-center gap-2 mb-1">
-                      <XCircle className="w-4 h-4 text-red-500 dark:text-red-400" />
-                      <span className="text-xs font-medium text-gray-700 dark:text-gray-300">Overdue</span>
-                    </div>
-                    <div className="flex items-end mt-1">
-                      <span className="text-xl font-bold text-gray-800 dark:text-white">{statusStats.overdue}</span>
-                      <span className="text-xs text-red-600 dark:text-red-400 ml-2 flex items-center">
-                        {filteredTasks.length > 0 ? Math.round((statusStats.overdue / filteredTasks.length) * 100) : 0}% of tasks
-                      </span>
-                    </div>
-                  </div>
-                </div>
+        {/* Summary Stats */}
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-4 mb-4">
+          <div className="bg-blue-50 dark:bg-blue-900/10 p-3 rounded-lg">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-xs text-gray-600 dark:text-gray-400">To Do</p>
+                <h4 className="text-lg sm:text-xl font-bold text-blue-600 dark:text-blue-400">{statusStats.todo}</h4>
               </div>
+              <div className="p-2 bg-blue-100 dark:bg-blue-800/30 rounded-full">
+                <ListTodo className="w-3.5 h-3.5 sm:w-5 sm:h-5 text-blue-600 dark:text-blue-400" />
+              </div>
+            </div>
+            <div className="mt-2">
+              <div className="w-full bg-blue-200 dark:bg-blue-800/20 rounded-full h-1.5">
+                <div className="bg-blue-600 dark:bg-blue-500 h-1.5 rounded-full" style={{ width: `${getPercentage(statusStats.todo)}%` }}></div>
+              </div>
+              <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">{getPercentage(statusStats.todo)}% of total</p>
+            </div>
+          </div>
+
+          <div className="bg-yellow-50 dark:bg-yellow-900/10 p-3 rounded-lg">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-xs text-gray-600 dark:text-gray-400">In Progress</p>
+                <h4 className="text-lg sm:text-xl font-bold text-yellow-600 dark:text-yellow-400">{statusStats.inProgress}</h4>
+              </div>
+              <div className="p-2 bg-yellow-100 dark:bg-yellow-800/30 rounded-full">
+                <Clock className="w-3.5 h-3.5 sm:w-5 sm:h-5 text-yellow-600 dark:text-yellow-400" />
+              </div>
+            </div>
+            <div className="mt-2">
+              <div className="w-full bg-yellow-200 dark:bg-yellow-800/20 rounded-full h-1.5">
+                <div className="bg-yellow-600 dark:bg-yellow-500 h-1.5 rounded-full" style={{ width: `${getPercentage(statusStats.inProgress)}%` }}></div>
+              </div>
+              <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">{getPercentage(statusStats.inProgress)}% of total</p>
+            </div>
+          </div>
+
+          <div className="bg-green-50 dark:bg-green-900/10 p-3 rounded-lg">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-xs text-gray-600 dark:text-gray-400">Completed</p>
+                <h4 className="text-lg sm:text-xl font-bold text-green-600 dark:text-green-400">{statusStats.completed}</h4>
+              </div>
+              <div className="p-2 bg-green-100 dark:bg-green-800/30 rounded-full">
+                <CheckCircle className="w-3.5 h-3.5 sm:w-5 sm:h-5 text-green-600 dark:text-green-400" />
+              </div>
+            </div>
+            <div className="mt-2">
+              <div className="w-full bg-green-200 dark:bg-green-800/20 rounded-full h-1.5">
+                <div className="bg-green-600 dark:bg-green-500 h-1.5 rounded-full" style={{ width: `${getPercentage(statusStats.completed)}%` }}></div>
+              </div>
+              <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">{getPercentage(statusStats.completed)}% of total</p>
+            </div>
+          </div>
+
+          <div className="bg-red-50 dark:bg-red-900/10 p-3 rounded-lg">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-xs text-gray-600 dark:text-gray-400">Overdue</p>
+                <h4 className="text-lg sm:text-xl font-bold text-red-600 dark:text-red-400">{statusStats.overdue}</h4>
+              </div>
+              <div className="p-2 bg-red-100 dark:bg-red-800/30 rounded-full">
+                <AlertCircle className="w-3.5 h-3.5 sm:w-5 sm:h-5 text-red-600 dark:text-red-400" />
+              </div>
+            </div>
+            <div className="mt-2">
+              <div className="w-full bg-red-200 dark:bg-red-800/20 rounded-full h-1.5">
+                <div className="bg-red-600 dark:bg-red-500 h-1.5 rounded-full" style={{ width: `${getPercentage(statusStats.overdue)}%` }}></div>
+              </div>
+              <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">{getPercentage(statusStats.overdue)}% of total</p>
+            </div>
+          </div>
+        </div>
+
+        {/* Chart Type Selection */}
+        <div className="border-t border-gray-200 dark:border-gray-700 pt-4 mb-4">
+          <div className="flex flex-wrap gap-2 mb-4">
+            <button
+              className={`px-2.5 py-1.5 text-xs sm:text-sm rounded-lg flex items-center gap-1.5 ${
+                activeChart === 'category'
+                  ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300'
+                  : 'bg-gray-100 text-gray-600 hover:bg-gray-200 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700'
+              }`}
+              onClick={() => setActiveChart('category')}
+            >
+              <PieChartIcon className="w-3.5 h-3.5" />
+              <span>By Category</span>
+            </button>
+            <button
+              className={`px-2.5 py-1.5 text-xs sm:text-sm rounded-lg flex items-center gap-1.5 ${
+                activeChart === 'status'
+                  ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300'
+                  : 'bg-gray-100 text-gray-600 hover:bg-gray-200 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700'
+              }`}
+              onClick={() => setActiveChart('status')}
+            >
+              <BarChart className="w-3.5 h-3.5" />
+              <span>By Status</span>
+            </button>
+            <button
+              className={`px-2.5 py-1.5 text-xs sm:text-sm rounded-lg flex items-center gap-1.5 ${
+                activeChart === 'timeline'
+                  ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300'
+                  : 'bg-gray-100 text-gray-600 hover:bg-gray-200 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700'
+              }`}
+              onClick={() => setActiveChart('timeline')}
+            >
+              <Calendar className="w-3.5 h-3.5" />
+              <span>Timeline</span>
+            </button>
+          </div>
+
+          <div className="h-60 sm:h-72">
+            {activeChart === 'category' && (
+              <>
+                {Object.keys(categoryStats).length > 0 ? (
+                  <div className="h-full">
+                    <Pie data={getCategoryChartData()} options={chartOptions} />
+                  </div>
+                ) : (
+                  <div className="h-full flex items-center justify-center">
+                    <p className="text-sm text-gray-500 dark:text-gray-400">No category data available</p>
+                  </div>
+                )}
+              </>
+            )}
+            
+            {activeChart === 'status' && (
+              <>
+                {filteredTasks.length > 0 ? (
+                  <div className="h-full">
+                    <Bar data={getStatusChartData()} options={chartOptions} />
+                  </div>
+                ) : (
+                  <div className="h-full flex items-center justify-center">
+                    <p className="text-sm text-gray-500 dark:text-gray-400">No status data available</p>
+                  </div>
+                )}
+              </>
+            )}
+            
+            {activeChart === 'timeline' && (
+              <>
+                {filteredTasks.length > 0 ? (
+                  <div className="h-full">
+                    <Bar data={getTimelineChartData()} options={chartOptions} />
+                  </div>
+                ) : (
+                  <div className="h-full flex items-center justify-center">
+                    <p className="text-sm text-gray-500 dark:text-gray-400">No timeline data available</p>
+                  </div>
+                )}
+              </>
             )}
           </div>
-        )}
+        </div>
       </div>
     </div>
   );

@@ -1091,3 +1091,6 @@ const MonthlyCalendarBase = ({ isOpen, onClose, selectedDate, onSelectDate, task
 // Export the memoized component to prevent unnecessary re-renders
 export const MonthlyCalendar = memo(MonthlyCalendarBase);
 
+// Default export for lazy loading
+export default { MonthlyCalendar };
+

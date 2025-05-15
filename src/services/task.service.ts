@@ -10,21 +10,35 @@ import { mapTaskFromDB } from '../utils/taskMapper';
  */
 export const fetchTasks = async (userId: string, sectionId?: string | null): Promise<Task[]> => {
   try {
+    // For development environment, return faster with reduced logging
+    if (process.env.NODE_ENV === 'development') {
+      let query = supabase.from('tasks').select('*');
+      query = query.order('created_at', { ascending: false });
+      const { data, error } = await query;
+      
+      if (error) throw error;
+      return data.map(mapTaskFromDB);
+    }
+    
+    // Performance optimization: Use a timeout for the query
+    const QUERY_TIMEOUT = 8000; // 8 seconds
+    
+    // Create abort controller for the timeout
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), QUERY_TIMEOUT);
+    
     // Get user metadata to determine role
-    const { data: { user } } = await supabase.auth.getUser();
+    const { data: { user } } = await supabase.auth.getUser({
+      abortSignal: controller.signal
+    });
+    
     const userRole = user?.user_metadata?.role;
     const userSectionId = sectionId || user?.user_metadata?.section_id;
-    
-    console.log('[Debug] Fetching tasks with:', { 
-      userId, 
-      userRole, 
-      sectionId,
-      userMetadataSectionId: user?.user_metadata?.section_id,
-      finalSectionId: userSectionId 
-    });
 
     // Start query builder - no filters needed as RLS handles permissions
-    let query = supabase.from('tasks').select('*');
+    let query = supabase.from('tasks').select('*', { 
+      abortSignal: controller.signal
+    });
 
     // We only need to order the results, the Row Level Security policy 
     // will handle filtering based on user_id, is_admin_task, and section_id
@@ -32,6 +46,9 @@ export const fetchTasks = async (userId: string, sectionId?: string | null): Pro
 
     // Execute the query
     const { data, error } = await query;
+
+    // Clear the timeout
+    clearTimeout(timeoutId);
 
     if (error) {
       console.error('Error fetching tasks:', error);
@@ -41,14 +58,17 @@ export const fetchTasks = async (userId: string, sectionId?: string | null): Pro
     // Map database response to Task type
     const tasks = data.map(mapTaskFromDB);
     
-    console.log(`[Debug] Fetched ${tasks.length} tasks for user ${userId}`);
-    if (tasks.length > 0) {
-      console.log('[Debug] Sample task data:', {
-        id: tasks[0].id,
-        name: tasks[0].name,
-        sectionId: tasks[0].sectionId,
-        isAdminTask: tasks[0].isAdminTask
-      });
+    // Minimal logging in production
+    if (process.env.NODE_ENV !== 'production') {
+      console.log(`[Debug] Fetched ${tasks.length} tasks for user ${userId}`);
+      if (tasks.length > 0) {
+        console.log('[Debug] Sample task data:', {
+          id: tasks[0].id,
+          name: tasks[0].name,
+          sectionId: tasks[0].sectionId,
+          isAdminTask: tasks[0].isAdminTask
+        });
+      }
     }
 
     // Additional debug for section tasks
@@ -64,6 +84,12 @@ export const fetchTasks = async (userId: string, sectionId?: string | null): Pro
 
     return tasks;
   } catch (error: any) {
+    // Check if this is an AbortError (timeout)
+    if (error.name === 'AbortError') {
+      console.error('Task fetch timed out');
+      throw new Error('Task fetch timed out. Please try again.');
+    }
+    
     console.error('Error in fetchTasks:', error);
     throw new Error(`Failed to fetch tasks: ${error.message}`);
   }

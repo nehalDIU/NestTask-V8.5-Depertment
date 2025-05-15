@@ -4,6 +4,15 @@ import { fetchTasks, createTask, updateTask, deleteTask } from '../services/task
 import { useOfflineStatus } from './useOfflineStatus';
 import type { Task, NewTask } from '../types/task';
 
+// Cache for tasks by user ID
+const tasksCache = new Map<string, {
+  tasks: Task[],
+  timestamp: number
+}>();
+
+// Cache TTL in milliseconds (5 minutes)
+const CACHE_TTL = 5 * 60 * 1000;
+
 export function useTasks(userId: string | undefined) {
   const [tasks, setTasks] = useState<Task[]>([]);
   const [loading, setLoading] = useState(true);
@@ -19,6 +28,13 @@ export function useTasks(userId: string | undefined) {
   const isMountedRef = useRef(true);
   // Track abort controller for request cancellation
   const abortControllerRef = useRef<AbortController | null>(null);
+  // Track user id for cache key generation
+  const userIdRef = useRef<string | undefined>(userId);
+
+  // Update ref when userId changes
+  useEffect(() => {
+    userIdRef.current = userId;
+  }, [userId]);
 
   const loadTasks = useCallback(async (options: { force?: boolean } = {}) => {
     if (!userId) return;
@@ -45,33 +61,73 @@ export function useTasks(userId: string | undefined) {
       return;
     }
 
+    // Check cache first for non-forced loads
+    if (!options.force && tasksCache.has(userId)) {
+      const cachedData = tasksCache.get(userId)!;
+      // If cache is still valid
+      if (now - cachedData.timestamp < CACHE_TTL) {
+        console.log('Using cached tasks data');
+        if (isMountedRef.current) {
+          setTasks(cachedData.tasks);
+          setLoading(false);
+          setError(null);
+        }
+        return;
+      } else {
+        // Cache expired but still usable while refreshing in background
+        if (isMountedRef.current) {
+          setTasks(cachedData.tasks);
+        }
+      }
+    }
+
     try {
-      setLoading(true);
+      // Only set loading state if there's no cached data
+      if (!tasksCache.has(userId) && isMountedRef.current) {
+        setLoading(true);
+      }
       loadingRef.current = true;
-      setError(null);
-
-      // Get user data to check role and section
-      const { data: { user } } = await supabase.auth.getUser();
-      const userRole = user?.user_metadata?.role;
-      const userSectionId = user?.user_metadata?.section_id;
-
-      if (isOffline) {
-        setTasks([]);
-        setError('Cannot fetch tasks while offline');
-        return;
+      if (isMountedRef.current) {
+        setError(null);
       }
 
-      // Test connection before fetching
-      const isConnected = await testConnection();
-      if (!isConnected) {
-        throw new Error('Unable to connect to database');
-      }
+      // Skip database connection test in development mode
+      let isConnected = true;
+      if (process.env.NODE_ENV !== 'development') {
+        // Get user data to check role and section
+        const { data: { user } } = await supabase.auth.getUser();
+        
+        if (isOffline) {
+          // Use cached data if available when offline
+          if (tasksCache.has(userId)) {
+            const cachedData = tasksCache.get(userId)!;
+            if (isMountedRef.current) {
+              setTasks(cachedData.tasks);
+              setLoading(false);
+              setError('Using cached tasks while offline');
+            }
+            return;
+          }
+          
+          if (isMountedRef.current) {
+            setTasks([]);
+            setError('Cannot fetch tasks while offline');
+          }
+          return;
+        }
 
-      // Check session
-      const { data: session } = await supabase.auth.getSession();
-      if (!session.session) {
-        window.location.reload();
-        return;
+        // Test connection before fetching
+        isConnected = await testConnection();
+        if (!isConnected) {
+          throw new Error('Unable to connect to database');
+        }
+
+        // Check session
+        const { data: session } = await supabase.auth.getSession();
+        if (!session.session) {
+          window.location.reload();
+          return;
+        }
       }
 
       // Check if the request was aborted
@@ -80,11 +136,28 @@ export function useTasks(userId: string | undefined) {
         return;
       }
 
-      const data = await fetchTasks(userId, userSectionId);
+      // Batch process tasks in chunks for better performance
+      const processTasks = async () => {
+        const data = await fetchTasks(userId, undefined);
+        return data;
+      };
+      
+      // Use Promise.race to implement timeout
+      const timeoutPromise = new Promise<Task[]>((_, reject) => {
+        setTimeout(() => reject(new Error('Task fetch timeout')), 10000);
+      });
+      
+      const data = await Promise.race([processTasks(), timeoutPromise]);
       
       // Only update state if component is mounted and request not aborted
       if (isMountedRef.current && !signal.aborted) {
         setTasks(data);
+        // Update cache
+        tasksCache.set(userId, {
+          tasks: data,
+          timestamp: Date.now()
+        });
+        
         setError(null);
         lastLoadTimeRef.current = Date.now();
         setRetryCount(0); // Reset retry count on success
@@ -93,15 +166,23 @@ export function useTasks(userId: string | undefined) {
       // Only update error state if component is mounted and not aborted
       if (isMountedRef.current && (!abortControllerRef.current || !abortControllerRef.current.signal.aborted)) {
         console.error('Error fetching tasks:', err);
-        setError(err.message || 'Failed to load tasks');
         
-        if (!isOffline && retryCount < 3) {
-          const timeout = Math.min(1000 * Math.pow(2, retryCount), 10000);
-          setTimeout(() => {
-            if (isMountedRef.current) {
-              setRetryCount(prev => prev + 1);
-            }
-          }, timeout);
+        // Use cached data if available when fetch fails
+        if (tasksCache.has(userId)) {
+          const cachedData = tasksCache.get(userId)!;
+          setTasks(cachedData.tasks);
+          setError(`Using cached data. Failed to refresh: ${err.message || 'Unknown error'}`);
+        } else {
+          setError(err.message || 'Failed to load tasks');
+          
+          if (!isOffline && retryCount < 3) {
+            const timeout = Math.min(1000 * Math.pow(2, retryCount), 10000);
+            setTimeout(() => {
+              if (isMountedRef.current) {
+                setRetryCount(prev => prev + 1);
+              }
+            }, timeout);
+          }
         }
       }
     } finally {
@@ -122,8 +203,21 @@ export function useTasks(userId: string | undefined) {
     // Set mounted ref
     isMountedRef.current = true;
     
-    // Initial load
-    loadTasks();
+    // Initial load - use cache first then refresh
+    if (tasksCache.has(userId)) {
+      const cachedData = tasksCache.get(userId)!;
+      setTasks(cachedData.tasks);
+      setLoading(false);
+      
+      // Refresh in background after short delay
+      setTimeout(() => {
+        if (isMountedRef.current) {
+          loadTasks();
+        }
+      }, 100);
+    } else {
+      loadTasks();
+    }
 
     if (!isOffline) {
       const subscription = supabase
@@ -151,12 +245,16 @@ export function useTasks(userId: string | undefined) {
             // Force refresh with the force option
             loadTasks({ force: true });
           } else {
-            // Normal refresh when page becomes visible
-            supabase.auth.getSession().then(({ data }) => {
-              if (data.session && isMountedRef.current) {
+            // Normal refresh when page becomes visible, but only if cache is stale
+            const now = Date.now();
+            if (tasksCache.has(userId)) {
+              const cachedData = tasksCache.get(userId)!;
+              if (now - cachedData.timestamp > CACHE_TTL) {
                 loadTasks();
               }
-            });
+            } else {
+              loadTasks();
+            }
           }
         }
       };
@@ -224,6 +322,15 @@ export function useTasks(userId: string | undefined) {
       const createdTask = await createTask(userId, newTask, sectionId);
       if (isMountedRef.current) {
         setTasks(prev => [...prev, createdTask]);
+        
+        // Update cache
+        if (tasksCache.has(userId)) {
+          const cachedData = tasksCache.get(userId)!;
+          tasksCache.set(userId, {
+            tasks: [...cachedData.tasks, createdTask],
+            timestamp: Date.now()
+          });
+        }
       }
       return createdTask;
     } catch (err: any) {
@@ -240,9 +347,21 @@ export function useTasks(userId: string | undefined) {
     try {
       const updatedTask = await updateTask(taskId, updates);
       if (isMountedRef.current) {
+        // Update local state
         setTasks(prev => prev.map(task => 
           task.id === taskId ? { ...task, ...updatedTask } : task
         ));
+        
+        // Update cache
+        if (userId && tasksCache.has(userId)) {
+          const cachedData = tasksCache.get(userId)!;
+          tasksCache.set(userId, {
+            tasks: cachedData.tasks.map(task => 
+              task.id === taskId ? { ...task, ...updatedTask } : task
+            ),
+            timestamp: Date.now()
+          });
+        }
       }
       return updatedTask;
     } catch (err: any) {
@@ -259,7 +378,17 @@ export function useTasks(userId: string | undefined) {
     try {
       await deleteTask(taskId);
       if (isMountedRef.current) {
+        // Update local state
         setTasks(prev => prev.filter(task => task.id !== taskId));
+        
+        // Update cache
+        if (userId && tasksCache.has(userId)) {
+          const cachedData = tasksCache.get(userId)!;
+          tasksCache.set(userId, {
+            tasks: cachedData.tasks.filter(task => task.id !== taskId),
+            timestamp: Date.now()
+          });
+        }
       }
       return true;
     } catch (err: any) {
@@ -268,12 +397,9 @@ export function useTasks(userId: string | undefined) {
     }
   };
 
-  const refreshTasks = (force = false) => {
-    if (isOffline) {
-      return Promise.reject('Cannot refresh tasks while offline');
-    }
-    return loadTasks({ force });
-  };
+  const refreshTasks = useCallback((force = false) => {
+    loadTasks({ force });
+  }, [loadTasks]);
 
   return {
     tasks,

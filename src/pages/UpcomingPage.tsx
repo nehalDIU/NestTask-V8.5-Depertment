@@ -1,15 +1,33 @@
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo, useEffect, useCallback, Suspense, lazy } from 'react';
 import { format, addDays, startOfWeek, isSameDay, parseISO, isAfter, isBefore, startOfDay, endOfDay, formatDistanceToNow } from 'date-fns';
-import { Crown, Calendar, Clock, Tag, CheckCircle2, AlertCircle, BookOpen, FileText, PenTool, FlaskConical, GraduationCap, CalendarDays, Folder, Activity, Building, Users } from 'lucide-react';
+import { Crown, Calendar, Clock, Tag, CheckCircle2, AlertCircle, BookOpen, FileText, PenTool, FlaskConical, GraduationCap, CalendarDays, Folder, Activity, Building, Users, Paperclip } from 'lucide-react';
 import { useTasks } from '../hooks/useTasks';
 import { useAuth } from '../hooks/useAuth';
-import { TaskDetailsPopup } from '../components/task/TaskDetailsPopup';
-import { MonthlyCalendar } from '../components/MonthlyCalendar';
 import type { Task } from '../types';
 
-interface UpcomingPageProps {
-  tasks: Task[];
-}
+// Lazy load heavy components
+const TaskDetailsPopup = lazy(() => import('../components/task/TaskDetailsPopup').then(module => ({ default: module.TaskDetailsPopup })));
+const MonthlyCalendar = lazy(() => import('../components/MonthlyCalendar').then(module => ({ default: module.MonthlyCalendar })));
+
+// Loading skeleton component
+const TasksSkeleton = () => (
+  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 px-4 md:max-w-4xl lg:max-w-5xl md:mx-auto">
+    {Array.from({ length: 6 }).map((_, i) => (
+      <div key={i} className="animate-pulse bg-white dark:bg-gray-800/90 rounded-lg shadow-sm border border-gray-100 dark:border-gray-700/50 h-48">
+        <div className="p-4 h-full flex flex-col">
+          <div className="w-3/4 h-5 bg-gray-200 dark:bg-gray-700 rounded mb-3"></div>
+          <div className="w-full h-3 bg-gray-200 dark:bg-gray-700 rounded mb-2"></div>
+          <div className="w-4/5 h-3 bg-gray-200 dark:bg-gray-700 rounded mb-2"></div>
+          <div className="w-2/3 h-3 bg-gray-200 dark:bg-gray-700 rounded mb-6"></div>
+          <div className="mt-auto pt-2 border-t border-gray-100 dark:border-gray-700/50 flex justify-between">
+            <div className="w-16 h-4 bg-gray-200 dark:bg-gray-700 rounded"></div>
+            <div className="w-20 h-4 bg-gray-200 dark:bg-gray-700 rounded"></div>
+          </div>
+        </div>
+      </div>
+    ))}
+  </div>
+);
 
 export function UpcomingPage() {
   const { user } = useAuth();
@@ -20,27 +38,60 @@ export function UpcomingPage() {
   const [isUpdating, setIsUpdating] = useState(false);
   const [operationError, setOperationError] = useState<string | null>(null);
   const [isMonthlyCalendarOpen, setIsMonthlyCalendarOpen] = useState(false);
-  // Flag to prevent auto-selection of tasks after date change
   const [preventTaskSelection, setPreventTaskSelection] = useState(false);
+  const [isInitialLoad, setIsInitialLoad] = useState(true);
 
-  // Create a reusable optimized date formatter
-  const formatDate = (date: Date): string => {
+  // Utility function to clean task description
+  const cleanTaskDescription = useCallback((description: string): string => {
+    // Remove section ID text
+    const withoutSectionId = description.replace(/\*This task is assigned to section ID: [0-9a-f-]+\*/g, '');
+    
+    // Remove attachment references like [file.pdf](attachment:file.pdf)
+    const withoutAttachmentLinks = withoutSectionId.replace(/\[([^\]]+)\]\(attachment:[^)]+\)/g, '');
+    
+    // Remove references like **Attachments:** -.csv)
+    const withoutAttachmentTags = withoutAttachmentLinks.replace(/\*\*Attachments:\*\*.*?\)/g, '');
+    
+    // Remove any "AS **Attachments:**" format
+    const withoutASAttachments = withoutAttachmentTags.replace(/AS \*\*Attachments:\*\*.*?$/gm, '');
+    
+    // Remove any other attachment references with a more general pattern
+    const fullyCleanedText = withoutASAttachments.replace(/Attachments:.*?$/gm, '');
+    
+    // Clean up extra whitespace and return
+    return fullyCleanedText.trim();
+  }, []);
+
+  // Check if a task has attachments
+  const hasAttachments = useCallback((description: string): boolean => {
+    const attachmentPatterns = [
+      /\[([^\]]+)\]\(attachment:[^)]+\)/,
+      /\*\*Attachments:\*\*/,
+      /AS \*\*Attachments:\*\*/,
+      /Attachments:/
+    ];
+    
+    return attachmentPatterns.some(pattern => pattern.test(description));
+  }, []);
+
+  // Memoized and optimized formatDate function
+  const formatDate = useCallback((date: Date): string => {
     const year = date.getFullYear();
-    const month = date.getMonth() + 1;
-    const day = date.getDate();
-    return `${year}-${month < 10 ? '0' + month : month}-${day < 10 ? '0' + day : day}`;
-  };
+    const month = (date.getMonth() + 1).toString().padStart(2, '0');
+    const day = date.getDate().toString().padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  }, []);
 
   // Optimized function to check if two dates represent the same day
-  const isSameDayOptimized = (date1: Date, date2: Date): boolean => {
+  const isSameDayOptimized = useCallback((date1: Date, date2: Date): boolean => {
     return (
       date1.getFullYear() === date2.getFullYear() &&
       date1.getMonth() === date2.getMonth() &&
       date1.getDate() === date2.getDate()
     );
-  };
+  }, []);
 
-  // Check for date in URL params when component mounts - optimized version
+  // Handle URL params for date selection
   useEffect(() => {
     try {
       const params = new URLSearchParams(window.location.search);
@@ -61,31 +112,19 @@ export function UpcomingPage() {
       console.error('Error parsing date from URL:', error);
     }
     
-    // Listen for dateSelected events from Navigation component
     const handleDateSelectedEvent = (e: CustomEvent<{date: Date}>) => {
       const newDate = e.detail.date;
       if (newDate && !isNaN(newDate.getTime())) {
         setSelectedDate(newDate);
-        if (process.env.NODE_ENV === 'development') {
-          console.log('UpcomingPage: Received dateSelected event', newDate);
-        }
       }
     };
     
-    // Listen for preventAutoTaskSelect event - this ensures no task is auto-selected
-    const handlePreventAutoSelectEvent = (e: CustomEvent<{date: Date}>) => {
-      // Clear any selected task when a date is selected from the calendar
+    const handlePreventAutoSelectEvent = () => {
       setSelectedTask(null);
-      // Set the flag to prevent task selection for a brief period
       setPreventTaskSelection(true);
-      // Reset the flag after a delay
       setTimeout(() => {
         setPreventTaskSelection(false);
-      }, 1000); // Prevent selection for 1 second
-      
-      if (process.env.NODE_ENV === 'development') {
-        console.log('UpcomingPage: Preventing auto task selection');
-      }
+      }, 1000);
     };
     
     window.addEventListener('dateSelected', handleDateSelectedEvent as EventListener);
@@ -97,17 +136,18 @@ export function UpcomingPage() {
     };
   }, []);
 
-  // Update local tasks when allTasks changes
+  // Update local tasks efficiently when allTasks changes
   useEffect(() => {
     if (allTasks) {
-      // Type assertion to ensure compatibility
       setTasks(allTasks as any);
+      // Set initial load to false once tasks are loaded
+      setIsInitialLoad(false);
     } else {
       setTasks([]);
     }
   }, [allTasks]);
 
-  // Generate week days with current date in middle - memoized and optimized
+  // Generate week days with current date in middle - better memoization
   const weekDays = useMemo(() => {
     const start = addDays(selectedDate, -3); // Start 3 days before selected date
     const today = new Date();
@@ -122,9 +162,9 @@ export function UpcomingPage() {
         isToday: isSameDayOptimized(date, today)
       };
     });
-  }, [selectedDate]);
+  }, [selectedDate, isSameDayOptimized]);
 
-  // Filter tasks for selected date - optimized version
+  // Optimize task filtering for selected date with better memoization
   const filteredTasks = useMemo(() => {
     // Early return if no tasks
     if (!tasks.length) return [];
@@ -133,9 +173,14 @@ export function UpcomingPage() {
     const selectedMonth = selectedDate.getMonth();
     const selectedDay = selectedDate.getDate();
     
+    // Use efficient filtering with early error handling
     return tasks.filter(task => {
       try {
+        if (!task.dueDate) return false;
+        
         const taskDate = parseISO(task.dueDate);
+        if (isNaN(taskDate.getTime())) return false;
+        
         return (
           taskDate.getFullYear() === selectedYear &&
           taskDate.getMonth() === selectedMonth &&
@@ -147,11 +192,10 @@ export function UpcomingPage() {
     });
   }, [tasks, selectedDate]);
 
-  // Get task status
-  const getTaskStatus = (task: Task) => {
+  // Get task status - memoized utility function
+  const getTaskStatus = useCallback((task: Task) => {
     const dueDate = parseISO(task.dueDate);
     const currentDate = new Date();
-    // Compare dates without time to determine if task is overdue
     const isOverdue = isBefore(endOfDay(dueDate), startOfDay(currentDate));
 
     if (task.status === 'completed') {
@@ -176,66 +220,47 @@ export function UpcomingPage() {
       color: 'bg-blue-50 text-blue-600 dark:bg-blue-900/20 dark:text-blue-400 ring-blue-500/20',
       icon: <Clock className="w-3.5 h-3.5" />
     };
-  };
+  }, []);
+
+  // Cache the category icons and colors with useMemo
+  const categoryIcons = useMemo(() => ({
+    task: <BookOpen className="w-3 h-3 md:w-4 md:h-4" />,
+    presentation: <PenTool className="w-3 h-3 md:w-4 md:h-4" />,
+    project: <Folder className="w-3 h-3 md:w-4 md:h-4" />,
+    assignment: <FileText className="w-3 h-3 md:w-4 md:h-4" />,
+    quiz: <BookOpen className="w-3 h-3 md:w-4 md:h-4" />,
+    'lab-report': <FlaskConical className="w-3 h-3 md:w-4 md:h-4" />,
+    'lab-final': <GraduationCap className="w-3 h-3 md:w-4 md:h-4" />,
+    'lab-performance': <Activity className="w-3 h-3 md:w-4 md:h-4" />,
+    documents: <FileText className="w-3 h-3 md:w-4 md:h-4" />,
+    blc: <Building className="w-3 h-3 md:w-4 md:h-4" />,
+    groups: <Users className="w-3 h-3 md:w-4 md:h-4" />,
+    default: <Tag className="w-3 h-3 md:w-4 md:h-4" />
+  }), []);
+
+  const categoryColors = useMemo(() => ({
+    task: 'bg-blue-100 text-blue-700 dark:bg-blue-900/20 dark:text-blue-300',
+    presentation: 'bg-purple-100 text-purple-700 dark:bg-purple-900/20 dark:text-purple-300',
+    project: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/20 dark:text-emerald-300',
+    assignment: 'bg-blue-100 text-blue-700 dark:bg-blue-900/20 dark:text-blue-300',
+    quiz: 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/20 dark:text-indigo-300',
+    'lab-report': 'bg-green-100 text-green-700 dark:bg-green-900/20 dark:text-green-300',
+    'lab-final': 'bg-red-100 text-red-700 dark:bg-red-900/20 dark:text-red-300',
+    'lab-performance': 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/20 dark:text-yellow-300',
+    documents: 'bg-gray-100 text-gray-700 dark:bg-gray-900/20 dark:text-gray-300',
+    blc: 'bg-amber-100 text-amber-700 dark:bg-amber-900/20 dark:text-amber-300',
+    groups: 'bg-sky-100 text-sky-700 dark:bg-sky-900/20 dark:text-sky-300',
+    default: 'bg-gray-100 text-gray-700 dark:bg-gray-900/20 dark:text-gray-300'
+  }), []);
 
   // Get category info with icon and color
-  const getCategoryInfo = (category: string) => {
-    const categories = {
-      task: {
-        icon: <BookOpen className="w-3 h-3 md:w-4 md:h-4" />,
-        color: 'bg-blue-100 text-blue-700 dark:bg-blue-900/20 dark:text-blue-300'
-      },
-      presentation: {
-        icon: <PenTool className="w-3 h-3 md:w-4 md:h-4" />,
-        color: 'bg-purple-100 text-purple-700 dark:bg-purple-900/20 dark:text-purple-300'
-      },
-      project: {
-        icon: <Folder className="w-3 h-3 md:w-4 md:h-4" />,
-        color: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/20 dark:text-emerald-300'
-      },
-      assignment: {
-        icon: <FileText className="w-3 h-3 md:w-4 md:h-4" />,
-        color: 'bg-blue-100 text-blue-700 dark:bg-blue-900/20 dark:text-blue-300'
-      },
-      quiz: {
-        icon: <BookOpen className="w-3 h-3 md:w-4 md:h-4" />,
-        color: 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/20 dark:text-indigo-300'
-      },
-      'lab-report': {
-        icon: <FlaskConical className="w-3 h-3 md:w-4 md:h-4" />,
-        color: 'bg-green-100 text-green-700 dark:bg-green-900/20 dark:text-green-300'
-      },
-      'lab-final': {
-        icon: <GraduationCap className="w-3 h-3 md:w-4 md:h-4" />,
-        color: 'bg-red-100 text-red-700 dark:bg-red-900/20 dark:text-red-300'
-      },
-      'lab-performance': {
-        icon: <Activity className="w-3 h-3 md:w-4 md:h-4" />,
-        color: 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/20 dark:text-yellow-300'
-      },
-      'documents': {
-        icon: <FileText className="w-3 h-3 md:w-4 md:h-4" />,
-        color: 'bg-gray-100 text-gray-700 dark:bg-gray-900/20 dark:text-gray-300'
-      },
-      'blc': {
-        icon: <Building className="w-3 h-3 md:w-4 md:h-4" />,
-        color: 'bg-amber-100 text-amber-700 dark:bg-amber-900/20 dark:text-amber-300'
-      },
-      'groups': {
-        icon: <Users className="w-3 h-3 md:w-4 md:h-4" />,
-        color: 'bg-sky-100 text-sky-700 dark:bg-sky-900/20 dark:text-sky-300'
-      },
-      'others': {
-        icon: <Tag className="w-3 h-3 md:w-4 md:h-4" />,
-        color: 'bg-gray-100 text-gray-700 dark:bg-gray-900/20 dark:text-gray-300'
-      },
-      default: {
-        icon: <Tag className="w-3 h-3 md:w-4 md:h-4" />,
-        color: 'bg-gray-100 text-gray-700 dark:bg-gray-900/20 dark:text-gray-300'
-      }
+  const getCategoryInfo = useCallback((category: string) => {
+    const categoryKey = category as keyof typeof categoryIcons || 'default';
+    return {
+      icon: categoryIcons[categoryKey] || categoryIcons.default,
+      color: categoryColors[categoryKey] || categoryColors.default
     };
-    return categories[category as keyof typeof categories] || categories.default;
-  };
+  }, [categoryIcons, categoryColors]);
 
   // Handle task status update
   const handleStatusUpdate = async (taskId: string, newStatus: Task['status']) => {
@@ -284,7 +309,32 @@ export function UpcomingPage() {
     }
   };
 
-  if (loading) {
+  // Render loading skeleton during initial load
+  if (isInitialLoad && loading) {
+    return (
+      <div className="min-h-screen bg-gray-50 dark:bg-gray-900 pt-4">
+        <div className="max-w-full md:max-w-5xl mx-auto px-2 md:px-6 mb-6">
+          <div className="animate-pulse flex items-center justify-between mb-4 py-3">
+            <div className="h-8 w-20 bg-gray-200 dark:bg-gray-700 rounded-full"></div>
+            <div className="h-6 w-32 bg-gray-200 dark:bg-gray-700 rounded"></div>
+            <div className="h-8 w-20 bg-gray-200 dark:bg-gray-700 rounded-lg"></div>
+          </div>
+          <div className="grid grid-cols-7 gap-2 md:gap-3 lg:gap-4 px-0 md:px-4">
+            {Array.from({ length: 7 }).map((_, i) => (
+              <div 
+                key={i}
+                className="w-full aspect-square md:aspect-[3/4] p-1.5 md:p-3 lg:p-4 rounded-xl bg-gray-200 dark:bg-gray-700 animate-pulse"
+              />
+            ))}
+          </div>
+        </div>
+        <TasksSkeleton />
+      </div>
+    );
+  }
+
+  // Show actual loading indicator for non-initial loads
+  if (loading && !isInitialLoad) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500"></div>
@@ -299,10 +349,7 @@ export function UpcomingPage() {
         <div className="fixed top-4 right-4 z-50 bg-red-100 dark:bg-red-900/20 border border-red-200 dark:border-red-800 text-red-700 dark:text-red-300 px-4 py-3 rounded-lg shadow-lg animate-fade-in">
           <p className="text-sm font-medium">{taskError || operationError}</p>
         </div>
-      ) : (
-        // This empty div ensures the error alert space is reserved but not blocking interactions
-        <div className="fixed top-4 right-4 z-50 pointer-events-none" style={{ opacity: 0 }}></div>
-      )}
+      ) : null}
 
       {/* Loading Overlay */}
       {isUpdating && (
@@ -375,7 +422,7 @@ export function UpcomingPage() {
                 flex flex-col items-center justify-center
                 w-full aspect-square md:aspect-[3/4]
                 p-1.5 md:p-3 lg:p-4 rounded-xl 
-                border transition-all duration-300
+                border transition-all duration-200
                 ${day.isSelected
                   ? 'bg-gradient-to-br from-blue-500 via-indigo-500 to-purple-600 border-blue-400/50 shadow-md shadow-blue-500/20 dark:shadow-blue-600/20 scale-[1.02] -translate-y-0.5 md:scale-105'
                   : day.isToday
@@ -442,14 +489,12 @@ export function UpcomingPage() {
               const categoryInfo = getCategoryInfo(task.category);
               const dueDate = parseISO(task.dueDate);
               const currentDate = new Date();
-              // Compare dates without time to determine if task is overdue
               const isOverdue = isBefore(endOfDay(dueDate), startOfDay(currentDate));
               
               return (
                 <div
                   key={task.id}
                   onClick={() => {
-                    // Only allow task selection if not prevented
                     if (!preventTaskSelection) {
                       setSelectedTask(task);
                     }
@@ -491,6 +536,11 @@ export function UpcomingPage() {
                             <Crown className="w-3.5 h-3.5 text-amber-500 dark:text-amber-400" />
                           </div>
                         )}
+                        {hasAttachments(task.description) && (
+                          <div className="flex-shrink-0 p-0.5 mt-0.5">
+                            <Paperclip className="w-3.5 h-3.5 text-gray-500 dark:text-gray-400" />
+                          </div>
+                        )}
                       </div>
                     </div>
 
@@ -504,7 +554,7 @@ export function UpcomingPage() {
                           : 'text-gray-600 dark:text-gray-300'
                       }
                     `}>
-                      {task.description}
+                      {cleanTaskDescription(task.description)}
                     </p>
 
                     {/* Footer Section */}
@@ -592,7 +642,7 @@ export function UpcomingPage() {
             </div>
             <p className="text-lg text-gray-900 dark:text-gray-100 font-medium">No tasks for {format(selectedDate, 'MMMM d')}</p>
             <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-              {isSameDay(selectedDate, new Date()) 
+              {isSameDayOptimized(selectedDate, new Date()) 
                 ? "You're all caught up for today!" 
                 : "Nothing scheduled for this day"}
             </p>
@@ -601,55 +651,62 @@ export function UpcomingPage() {
       </div>
 
       {/* Task Details Modal */}
-      {selectedTask && (
-        <TaskDetailsPopup
-          task={selectedTask}
-          onClose={() => setSelectedTask(null)}
-          onStatusUpdate={handleStatusUpdate}
-          isUpdating={isUpdating}
-        />
-      )}
+      <Suspense fallback={
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center">
+          <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-white"></div>
+        </div>
+      }>
+        {selectedTask && (
+          <TaskDetailsPopup
+            task={selectedTask}
+            onClose={() => setSelectedTask(null)}
+            onStatusUpdate={handleStatusUpdate}
+            isUpdating={isUpdating}
+          />
+        )}
+      </Suspense>
 
       {/* Monthly Calendar */}
-      <MonthlyCalendar
-        isOpen={isMonthlyCalendarOpen}
-        onClose={() => setIsMonthlyCalendarOpen(false)}
-        selectedDate={selectedDate}
-        onSelectDate={(date) => {
-          // Set selected date directly with debugging
-          console.log('Date from calendar before setting:', date);
-          
-          // Ensure the date is valid
-          if (!(date instanceof Date) || isNaN(date.getTime())) {
-            console.error('Invalid date received from calendar:', date);
-            return;
-          }
-          
-          // Clear any selected task to prevent auto-selection
-          setSelectedTask(null);
-          
-          // Set the flag to prevent task selection for a brief period
-          setPreventTaskSelection(true);
-          // Reset the flag after a delay
-          setTimeout(() => {
-            setPreventTaskSelection(false);
-          }, 1000); // Prevent selection for 1 second
-          
-          setSelectedDate(date);
-          setIsMonthlyCalendarOpen(false);
-          
-          // Update URL parameter efficiently
-          try {
-            const params = new URLSearchParams(window.location.search);
-            params.set('selectedDate', formatDate(date));
-            const newUrl = `${window.location.pathname}?${params.toString()}`;
-            window.history.pushState({ path: newUrl }, '', newUrl);
-          } catch (error) {
-            console.error('Error setting date parameter:', error);
-          }
-        }}
-        tasks={tasks}
-      />
+      <Suspense fallback={
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center">
+          <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-white"></div>
+        </div>
+      }>
+        {isMonthlyCalendarOpen && (
+          <MonthlyCalendar
+            isOpen={isMonthlyCalendarOpen}
+            onClose={() => setIsMonthlyCalendarOpen(false)}
+            selectedDate={selectedDate}
+            onSelectDate={(date) => {
+              console.log('Date from calendar before setting:', date);
+              
+              if (!(date instanceof Date) || isNaN(date.getTime())) {
+                console.error('Invalid date received from calendar:', date);
+                return;
+              }
+              
+              setSelectedTask(null);
+              setPreventTaskSelection(true);
+              setTimeout(() => {
+                setPreventTaskSelection(false);
+              }, 1000);
+              
+              setSelectedDate(date);
+              setIsMonthlyCalendarOpen(false);
+              
+              try {
+                const params = new URLSearchParams(window.location.search);
+                params.set('selectedDate', formatDate(date));
+                const newUrl = `${window.location.pathname}?${params.toString()}`;
+                window.history.pushState({ path: newUrl }, '', newUrl);
+              } catch (error) {
+                console.error('Error setting date parameter:', error);
+              }
+            }}
+            tasks={tasks}
+          />
+        )}
+      </Suspense>
     </div>
   );
 }

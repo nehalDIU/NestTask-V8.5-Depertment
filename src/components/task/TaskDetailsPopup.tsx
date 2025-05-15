@@ -249,17 +249,13 @@ export function TaskDetailsPopup({
                   if (!fileInfo) return null;
 
                   return (
-                    <div
-                      key={index}
-                      className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-700/50 rounded-xl hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors group"
-                    >
-                      <span className="text-sm text-gray-700 dark:text-gray-300">
+                    <div key={index} className="flex items-center justify-between p-2 rounded-lg bg-gray-50 dark:bg-gray-700/50 border border-gray-200 dark:border-gray-600/30">
+                      <span className="text-sm font-medium text-gray-700 dark:text-gray-300 truncate max-w-[70%]">
                         {fileInfo.filename}
                       </span>
                       <button
                         onClick={() => handleDownload(fileInfo.url, fileInfo.filename)}
-                        className="p-2 text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg transition-colors"
-                        title="Download file"
+                        className="p-1.5 rounded-md text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 hover:bg-blue-50 dark:hover:bg-blue-900/30 transition-colors"
                       >
                         <Download className="w-4 h-4" />
                       </button>
@@ -274,3 +270,6 @@ export function TaskDetailsPopup({
     </>
   );
 }
+
+// Default export for lazy loading
+export default { TaskDetailsPopup };

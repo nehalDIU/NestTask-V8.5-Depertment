@@ -109,6 +109,25 @@ export function TaskList({ tasks, onDeleteTask, showDeleteButton = false }: Task
     }
   };
 
+  // Helper function to clean the task description for display in cards
+  const cleanDescription = (description: string) => {
+    // Remove section ID text
+    let cleanedText = description.replace(/\*This task is assigned to section ID: [0-9a-f-]+\*/g, '')
+      // Also remove "For section:" text
+      .replace(/\n\nFor section: [0-9a-f-]+/g, '')
+      // Remove the entire Attachments section
+      .replace(/\n\n\*\*Attachments:\*\*[\s\S]*?((\n\n)|$)/g, '')
+      // Remove any other attachment format mentions
+      .replace(/\[.*?\]\(attachment:.*?\)/g, '')
+      // Remove "Attached Files:" section
+      .replace(/\nAttached Files:[\s\S]*?((\n\n)|$)/g, '')
+      // Also remove individual attachment file references in square brackets
+      .replace(/\s*\[(data_analysis_report.*?)\]\s*/g, '')
+      .trim();
+    
+    return cleanedText;
+  };
+
   if (sortedTasks.length === 0) {
     return (
       <div className="text-center py-8 sm:py-12 animate-fade-in">
@@ -137,7 +156,9 @@ export function TaskList({ tasks, onDeleteTask, showDeleteButton = false }: Task
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 p-3 md:gap-4 lg:gap-6 md:p-4 lg:p-6">
           {sortedTasks.map((task, index) => {
             const overdue = isOverdue(task.dueDate);
-            const parsedLinks = parseLinks(task.description);
+            // Clean the description before parsing links
+            const cleanedDescription = cleanDescription(task.description);
+            const parsedLinks = parseLinks(cleanedDescription);
             const hasLinks = parsedLinks.some(part => part.type === 'link');
 
             return (
@@ -243,7 +264,6 @@ export function TaskList({ tasks, onDeleteTask, showDeleteButton = false }: Task
                         <span key={i}>{part.content}</span>
                       )
                     )}
-                    {hasLinks && ' [Has attachments]'}
                   </p>
                 </div>
 

@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import { UserList } from '../components/admin/UserList';
 import { TaskManager } from '../components/admin/TaskManager';
 import { SideNavigation } from '../components/admin/navigation/SideNavigation';
@@ -27,7 +27,7 @@ import type { AdminTab } from '../types/admin';
 import { useAuth } from '../hooks/useAuth';
 import { useTasks } from '../hooks/useTasks';
 import { supabase } from '../lib/supabase';
-import { RefreshCcw, AlertTriangle } from 'lucide-react';
+import { RefreshCcw, AlertTriangle, Loader2 } from 'lucide-react';
 
 interface AdminDashboardProps {
   users: User[];
@@ -63,7 +63,7 @@ export function AdminDashboard({
   
   // Get current user from auth for debugging
   const { user } = useAuth();
-  const { refreshTasks, loading: tasksLoading } = useTasks(user?.id);
+  const { refreshTasks, loading: tasksLoading, error: tasksError } = useTasks(user?.id);
   
   // Force task form visible when task management tab is activated
   useEffect(() => {
@@ -417,6 +417,49 @@ export function AdminDashboard({
     }
   };
 
+  // Add a manual refresh function
+  const handleManualRefresh = useCallback(async () => {
+    try {
+      setIsRefreshing(true);
+      setError(null);
+      
+      await refreshTasks(true);
+      
+      // Reset activeTab to force re-render components
+      if (activeTab === 'tasks') {
+        const currentTab = activeTab;
+        setActiveTab('dashboard');
+        setTimeout(() => {
+          setActiveTab(currentTab);
+        }, 50);
+      }
+    } catch (err: any) {
+      console.error('Error refreshing tasks:', err);
+      setError(err.message || 'Failed to refresh data');
+    } finally {
+      setIsRefreshing(false);
+    }
+  }, [activeTab, refreshTasks]);
+
+  // Auto-recovery for stuck loading state
+  useEffect(() => {
+    let timeoutId: number;
+    
+    // If we're on tasks tab and loading is stuck for too long, try to recover
+    if (activeTab === 'tasks' && tasksLoading) {
+      timeoutId = window.setTimeout(() => {
+        console.warn('Task loading appears stuck, attempting recovery');
+        handleManualRefresh();
+      }, 15000); // 15 seconds timeout
+    }
+    
+    return () => {
+      if (timeoutId) {
+        window.clearTimeout(timeoutId);
+      }
+    };
+  }, [activeTab, tasksLoading, handleManualRefresh]);
+
   return (
     <div className="flex flex-col lg:flex-row h-screen bg-gray-50 dark:bg-gray-900 transition-colors duration-200">
       <SideNavigation
@@ -452,17 +495,6 @@ export function AdminDashboard({
                 )}
               </div>
               <div className="flex items-center gap-3">
-                <button
-                  onClick={handleRefreshData}
-                  disabled={isRefreshing}
-                  className={`px-3 py-2 flex items-center justify-center gap-2 rounded-lg text-sm 
-                  ${isRefreshing 
-                    ? 'bg-gray-200 text-gray-500 dark:bg-gray-700 dark:text-gray-400 cursor-not-allowed' 
-                    : 'bg-blue-100 text-blue-700 hover:bg-blue-200 dark:bg-blue-900/30 dark:text-blue-300 dark:hover:bg-blue-900/50'}`}
-                >
-                  <RefreshCcw className={`w-4 h-4 ${isRefreshing ? 'animate-spin' : ''}`} />
-                  <span>{isRefreshing ? 'Refreshing...' : 'Refresh'}</span>
-                </button>
                 <div className="text-sm text-gray-500 dark:text-gray-400">
                   {new Date().toLocaleDateString('en-US', { 
                     weekday: 'long', 
@@ -520,16 +552,42 @@ export function AdminDashboard({
             )}
             
             {activeTab === 'tasks' && (
-              <TaskManager
-                tasks={filteredTasks}
-                onCreateTask={handleCreateTask}
-                onDeleteTask={onDeleteTask}
-                onUpdateTask={onUpdateTask}
-                showTaskForm={true}
-                sectionId={sectionId}
-                isSectionAdmin={isSectionAdmin}
-                isLoading={tasksLoading}
-              />
+              <>
+                {error && (
+                  <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl p-4 mb-6 flex items-start gap-3">
+                    <AlertTriangle className="w-5 h-5 text-red-500 dark:text-red-400 flex-shrink-0 mt-0.5" />
+                    <div>
+                      <h3 className="text-red-800 dark:text-red-300 font-medium text-sm">Error loading tasks</h3>
+                      <p className="text-red-600 dark:text-red-400 text-xs mt-1">{error}</p>
+                      <button 
+                        className="mt-2 px-3 py-1.5 bg-red-100 dark:bg-red-800 text-red-700 dark:text-red-300 text-xs rounded-lg hover:bg-red-200 dark:hover:bg-red-700 flex items-center gap-1.5"
+                        onClick={handleManualRefresh}
+                      >
+                        <RefreshCcw className="w-3 h-3" />
+                        Retry
+                      </button>
+                    </div>
+                  </div>
+                )}
+                
+                {tasksLoading && (
+                  <div className="fixed bottom-6 right-6 bg-white dark:bg-gray-800 shadow-lg rounded-lg px-4 py-3 flex items-center gap-3 z-50 border border-gray-200 dark:border-gray-700">
+                    <Loader2 className="w-5 h-5 text-blue-600 dark:text-blue-400 animate-spin" />
+                    <span className="text-gray-700 dark:text-gray-300 text-sm">Loading tasks...</span>
+                  </div>
+                )}
+                
+                <TaskManager
+                  tasks={filteredTasks}
+                  onCreateTask={handleCreateTask}
+                  onDeleteTask={onDeleteTask}
+                  onUpdateTask={onUpdateTask}
+                  showTaskForm={showTaskForm}
+                  sectionId={sectionId}
+                  isSectionAdmin={isSectionAdmin}
+                  isLoading={tasksLoading || isRefreshing}
+                />
+              </>
             )}
 
             {activeTab === 'announcements' && (

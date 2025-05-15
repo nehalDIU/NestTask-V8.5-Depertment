@@ -251,26 +251,49 @@ export default function App() {
         if (user?.id) {
           console.log('Page visible - forcing task refresh');
           
+          // Add timestamp tracking to detect long tab/window inactivity
+          const lastActivity = localStorage.getItem('lastActiveTimestamp');
+          const now = Date.now();
+          const inactiveThreshold = 5 * 60 * 1000; // 5 minutes
+          
+          // Store current timestamp for future reference
+          localStorage.setItem('lastActiveTimestamp', now.toString());
+          
+          // Check if we've been inactive for a while
+          const wasInactiveLong = lastActivity && (now - parseInt(lastActivity)) > inactiveThreshold;
+          
           // Use a try-catch to handle any errors during data refresh
           try {
             // Force a connection check using the imported testConnection
-            testConnection(true).then((isConnected: boolean) => {
+            testConnection(wasInactiveLong).then((isConnected: boolean) => {
               if (isConnected) {
                 // Get current session
                 supabase.auth.getSession().then(({ data }) => {
                   if (data.session) {
                     // Refresh all data sources with proper error handling
                     Promise.allSettled([
-                      refreshTasks(),
+                      refreshTasks(wasInactiveLong), // Force refresh if inactive for a long time
                       // Add more data refresh calls here if needed
-                    ]).then(() => {
-                      // Force state update for UI refresh
-                      setActivePage(prev => prev);
+                    ]).then((results) => {
+                      const anyFailed = results.some(r => r.status === 'rejected');
+                      
+                      if (anyFailed) {
+                        console.warn('Some refresh operations failed, trying to recover...');
+                        // Try force UI update even on partial failure
+                        setActivePage(prev => prev);
+                      } else {
+                        // All refreshes succeeded, force UI update
+                        setActivePage(prev => prev);
+                      }
                     });
                   } else {
                     // If no session, redirect to login page
                     window.location.href = '/auth';
                   }
+                }).catch(error => {
+                  console.error('Session check failed:', error);
+                  // Try to recover by forcing tasks refresh
+                  refreshTasks(true).catch(console.error);
                 });
               } else {
                 // If connection failed, reload the page to reset everything
@@ -279,7 +302,8 @@ export default function App() {
               }
             }).catch((error: any) => {
               console.error('Error testing connection:', error);
-              window.location.reload();
+              // Try refreshing data directly as a fallback before reloading
+              refreshTasks(true).catch(() => window.location.reload());
             });
           } catch (error) {
             console.error('Error refreshing data on visibility change:', error);

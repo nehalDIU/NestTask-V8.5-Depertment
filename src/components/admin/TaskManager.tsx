@@ -19,7 +19,8 @@ import {
   List,
   LayoutGrid,
   ChevronLeft,
-  ChevronRight
+  ChevronRight,
+  RefreshCw
 } from 'lucide-react';
 import type { Task } from '../../types';
 import type { NewTask } from '../../types/task';
@@ -496,26 +497,26 @@ export function TaskManager({
           </div>
         </div>
 
-        <div className="relative flex-1 sm:max-w-xs">
-          <input
-            type="text"
-            placeholder="Search tasks..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full px-4 py-2 pe-10 border dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white text-sm"
-            disabled={isLoading}
-          />
-          <div className="absolute inset-y-0 right-0 flex items-center pr-3 text-gray-500 dark:text-gray-400">
-            {searchTerm ? (
-              <button
-                onClick={() => setSearchTerm('')}
-                className="hover:text-gray-700 dark:hover:text-gray-300"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            ) : (
-              <Search className="w-4 h-4" />
-            )}
+        <div className="flex items-center gap-2">
+          <div className="relative">
+            <div className="flex items-center px-3 sm:px-4 py-2 bg-gray-100 border border-gray-200 dark:bg-gray-800 dark:border-gray-700 rounded-xl">
+              <Search className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-gray-500 dark:text-gray-400 mr-2" />
+              <input
+                type="text"
+                placeholder="Search tasks..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="bg-transparent border-none outline-none focus:ring-0 text-xs sm:text-sm w-full text-gray-700 dark:text-gray-300 placeholder-gray-500 dark:placeholder-gray-400"
+              />
+              {searchTerm && (
+                <button
+                  onClick={() => setSearchTerm('')}
+                  className="ml-1 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              )}
+            </div>
           </div>
         </div>
       </div>
@@ -688,9 +689,10 @@ export function TaskManager({
       )}
       
       {isLoading ? (
-        <div className="flex items-center justify-center py-12">
-          <Loader2 className="w-6 h-6 sm:w-8 sm:h-8 text-blue-500 animate-spin" />
-          <span className="ml-3 text-gray-600 dark:text-gray-400 text-sm sm:text-base">Loading tasks...</span>
+        <div className="flex flex-col items-center justify-center py-12 animate-fadeIn">
+          <Loader2 className="w-7 h-7 sm:w-9 sm:h-9 text-blue-500 animate-spin mb-3" />
+          <span className="text-gray-600 dark:text-gray-400 text-sm sm:text-base">Loading tasks...</span>
+          <p className="text-xs text-gray-500 dark:text-gray-500 mt-2">This will just take a moment</p>
         </div>
       ) : (
         <>

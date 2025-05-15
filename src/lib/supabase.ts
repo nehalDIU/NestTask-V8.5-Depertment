@@ -71,9 +71,40 @@ async function fetchWithRetry(url: string, options: RequestInit = {}, retries = 
 let connectionAttempts = 0;
 let isInitialized = false;
 let connectionPromise: Promise<boolean> | null = null;
+let lastConnectionTime = 0;
+
+// Track connection health
+let lastActiveTime = Date.now();
+let visibilityChangeCount = 0;
+
+// Listen for page visibility changes to detect potential connection issues
+if (typeof document !== 'undefined') {
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') {
+      // Reset connection if we've been away for a while
+      const now = Date.now();
+      const inactiveTime = now - lastActiveTime;
+      
+      // If we were inactive for more than 5 minutes, reset connection state
+      if (inactiveTime > 5 * 60 * 1000) {
+        console.log(`Resetting connection state after ${Math.round(inactiveTime/1000)}s inactivity`);
+        connectionPromise = null;
+        isInitialized = false;
+        // Force reconnection on next operation
+        testConnection(true).catch(console.error);
+      }
+      
+      visibilityChangeCount++;
+      lastActiveTime = now;
+    }
+  });
+}
 
 // Test connection with improved error handling
 export async function testConnection(forceCheck = false) {
+  // Update last active time
+  lastActiveTime = Date.now();
+  
   // In development mode, return true to bypass connection checks
   // This is a temporary workaround for local development
   if (import.meta.env.DEV) {
@@ -91,6 +122,13 @@ export async function testConnection(forceCheck = false) {
     }
     
     return true;
+  }
+  
+  // Force check if it's been a long time since last connection test
+  const timeSinceLastCheck = Date.now() - lastConnectionTime;
+  if (timeSinceLastCheck > 5 * 60 * 1000) { // 5 minutes
+    forceCheck = true;
+    console.log(`Force connection check after ${Math.round(timeSinceLastCheck/1000)}s`);
   }
   
   if (isInitialized && !forceCheck) return true;
@@ -141,6 +179,7 @@ export async function testConnection(forceCheck = false) {
       
       console.log('Database connection successful');
       isInitialized = true;
+      lastConnectionTime = Date.now();
       return true;
     } catch (error: any) {
       console.error('Unexpected error during connection test:', error.message);

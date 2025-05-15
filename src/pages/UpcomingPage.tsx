@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect, useCallback, Suspense, lazy } from 'react';
+import { useState, useMemo, useEffect, useCallback, Suspense, lazy, useRef } from 'react';
 import { format, addDays, startOfWeek, isSameDay, parseISO, isAfter, isBefore, startOfDay, endOfDay, formatDistanceToNow } from 'date-fns';
 import { Crown, Calendar, Clock, Tag, CheckCircle2, AlertCircle, BookOpen, FileText, PenTool, FlaskConical, GraduationCap, CalendarDays, Folder, Activity, Building, Users, Paperclip } from 'lucide-react';
 import { useTasks } from '../hooks/useTasks';
@@ -31,7 +31,7 @@ const TasksSkeleton = () => (
 
 export function UpcomingPage() {
   const { user } = useAuth();
-  const { tasks: allTasks, loading, error: taskError, updateTask } = useTasks(user?.id);
+  const { tasks: allTasks, loading, error: taskError, updateTask, refreshTasks } = useTasks(user?.id);
   const [tasks, setTasks] = useState<Task[]>([]);
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
@@ -40,6 +40,9 @@ export function UpcomingPage() {
   const [isMonthlyCalendarOpen, setIsMonthlyCalendarOpen] = useState(false);
   const [preventTaskSelection, setPreventTaskSelection] = useState(false);
   const [isInitialLoad, setIsInitialLoad] = useState(true);
+  const [isPageActive, setIsPageActive] = useState(true);
+  const initialRenderRef = useRef(true);
+  const lastFocusTimeRef = useRef(Date.now());
 
   // Utility function to clean task description
   const cleanTaskDescription = useCallback((description: string): string => {
@@ -139,13 +142,98 @@ export function UpcomingPage() {
   // Update local tasks efficiently when allTasks changes
   useEffect(() => {
     if (allTasks) {
+      console.log('Received tasks, updating local state with', allTasks.length, 'tasks');
       setTasks(allTasks as any);
       // Set initial load to false once tasks are loaded
       setIsInitialLoad(false);
     } else {
+      console.log('No tasks available, clearing local state');
       setTasks([]);
     }
   }, [allTasks]);
+
+  // Improved page visibility and focus handling
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      const isVisible = document.visibilityState === 'visible';
+      setIsPageActive(isVisible);
+      
+      if (isVisible) {
+        const now = Date.now();
+        const timeSinceLastFocus = now - lastFocusTimeRef.current;
+        console.log('Page became visible after', timeSinceLastFocus / 1000, 'seconds');
+        
+        // Only refresh if more than 5 seconds have passed since the last focus
+        // This prevents multiple refreshes when quickly switching tabs
+        if (timeSinceLastFocus > 5000) {
+          console.log('Refreshing tasks due to page visibility change');
+          refreshTasks();
+        }
+        
+        lastFocusTimeRef.current = now;
+      }
+    };
+
+    const handleFocus = () => {
+      const now = Date.now();
+      const timeSinceLastFocus = now - lastFocusTimeRef.current;
+      console.log('Window focused after', timeSinceLastFocus / 1000, 'seconds');
+      
+      // Only refresh if more than 5 seconds have passed
+      if (timeSinceLastFocus > 5000) {
+        console.log('Refreshing tasks due to window focus');
+        refreshTasks();
+      }
+      
+      lastFocusTimeRef.current = now;
+      setIsPageActive(true);
+    };
+
+    // Add event listeners
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    window.addEventListener('focus', handleFocus);
+    
+    // Initial render check and immediate task refresh if needed
+    if (initialRenderRef.current) {
+      console.log('Initial render, ensuring tasks are loaded');
+      initialRenderRef.current = false;
+      
+      // Force immediate refresh on component mount
+      if (!loading && (!allTasks || allTasks.length === 0)) {
+        console.log('No tasks available on mount, forcing refresh');
+        setTimeout(() => refreshTasks(), 0);
+      }
+    }
+
+    // Cleanup
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      window.removeEventListener('focus', handleFocus);
+    };
+  }, [refreshTasks, loading, allTasks]);
+
+  // Additional effect to ensure tasks are reloaded when user changes
+  useEffect(() => {
+    if (user?.id) {
+      console.log('User ID changed, refreshing tasks for user:', user.id);
+      refreshTasks();
+    }
+  }, [user?.id, refreshTasks]);
+  
+  // Additional polling mechanism to ensure tasks are loaded even if other methods fail
+  useEffect(() => {
+    if (!isPageActive) return;
+    
+    // If we have no tasks but we're not in a loading state, try to refresh
+    const checkTasksInterval = setInterval(() => {
+      if (!loading && (!allTasks || allTasks.length === 0)) {
+        console.log('Task check interval - no tasks available, triggering refresh');
+        refreshTasks();
+      }
+    }, 10000); // Check every 10 seconds
+    
+    return () => clearInterval(checkTasksInterval);
+  }, [loading, allTasks, refreshTasks, isPageActive]);
 
   // Generate week days with current date in middle - better memoization
   const weekDays = useMemo(() => {
@@ -338,6 +426,37 @@ export function UpcomingPage() {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500"></div>
+      </div>
+    );
+  }
+
+  // Show a different message when we have no tasks but we're not loading
+  if (!loading && (!tasks || tasks.length === 0)) {
+    return (
+      <div className="min-h-screen bg-gray-50 dark:bg-gray-900 pt-4">
+        <div className="max-w-full md:max-w-5xl mx-auto px-2 md:px-6">
+          <div className="flex items-center justify-between mb-4 py-3">
+            <button 
+              onClick={() => {
+                console.log('Manual refresh triggered by user');
+                refreshTasks();
+              }}
+              className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-semibold text-blue-600 dark:text-blue-400 bg-blue-50/80 dark:bg-blue-900/30 rounded-full hover:bg-blue-100 dark:hover:bg-blue-900/40 transition-all duration-200"
+            >
+              <div className="w-1.5 h-1.5 rounded-full bg-blue-500 dark:bg-blue-400 animate-pulse"></div>
+              Refresh Tasks
+            </button>
+          </div>
+          <div className="text-center py-16 bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200/80 dark:border-gray-700/80 mt-4">
+            <div className="w-16 h-16 mx-auto mb-4 bg-gray-50 dark:bg-gray-700 rounded-full flex items-center justify-center">
+              <Calendar className="w-8 h-8 text-gray-400 dark:text-gray-500" />
+            </div>
+            <p className="text-lg text-gray-900 dark:text-gray-100 font-medium">No tasks available</p>
+            <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+              Try refreshing the page or check back later
+            </p>
+          </div>
+        </div>
       </div>
     );
   }

@@ -113,11 +113,16 @@ export function TaskForm({ onSubmit, sectionId, isSectionAdmin = false }: TaskFo
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files) {
       const newFiles = Array.from(e.target.files);
+      console.log('[Debug] Files selected:', newFiles.map(f => f.name));
       setFiles(prev => [...prev, ...newFiles]);
       
       // Create temporary URLs for display
       const newUrls = newFiles.map(file => URL.createObjectURL(file));
       setFileUrls(prev => [...prev, ...newUrls]);
+      
+      // Debug log for mobile
+      const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+      console.log('[Debug] File upload on mobile:', isMobile);
     }
   };
   
@@ -162,11 +167,23 @@ export function TaskForm({ onSubmit, sectionId, isSectionAdmin = false }: TaskFo
         });
       }
       
-      // Add file references (in a real app, these would be uploaded and proper URLs would be used)
+      // Add file references
       if (files.length > 0) {
+        console.log('[Debug] Adding file attachments to description:', files.map(f => f.name));
         enhancedDescription += '\n\n**Attachments:**\n';
+        
+        // Detect if we're on mobile
+        const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+        
         files.forEach(file => {
-          enhancedDescription += `- [${file.name}](attachment:${file.name})\n`;
+          if (isMobile) {
+            // On mobile, use a special format that the backend can detect
+            enhancedDescription += `- [${file.name}](attachment:${file.name})\n`;
+          } else {
+            // On desktop, we can use the blob URL that will get processed by the backend
+            const fileUrl = URL.createObjectURL(file);
+            enhancedDescription += `- [${file.name}](${fileUrl})\n`;
+          }
         });
       }
       
@@ -174,6 +191,8 @@ export function TaskForm({ onSubmit, sectionId, isSectionAdmin = false }: TaskFo
       if (isSectionAdmin && sectionId) {
         enhancedDescription += `\n\n*This task is assigned to section ID: ${sectionId}*`;
       }
+      
+      console.log('[Debug] Final description with attachments:', enhancedDescription);
       
       const finalTask: NewTask = {
         ...taskDetails,

@@ -203,8 +203,17 @@ export function TaskManager({
   // Handle task creation with optimistic update
   const handleCreateTask = useCallback(async (task: NewTask) => {
     try {
+      // Log initial task data
+      console.log('[Debug] Handling task creation with data:', task);
+      
+      // Detect mobile device
+      const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+      console.log('[Debug] Creating task on mobile device:', isMobile);
+      
       // If section admin, automatically associate with section
       if (isSectionAdmin && sectionId) {
+        console.log('[Debug] Section admin creating task with sectionId:', sectionId);
+        
         const enhancedTask = {
           ...task,
           sectionId
@@ -225,8 +234,13 @@ export function TaskManager({
         // Add to local state immediately
         setLocalTasks(prev => [optimisticTask, ...prev]);
         
-        // Make actual API call - pass sectionId as second parameter
+        // Check for file attachments in description
+        const hasAttachments = enhancedTask.description.includes('**Attachments:**');
+        console.log('[Debug] Task has attachments:', hasAttachments);
+        
+        // Make actual API call - explicitly pass sectionId as second parameter
         await onCreateTask(enhancedTask, sectionId);
+        console.log('[Debug] Task created successfully with section ID');
         showSuccessToast('Task created successfully');
       } else {
         // Similar handling for non-section tasks
@@ -242,7 +256,13 @@ export function TaskManager({
         };
         
         setLocalTasks(prev => [optimisticTask, ...prev]);
+        
+        // Check for file attachments in description
+        const hasAttachments = task.description.includes('**Attachments:**');
+        console.log('[Debug] Task has attachments:', hasAttachments);
+        
         await onCreateTask(task);
+        console.log('[Debug] Task created successfully without section ID');
         showSuccessToast('Task created successfully');
       }
     } catch (error: any) {
@@ -252,7 +272,7 @@ export function TaskManager({
       // Remove optimistic task on error
       setLocalTasks(prev => prev.filter(t => !t.id.startsWith('temp-')));
     }
-  }, [onCreateTask, isSectionAdmin, sectionId]);
+  }, [onCreateTask, isSectionAdmin, sectionId, showSuccessToast, showErrorToast]);
   
   // Handle task deletion with optimistic update
   const handleDeleteTask = useCallback(async (taskId: string) => {

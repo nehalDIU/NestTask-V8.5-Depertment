@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { X, Tag, Calendar, AlignLeft, Link2, Upload, CheckCircle, AlertCircle, ChevronDown, Flag, FileText, Paperclip, Eye, Edit3, Info } from 'lucide-react';
+import { X, Tag, Calendar, AlignLeft, Link2, Upload, CheckCircle, AlertCircle, ChevronDown, FileText, Paperclip, Eye, Edit3, Info } from 'lucide-react';
 import type { Task } from '../../../types';
 import type { TaskPriority } from '../../../types/task';
 
@@ -16,7 +16,6 @@ export function TaskEditModal({ task, onClose, onUpdate }: TaskEditModalProps) {
     dueDate: task.dueDate,
     description: task.description,
     status: task.status,
-    priority: task.priority,
   });
   
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -565,33 +564,6 @@ export function TaskEditModal({ task, onClose, onUpdate }: TaskEditModalProps) {
                 </div>
               </div>
             </div>
-
-            {showAdvanced && (
-              <div>
-                <label htmlFor="priority" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                  Priority
-                </label>
-                <div className="relative">
-                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                    <Flag className="h-4 w-4 sm:h-5 sm:w-5 text-gray-400" />
-                  </div>
-                  <select
-                    id="priority"
-                    name="priority"
-                    value={formData.priority || 'medium'}
-                    onChange={handleChange}
-                    className="w-full pl-10 pr-10 py-2.5 sm:py-3 border dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white text-sm sm:text-base appearance-none"
-                  >
-                    <option value="high">High</option>
-                    <option value="medium">Medium</option>
-                    <option value="low">Low</option>
-                  </select>
-                  <div className="absolute inset-y-0 right-0 flex items-center pr-2 pointer-events-none">
-                    <ChevronDown className="h-4 w-4 text-gray-500" />
-                  </div>
-                </div>
-              </div>
-            )}
 
             <div className="md:col-span-2">
               <div className="flex justify-between items-center mb-1">

@@ -11,8 +11,7 @@ import {
   ChevronDown,
   ChevronUp,
   AlertCircle,
-  CheckCircle,
-  Flag
+  CheckCircle
 } from 'lucide-react';
 import type { NewTask } from '../../../types/task';
 
@@ -29,8 +28,7 @@ export function TaskForm({ onSubmit, sectionId, isSectionAdmin = false }: TaskFo
     dueDate: '',
     description: '',
     status: 'in-progress',
-    sectionId: sectionId || undefined,
-    priority: 'medium'
+    sectionId: sectionId || undefined
   });
   
   const [errors, setErrors] = useState<Partial<Record<keyof NewTask, string>>>({});
@@ -192,8 +190,7 @@ export function TaskForm({ onSubmit, sectionId, isSectionAdmin = false }: TaskFo
         dueDate: '',
         description: '',
         status: 'in-progress',
-        sectionId: sectionId || undefined,
-        priority: 'medium'
+        sectionId: sectionId || undefined
       });
       setFiles([]);
       setFileUrls([]);
@@ -353,31 +350,6 @@ export function TaskForm({ onSubmit, sectionId, isSectionAdmin = false }: TaskFo
 
           {showAdvanced && (
             <>
-              <div>
-                <label htmlFor="priority" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                  Priority
-                </label>
-                <div className="relative">
-                  <div className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 pointer-events-none">
-                    <Flag className="w-4 h-4 sm:w-5 sm:h-5" />
-                  </div>
-                  <select
-                    id="priority"
-                    name="priority"
-                    value={taskDetails.priority}
-                    onChange={handleChange}
-                    className="w-full pl-10 pr-4 py-2.5 border border-gray-300 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white appearance-none text-sm sm:text-base"
-                  >
-                    <option value="high">High</option>
-                    <option value="medium">Medium</option>
-                    <option value="low">Low</option>
-                  </select>
-                  <div className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 pointer-events-none">
-                    <ChevronDown className="w-4 h-4" />
-                  </div>
-                </div>
-              </div>
-
               <div>
                 <label htmlFor="status" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                   Status

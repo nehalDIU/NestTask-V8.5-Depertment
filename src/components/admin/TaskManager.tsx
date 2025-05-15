@@ -23,7 +23,7 @@ import {
   RefreshCw
 } from 'lucide-react';
 import type { Task } from '../../types';
-import type { NewTask } from '../../types/task';
+import type { NewTask, TaskStatus } from '../../types/task';
 import { showErrorToast, showSuccessToast } from '../../utils/notifications';
 
 interface TaskManagerProps {
@@ -87,9 +87,6 @@ export function TaskManager({
   const [startDate, setStartDate] = useState<string>('');
   const [endDate, setEndDate] = useState<string>('');
   
-  // Priority filter
-  const [priorityFilter, setPriorityFilter] = useState<string>('all');
-  
   // Local state for optimistic UI updates
   const [localTasks, setLocalTasks] = useState<Task[]>(tasks);
   
@@ -123,7 +120,7 @@ export function TaskManager({
   // Reset pagination when filters change
   useEffect(() => {
     setPage(1);
-  }, [categoryFilter, statusFilter, priorityFilter, startDate, endDate, debouncedSearchTerm]);
+  }, [categoryFilter, statusFilter, startDate, endDate, debouncedSearchTerm]);
   
   // Filter tasks with memoization
   const filteredTasks = useMemo(() => {
@@ -135,11 +132,6 @@ export function TaskManager({
       
       // Status filter
       if (statusFilter !== 'all' && task.status !== statusFilter) {
-        return false;
-      }
-      
-      // Priority filter (if task has priority property)
-      if (priorityFilter !== 'all' && task.priority !== priorityFilter) {
         return false;
       }
       
@@ -168,7 +160,7 @@ export function TaskManager({
       
       return true;
     });
-  }, [localTasks, categoryFilter, statusFilter, priorityFilter, startDate, endDate, debouncedSearchTerm]);
+  }, [localTasks, categoryFilter, statusFilter, startDate, endDate, debouncedSearchTerm]);
   
   // Sort tasks with memoization
   const sortedTasks = useMemo(() => {
@@ -227,13 +219,14 @@ export function TaskManager({
           assignedBy: 'Pending...',
           assignedById: '',
           status: enhancedTask.status || 'my-tasks',
+          isAdminTask: true
         };
         
         // Add to local state immediately
         setLocalTasks(prev => [optimisticTask, ...prev]);
         
         // Make actual API call
-        await onCreateTask(enhancedTask, sectionId);
+        await onCreateTask(enhancedTask);
         showSuccessToast('Task created successfully');
       } else {
         // Similar handling for non-section tasks
@@ -245,6 +238,7 @@ export function TaskManager({
           assignedBy: 'Pending...',
           assignedById: '',
           status: task.status || 'my-tasks',
+          isAdminTask: true
         };
         
         setLocalTasks(prev => [optimisticTask, ...prev]);
@@ -335,38 +329,36 @@ export function TaskManager({
   };
   
   // Handle bulk task status update
-  const handleBulkStatusUpdate = async (status: string) => {
-    if (!selectedTaskIds.length) return;
+  const handleBulkStatusUpdate = async (status: TaskStatus) => {
+    if (selectedTaskIds.length === 0) return;
+    
+    setIsProcessingBulk(true);
     
     try {
-      setIsProcessingBulk(true);
-      
-      // Optimistically update tasks in local state
-      setLocalTasks(prev => 
-        prev.map(t => selectedTaskIds.includes(t.id) 
-          ? { ...t, status, updatedAt: new Date().toISOString() } 
-          : t
-        )
-      );
-      
-      // Process in batches to avoid overwhelming the API
-      const chunks = [];
-      for (let i = 0; i < selectedTaskIds.length; i += 5) {
-        chunks.push(selectedTaskIds.slice(i, i + 5));
+      // Process each task sequentially
+      for (const taskId of selectedTaskIds) {
+        await onUpdateTask(taskId, { 
+          status,
+          updatedAt: new Date().toISOString()
+        });
       }
       
-      for (const chunk of chunks) {
-        await Promise.all(chunk.map(id => onUpdateTask(id, { status })));
-      }
+      // Update local state (optimistic UI)
+      setLocalTasks(prev => prev.map(task => {
+        if (selectedTaskIds.includes(task.id)) {
+          return {
+            ...task,
+            status,
+            updatedAt: new Date().toISOString()
+          };
+        }
+        return task;
+      }));
       
-      showSuccessToast(`${selectedTaskIds.length} tasks updated successfully`);
+      // Clear selection after the operation is complete
       setSelectedTaskIds([]);
-    } catch (error: any) {
-      console.error('Error bulk updating tasks:', error);
-      showErrorToast(`Error updating tasks: ${error.message}`);
-      
-      // Refresh tasks to restore state on error
-      setLocalTasks(tasks);
+    } catch (error) {
+      console.error('Error updating task status:', error);
     } finally {
       setIsProcessingBulk(false);
     }
@@ -429,7 +421,6 @@ export function TaskManager({
   const resetFilters = () => {
     setCategoryFilter('all');
     setStatusFilter('all');
-    setPriorityFilter('all');
     setStartDate('');
     setEndDate('');
     setSearchTerm('');
@@ -579,22 +570,6 @@ export function TaskManager({
                 <option value="quiz">Quiz</option>
                 <option value="task">Task</option>
                 <option value="others">Others</option>
-              </select>
-            </div>
-            
-            <div>
-              <label className="block text-xs sm:text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                Priority
-              </label>
-              <select
-                value={priorityFilter}
-                onChange={(e) => setPriorityFilter(e.target.value)}
-                className="w-full px-3 py-2 border dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white text-xs sm:text-sm"
-              >
-                <option value="all">All Priorities</option>
-                <option value="high">High</option>
-                <option value="medium">Medium</option>
-                <option value="low">Low</option>
               </select>
             </div>
             

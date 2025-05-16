@@ -43,24 +43,69 @@ export function TaskEditModal({ task, onClose, onUpdate }: TaskEditModalProps) {
     }, 100);
   }, []);
   
-  // Handle touch gestures for mobile
+  // Add improved mobile touch detection
+  useEffect(() => {
+    const detectMobile = () => {
+      return (
+        /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(
+          navigator.userAgent
+        ) || window.innerWidth < 768
+      );
+    };
+    
+    const isMobile = detectMobile();
+    
+    // Add mobile-specific class to body when modal is open
+    if (isMobile) {
+      document.body.classList.add('modal-open-mobile');
+    }
+    
+    return () => {
+      document.body.classList.remove('modal-open-mobile');
+    };
+  }, []);
+  
+  // Enhance touch handling for better mobile UX
   const handleTouchStart = (e: React.TouchEvent) => {
-    setTouchStart({
-      x: e.touches[0].clientX,
-      y: e.touches[0].clientY
-    });
+    if (e.touches.length === 1) {
+      setTouchStart({
+        x: e.touches[0].clientX,
+        y: e.touches[0].clientY
+      });
+    }
+  };
+  
+  const handleTouchMove = (e: React.TouchEvent) => {
+    if (!touchStart || e.touches.length !== 1) return;
+    
+    const touchY = e.touches[0].clientY;
+    const deltaY = touchStart.y - touchY;
+    
+    // If scrolling up, prevent closing
+    if (deltaY > 0) return;
+    
+    // For downward swipes, add some resistance
+    const resistance = 0.4;
+    const translateY = Math.min(Math.abs(deltaY) * resistance, 150);
+    
+    if (modalRef.current) {
+      modalRef.current.style.transform = `translateY(${translateY}px)`;
+      modalRef.current.style.transition = 'none';
+    }
   };
   
   const handleTouchEnd = (e: React.TouchEvent) => {
-    if (!touchStart) return;
+    if (!touchStart || !modalRef.current) return;
     
-    const touchEndX = e.changedTouches[0].clientX;
+    // Reset the modal position with a smooth transition
+    modalRef.current.style.transform = '';
+    modalRef.current.style.transition = 'transform 0.3s ease-out';
+    
     const touchEndY = e.changedTouches[0].clientY;
-    const deltaX = touchStart.x - touchEndX;
     const deltaY = touchStart.y - touchEndY;
     
-    // Simple swipe down detection - close modal
-    if (deltaY < -100 && Math.abs(deltaX) < 50) {
+    // If swiped down far enough, close the modal
+    if (deltaY < -100) {
       onClose();
     }
     
@@ -399,35 +444,53 @@ export function TaskEditModal({ task, onClose, onUpdate }: TaskEditModalProps) {
 
   return (
     <div
-      className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-2 sm:p-4 z-50 overflow-y-auto animate-fadeIn"
+      className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-0 sm:p-4 z-50 overflow-y-auto animate-fadeIn"
       onClick={handleBackdropClick}
       role="dialog"
       aria-modal="true"
       aria-labelledby="edit-task-title"
     >
       <div 
-        className="bg-white dark:bg-gray-800 rounded-2xl max-w-4xl w-full max-h-[90vh] overflow-y-auto shadow-xl relative animate-slideIn"
+        className="bg-white dark:bg-gray-800 rounded-2xl max-w-4xl w-full max-h-[95vh] sm:max-h-[90vh] overflow-y-auto shadow-xl relative animate-slideIn"
         ref={modalRef}
         onTouchStart={handleTouchStart}
+        onTouchMove={handleTouchMove}
         onTouchEnd={handleTouchEnd}
       >
-        {/* Swipe indicator for mobile */}
-        <div className="absolute left-0 right-0 flex justify-center -top-1">
+        {/* Improved swipe indicator for mobile */}
+        <div className="absolute left-0 right-0 flex justify-center -top-1 touch-none">
           <div className="w-12 h-1.5 bg-gray-300 dark:bg-gray-600 rounded-full transform translate-y-1 opacity-80"></div>
         </div>
         
-        {/* Modal Header */}
+        {/* Modal Header - improved for mobile */}
         <div className="sticky top-0 px-4 sm:px-6 py-3 sm:py-4 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between bg-white dark:bg-gray-800 z-10 shadow-sm">
-          <h3 className="text-lg sm:text-xl font-semibold text-gray-900 dark:text-white" id="edit-task-title">
+          <h3 className="text-base sm:text-lg font-semibold text-gray-900 dark:text-white" id="edit-task-title">
             Edit Task
           </h3>
-          <button
-            onClick={onClose}
-            className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300 rounded-full p-2 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500"
-            aria-label="Close dialog"
-          >
-            <X className="w-5 h-5 sm:w-6 sm:h-6" />
-          </button>
+          <div className="flex items-center gap-2">
+            {/* Preview toggle button */}
+            <button
+              type="button"
+              onClick={() => setShowPreview(!showPreview)}
+              className="text-xs text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 p-2 rounded-lg hover:bg-blue-50 dark:hover:bg-blue-900/20 flex items-center gap-1"
+              aria-label={showPreview ? "Edit description" : "Preview description"}
+            >
+              {showPreview ? (
+                <Edit3 className="w-4 h-4" />
+              ) : (
+                <Eye className="w-4 h-4" />
+              )}
+              <span className="hidden sm:inline">{showPreview ? "Edit" : "Preview"}</span>
+            </button>
+            
+            <button
+              onClick={onClose}
+              className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300 rounded-full p-2 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500"
+              aria-label="Close dialog"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          </div>
         </div>
 
         {/* Form */}
@@ -831,40 +894,44 @@ export function TaskEditModal({ task, onClose, onUpdate }: TaskEditModalProps) {
             )}
           </div>
           
-          <div className="flex flex-col sm:flex-row sm:justify-end gap-3 mt-6">
+          {/* Submit button - improved mobile positioning */}
+          <div className="sticky bottom-0 left-0 right-0 flex justify-end px-4 sm:px-6 py-3 sm:py-4 bg-white dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700 z-10 gap-3">
             <button
               type="button"
               onClick={onClose}
-              className="px-5 py-2.5 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-xl hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500 text-sm font-medium"
+              className="px-4 py-2 text-sm sm:text-base text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-xl"
+              disabled={isSubmitting}
             >
               Cancel
             </button>
             <button
               type="submit"
               disabled={isSubmitting}
-              className={`px-5 py-2.5 rounded-xl font-medium text-white ${
-                isSubmitting ? 'bg-blue-400 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-700'
-              } transition-colors flex justify-center items-center gap-2 text-sm focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500`}
-              aria-busy={isSubmitting}
+              className={`px-4 py-2 text-sm sm:text-base bg-blue-600 text-white rounded-xl hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-colors ${
+                isSubmitting ? 'opacity-70 cursor-not-allowed' : ''
+              }`}
             >
               {isSubmitting ? (
-                <>
+                <span className="flex items-center gap-2">
                   <svg className="animate-spin h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                     <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                     <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                   </svg>
-                  Updating...
-                </>
+                  Saving...
+                </span>
               ) : (
-                'Update Task'
+                'Save Changes'
               )}
             </button>
           </div>
           
+          {/* Add improved mobile responsive success state */}
           {showSuccess && (
-            <div className="mt-4 p-3 bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-300 rounded-xl text-sm flex items-center gap-2 animate-fadeIn">
-              <CheckCircle className="w-5 h-5 flex-shrink-0" />
-              <span>Task updated successfully!</span>
+            <div className="fixed inset-x-0 top-4 flex justify-center items-center z-50 px-4">
+              <div className="bg-green-100 dark:bg-green-900/30 border border-green-200 dark:border-green-800 rounded-xl shadow-lg px-4 py-3 flex items-center gap-2 max-w-md animate-slideDown">
+                <CheckCircle className="w-5 h-5 text-green-600 dark:text-green-400 flex-shrink-0" />
+                <span className="text-green-800 dark:text-green-200 text-sm">Task updated successfully</span>
+              </div>
             </div>
           )}
         </form>

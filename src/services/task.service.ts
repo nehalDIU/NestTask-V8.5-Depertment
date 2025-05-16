@@ -156,19 +156,77 @@ export const createTask = async (
     // Process mobile files first if they exist
     if (isMobileUpload) {
       try {
-        console.log('[Debug] Uploading mobile files', mobileFiles.map(f => f.name));
+        console.log('[Debug] Uploading mobile files', mobileFiles.map(f => ({name: f.name, size: f.size})));
         
-        // Upload each mobile file
+        // Wrap file upload in a promise with timeout
+        const uploadFileWithTimeout = async (file: File, timeoutMs = 15000): Promise<string> => {
+          return new Promise(async (resolve, reject) => {
+            // Set a timeout to reject the promise if it takes too long
+            const timeoutId = setTimeout(() => {
+              reject(new Error(`Upload timed out for file ${file.name}`));
+            }, timeoutMs);
+            
+            try {
+              const url = await uploadFile(file);
+              clearTimeout(timeoutId);
+              resolve(url);
+            } catch (error) {
+              clearTimeout(timeoutId);
+              reject(error);
+            }
+          });
+        };
+        
+        // Upload each mobile file with retry logic
         for (const file of mobileFiles) {
+          if (!file.name || file.size === 0) {
+            console.warn('[Warning] Skipping invalid file', file);
+            continue;
+          }
+          
           try {
             console.log('[Debug] Uploading mobile file:', file.name);
-            const permanentUrl = await uploadFile(file);
+            
+            // Try up to 3 times
+            let permanentUrl = '';
+            let attempts = 0;
+            let lastError = null;
+            
+            while (attempts < 3 && !permanentUrl) {
+              try {
+                attempts++;
+                permanentUrl = await uploadFileWithTimeout(file);
+                break;
+              } catch (uploadError) {
+                console.error(`[Error] Failed to upload mobile file (attempt ${attempts}/3):`, file.name, uploadError);
+                lastError = uploadError;
+                // Wait 1 second before retrying
+                if (attempts < 3) await new Promise(resolve => setTimeout(resolve, 1000));
+              }
+            }
+            
+            if (!permanentUrl) {
+              throw lastError || new Error(`Failed to upload file after 3 attempts: ${file.name}`);
+            }
             
             // Update description to replace attachment references with permanent URLs
-            const attachmentRef = `[${file.name}](attachment:${file.name})`;
+            const attachmentPattern = new RegExp(`\\[${file.name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\]\\(attachment:${file.name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\)`, 'g');
             const permanentRef = `[${file.name}](${permanentUrl})`;
             
-            description = description.replace(attachmentRef, permanentRef);
+            const oldDescription = description;
+            description = description.replace(attachmentPattern, permanentRef);
+            
+            if (oldDescription === description) {
+              // If the description didn't change, try a more general approach
+              console.warn('[Warning] Failed to find exact attachment reference, trying general pattern');
+              description = description.replace(/\[(.*?)\]\(attachment:(.*?)\)/g, (match, fileName, ref) => {
+                if (fileName === file.name) {
+                  return `[${fileName}](${permanentUrl})`;
+                }
+                return match;
+              });
+            }
+            
             console.log('[Debug] Replaced attachment reference with permanent URL');
           } catch (fileError) {
             console.error('[Error] Failed to upload mobile file:', file.name, fileError);
@@ -183,44 +241,69 @@ export const createTask = async (
     } else {
       // Standard desktop file processing
       // Extract file information from description
+      // Extract file information from description with improved regex
       const fileMatches = description.match(/\[([^\]]+)\]\((blob:.*?|attachment:.*?)\)/g) || [];
       console.log('[Debug] Found file matches in description:', fileMatches);
 
       // Upload each file and update description with permanent URLs
       for (const match of fileMatches) {
-        // Updated regex to handle both blob: URLs (desktop) and attachment: references (mobile)
-        const [, fileName, url] = match.match(/\[(.*?)\]\((blob:.*?|attachment:(.*?))\)/) || [];
-        console.log('[Debug] Processing file match:', { match, fileName, url });
-        
-        if (fileName) {
-          try {
-            // If it's already an attachment reference without a blob URL, preserve it
-            if (url && !url.startsWith('blob:')) {
-              console.log('[Debug] Skipping non-blob URL:', url);
-              continue;
+        try {
+          // Updated regex to handle both blob: URLs (desktop) and attachment: references (mobile)
+          const matchResult = match.match(/\[(.*?)\]\((blob:(.*?)|attachment:(.*?))\)/);
+          if (!matchResult) continue;
+          
+          const [, fileName, urlWithPrefix] = matchResult;
+          const isBlob = urlWithPrefix?.startsWith('blob:');
+          console.log('[Debug] Processing file match:', { match, fileName, isBlob });
+          
+          if (fileName) {
+            try {
+              // If it's already an attachment reference without a blob URL, preserve it
+              if (!isBlob) {
+                console.log('[Debug] Skipping non-blob URL:', urlWithPrefix);
+                continue;
+              }
+              
+              // For blob URLs, process normally with timeout
+              if (isBlob) {
+                const fetchPromise = new Promise<Blob>(async (resolve, reject) => {
+                  try {
+                    console.log('[Debug] Fetching blob URL:', urlWithPrefix);
+                    const response = await fetch(urlWithPrefix);
+                    if (!response.ok) {
+                      reject(new Error(`Failed to fetch blob: ${response.status}`));
+                      return;
+                    }
+                    const blob = await response.blob();
+                    resolve(blob);
+                  } catch (error) {
+                    reject(error);
+                  }
+                });
+                
+                // Set up a timeout
+                const timeoutPromise = new Promise<never>((_, reject) => {
+                  setTimeout(() => reject(new Error('Blob fetch timed out')), 10000);
+                });
+                
+                // Race the fetch against the timeout
+                const blob = await Promise.race([fetchPromise, timeoutPromise]);
+                
+                const file = new File([blob], fileName, { type: blob.type });
+                const permanentUrl = await uploadFile(file);
+                description = description.replace(match, `[${fileName}](${permanentUrl})`);
+                console.log('[Debug] Uploaded file and replaced URL with:', permanentUrl);
+              }
+            } catch (error) {
+              console.error('[Error] Processing file failed:', { fileName, error });
             }
-            
-            // For blob URLs, process normally
-            if (url && url.startsWith('blob:')) {
-              console.log('[Debug] Fetching blob URL:', url);
-              const response = await fetch(url);
-              const blob = await response.blob();
-              const file = new File([blob], fileName, { type: blob.type });
-              const permanentUrl = await uploadFile(file);
-              description = description.replace(match, `[${fileName}](${permanentUrl})`);
-              console.log('[Debug] Uploaded file and replaced URL with:', permanentUrl);
-            }
-          } catch (error) {
-            console.error('[Error] Processing file failed:', { fileName, error });
           }
+        } catch (matchError) {
+          console.error('[Error] Invalid file match format:', { match, error: matchError });
         }
       }
     }
 
-    // Also handle any remaining attachment: format references
-    const attachmentMatches = description.match(/\[([^\]]+)\]\(attachment:([^)]+)\)/g) || [];
-    console.log('[Debug] Found attachment matches:', attachmentMatches);
-    
     // Prepare the task data
     const taskInsertData: any = {
       name: task.name,

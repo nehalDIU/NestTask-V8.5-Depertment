@@ -171,21 +171,29 @@ export function TaskForm({ onSubmit, sectionId, isSectionAdmin = false }: TaskFo
     });
   };
   
-  // Handle form submission
+  // Handle form submission with timeout to prevent infinite submission state
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
     if (!validate()) return;
+    
+    // Prevent multiple submissions
+    if (isSubmitting) return;
     
     // Set submitting state on next frame to avoid forced reflow
     requestAnimationFrame(() => {
       setIsSubmitting(true);
     });
     
+    // Add submission timeout to prevent infinite loading state
+    const submissionTimeout = setTimeout(() => {
+      console.error('[Error] Task submission timed out after 20 seconds');
+      setIsSubmitting(false);
+      alert('Task submission is taking longer than expected. Your task might still be processing in the background.');
+    }, 20000); // 20 second timeout
+    
     try {
       // Clone task details to avoid modifying state during preparation
-      // Creating a new object outside of React state updates avoids synchronous 
-      // DOM measurements during JavaScript execution
       const taskDescription = taskDetails.description;
       let enhancedDescription = taskDescription;
       
@@ -202,29 +210,50 @@ export function TaskForm({ onSubmit, sectionId, isSectionAdmin = false }: TaskFo
       // Detect if we're on mobile
       const isMobile = /iPhone|iPad|iPod|Android|webOS|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
       
-      // Add file references
+      // Add file references with better error handling
       const filesToProcess = [...files];
       if (filesToProcess.length > 0) {
         console.log('[Debug] Adding file attachments to description. Mobile:', isMobile);
         enhancedDescription += '\n\n**Attachments:**\n';
         
-        // For mobile devices, create direct attachment references
-        if (isMobile) {
-          filesToProcess.forEach(file => {
-            console.log('[Debug] Adding mobile attachment:', file.name);
-            // Mobile - use attachment: protocol that will be recognized by the backend
-            enhancedDescription += `- [${file.name}](attachment:${file.name})\n`;
-          });
-          
-          // Add a special flag for mobile uploads that the backend can detect
-          enhancedDescription += '\n<!-- mobile-uploads -->\n';
-        } else {
-          // For desktop, create blob URLs that can be processed
-          filesToProcess.forEach(file => {
-            console.log('[Debug] Adding desktop attachment with blob URL');
-            const fileUrl = URL.createObjectURL(file);
-            enhancedDescription += `- [${file.name}](${fileUrl})\n`;
-          });
+        try {
+          // For mobile devices, create direct attachment references
+          if (isMobile) {
+            // Check if files are valid
+            const validFiles = filesToProcess.filter(file => 
+              file.size > 0 && file.name && typeof file.name === 'string'
+            );
+            
+            if (validFiles.length !== filesToProcess.length) {
+              console.warn('[Warning] Some files appear to be invalid', {
+                total: filesToProcess.length,
+                valid: validFiles.length
+              });
+            }
+            
+            validFiles.forEach(file => {
+              console.log('[Debug] Adding mobile attachment:', file.name, 'Size:', file.size);
+              // Mobile - use attachment: protocol that will be recognized by the backend
+              enhancedDescription += `- [${file.name}](attachment:${file.name})\n`;
+            });
+            
+            // Add a special flag for mobile uploads that the backend can detect
+            enhancedDescription += '\n<!-- mobile-uploads -->\n';
+            
+            // Only use valid files
+            filesToProcess.length = 0;
+            filesToProcess.push(...validFiles);
+          } else {
+            // For desktop, create blob URLs that can be processed
+            filesToProcess.forEach(file => {
+              console.log('[Debug] Adding desktop attachment with blob URL');
+              const fileUrl = URL.createObjectURL(file);
+              enhancedDescription += `- [${file.name}](${fileUrl})\n`;
+            });
+          }
+        } catch (fileError) {
+          console.error('[Error] Failed to process file attachments:', fileError);
+          // Continue with submission even if file processing fails
         }
       }
       
@@ -233,8 +262,6 @@ export function TaskForm({ onSubmit, sectionId, isSectionAdmin = false }: TaskFo
         console.log('[Debug] Adding section ID to description:', sectionId);
         enhancedDescription += `\n\n*This task is assigned to section ID: ${sectionId}*`;
       }
-      
-      console.log('[Debug] Final task description with attachments:', enhancedDescription);
       
       // Create task object outside of state updates
       const finalTask: NewTask = {
@@ -246,13 +273,30 @@ export function TaskForm({ onSubmit, sectionId, isSectionAdmin = false }: TaskFo
       if (isMobile && filesToProcess.length > 0) {
         console.log('[Debug] This is a mobile submission with files. Count:', filesToProcess.length);
         
-        // On mobile, we'll pass the actual files to the onSubmit handler
-        // by attaching them to the task object with a custom property
-        (finalTask as any)._mobileFiles = filesToProcess;
+        try {
+          // Validate files before sending
+          for (const file of filesToProcess) {
+            if (!file.name || file.size === 0) {
+              console.error('[Error] Invalid file detected:', file);
+              throw new Error('Invalid file detected. Please try again with different files.');
+            }
+          }
+          
+          // On mobile, we'll pass the actual files to the onSubmit handler
+          // by attaching them to the task object with a custom property
+          (finalTask as any)._mobileFiles = filesToProcess;
+        } catch (mobileFileError) {
+          console.error('[Error] Mobile file preparation failed:', mobileFileError);
+          // Continue with submission without files if there's an error
+          delete (finalTask as any)._mobileFiles;
+        }
       }
       
       console.log('[Debug] Submitting final task:', finalTask);
       await onSubmit(finalTask);
+      
+      // Clear timeout since submission was successful
+      clearTimeout(submissionTimeout);
       
       // Reset form - do all state updates in a single animation frame
       requestAnimationFrame(() => {
@@ -277,7 +321,12 @@ export function TaskForm({ onSubmit, sectionId, isSectionAdmin = false }: TaskFo
         }, 3000);
       });
     } catch (error) {
-      console.error('Error creating task:', error);
+      console.error('[Error] Task creation failed:', error);
+      clearTimeout(submissionTimeout);
+      
+      // Show error to user
+      alert(`Failed to create task: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      
       requestAnimationFrame(() => {
         setIsSubmitting(false);
       });

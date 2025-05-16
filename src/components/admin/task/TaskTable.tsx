@@ -35,6 +35,8 @@ export function TaskTable({
   const [editingTask, setEditingTask] = useState<Task | null>(null);
   const [taskToDelete, setTaskToDelete] = useState<string | null>(null);
   const [isMobileView, setIsMobileView] = useState(false);
+  const [longPressTimer, setLongPressTimer] = useState<number | null>(null);
+  const [activeTouchId, setActiveTouchId] = useState<string | null>(null);
   const tableRef = useRef<HTMLDivElement>(null);
   
   // Check viewport width on mount and window resize
@@ -140,6 +142,47 @@ export function TaskTable({
       <SortDesc className="w-3.5 h-3.5 ml-1 inline-block" />;
   };
   
+  // Handle long press on mobile for task cards
+  const handleTouchStart = (taskId: string) => (e: React.TouchEvent) => {
+    // Only handle primary touch
+    if (e.touches.length !== 1 || activeTouchId) return;
+    
+    // Set a timer for long press
+    const timer = window.setTimeout(() => {
+      // On long press, select the task
+      onToggleSelection(taskId);
+      
+      // Provide haptic feedback on mobile if available
+      if ('vibrate' in navigator) {
+        try {
+          navigator.vibrate(50);
+        } catch (e) {
+          // Ignore if vibration API not available
+        }
+      }
+    }, 500);
+    
+    setLongPressTimer(timer);
+    setActiveTouchId(taskId);
+  };
+
+  const handleTouchEnd = () => {
+    // Clear long press timer
+    if (longPressTimer) {
+      window.clearTimeout(longPressTimer);
+      setLongPressTimer(null);
+    }
+    setActiveTouchId(null);
+  };
+
+  const handleTouchMove = () => {
+    // If user moves their finger, cancel the long press
+    if (longPressTimer) {
+      window.clearTimeout(longPressTimer);
+      setLongPressTimer(null);
+    }
+  };
+  
   // If no tasks are available, show a message
   if (tasks.length === 0) {
     return (
@@ -169,7 +212,7 @@ export function TaskTable({
         </div>
       </div>
 
-      {/* Grid View - Always used on mobile */}
+      {/* Grid View - Always used on mobile, enhanced touch handling */}
       {(viewMode === 'grid' || isMobileView) && (
         <div className="p-3 sm:p-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
           {tasks.map(task => (
@@ -180,12 +223,15 @@ export function TaskTable({
                   ? 'border-blue-500 dark:border-blue-400 bg-blue-50 dark:bg-blue-900/10' 
                   : 'border-gray-200 dark:border-gray-700 hover:border-blue-300 dark:hover:border-blue-700'
               }`}
+              onTouchStart={handleTouchStart(task.id)}
+              onTouchEnd={handleTouchEnd}
+              onTouchMove={handleTouchMove}
             >
               {/* Selection checkbox */}
               <div className="absolute top-2.5 right-2.5">
                 <button 
                   onClick={() => onToggleSelection(task.id)}
-                  className="p-1 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700"
+                  className="p-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700"
                 >
                   {selectedTaskIds.includes(task.id) ? (
                     <CheckSquare className="w-4 h-4 sm:w-5 sm:h-5 text-blue-500 dark:text-blue-400" />
@@ -236,7 +282,7 @@ export function TaskTable({
               <div className="flex justify-end gap-2 pt-2 border-t border-gray-100 dark:border-gray-700">
                 <button
                   onClick={() => setEditingTask(task)}
-                  className="p-2.5 text-blue-600 hover:bg-blue-100 active:bg-blue-200 dark:text-blue-400 dark:hover:bg-blue-900/20 dark:active:bg-blue-900/30 rounded-lg transition-colors flex items-center gap-1.5"
+                  className="p-2.5 text-blue-600 hover:bg-blue-100 active:bg-blue-200 dark:text-blue-400 dark:hover:bg-blue-900/20 dark:active:bg-blue-900/30 rounded-lg transition-colors flex items-center gap-1.5 touch-manipulation"
                   aria-label={`Edit ${task.name}`}
                 >
                   <Edit2 className="w-4 h-4 sm:w-4.5 sm:h-4.5" />
@@ -244,7 +290,7 @@ export function TaskTable({
                 </button>
                 <button
                   onClick={() => setTaskToDelete(task.id)}
-                  className="p-2 text-red-600 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-900/10 rounded-lg transition-colors"
+                  className="p-2 text-red-600 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-900/10 rounded-lg transition-colors touch-manipulation"
                   aria-label={`Delete ${task.name}`}
                 >
                   <Trash2 className="w-4 h-4" />
@@ -409,26 +455,27 @@ export function TaskTable({
         />
       )}
       
-      {/* Delete confirmation modal */}
+      {/* Improved mobile-friendly delete confirmation modal */}
       {taskToDelete && (
-        <div className="fixed inset-0 bg-black bg-opacity-30 flex items-center justify-center z-50 p-4">
-          <div className="bg-white dark:bg-gray-800 rounded-xl shadow-xl max-w-md w-full p-6 space-y-4">
-            <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4 animate-fadeIn">
+          <div className="bg-white dark:bg-gray-800 rounded-xl shadow-xl max-w-md w-full p-4 sm:p-6 space-y-4 animate-slideUp">
+            <h3 className="text-lg font-semibold text-gray-900 dark:text-white flex items-center gap-2">
+              <Trash2 className="w-5 h-5 text-red-500" />
               Delete Task
             </h3>
-            <p className="text-gray-600 dark:text-gray-400">
+            <p className="text-gray-600 dark:text-gray-400 text-sm sm:text-base">
               Are you sure you want to delete this task? This action cannot be undone.
             </p>
             <div className="flex justify-end gap-3 pt-2">
               <button
                 onClick={() => setTaskToDelete(null)}
-                className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg"
+                className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg w-24"
               >
                 Cancel
               </button>
               <button
                 onClick={handleDeleteTask}
-                className="px-4 py-2 text-sm font-medium text-white bg-red-600 hover:bg-red-700 rounded-lg"
+                className="px-4 py-2 text-sm font-medium text-white bg-red-600 hover:bg-red-700 rounded-lg w-24"
               >
                 Delete
               </button>

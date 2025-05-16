@@ -184,8 +184,11 @@ export function TaskManager({
     });
   }, [filteredTasks, sortBy, sortOrder]);
   
-  // Handle task creation with optimistic update
+  // Handle task creation with optimistic update and better error handling for mobile
   const handleCreateTask = useCallback(async (task: NewTask) => {
+    // Generate a unique temporary ID to track this optimistic update
+    const tempId = `temp-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
+    
     try {
       // Log initial task data
       console.log('[Debug] Handling task creation with data:', task);
@@ -194,27 +197,36 @@ export function TaskManager({
       const mobileFiles = (task as any)._mobileFiles;
       const isMobileUpload = !!mobileFiles && mobileFiles.length > 0;
       
+      // Add a timeout to prevent infinite "creating" state
+      let timeoutId: number | null = null;
+      
       if (isMobileUpload) {
         console.log('[Debug] Detected mobile file upload with', mobileFiles.length, 'files');
+        
+        // Set a timeout to clear the optimistic update if it takes too long
+        timeoutId = window.setTimeout(() => {
+          console.error('[Error] Task creation timed out after 30 seconds');
+          // Remove optimistic task on timeout
+          setLocalTasks(prev => prev.filter(t => t.id !== tempId));
+          showErrorToast('Task submission is taking longer than expected. Please check tasks list later to confirm if it was created.');
+        }, 30000); // 30 seconds timeout
       }
+      
+      // Clone task to prevent modifying the original
+      const taskToProcess = { ...task };
       
       // If section admin, automatically associate with section
       if (isSectionAdmin && sectionId) {
         console.log('[Debug] Section admin creating task with sectionId:', sectionId);
         
         const enhancedTask = {
-          ...task,
+          ...taskToProcess,
           sectionId
         };
         
-        // Don't include the _mobileFiles property in the optimistic task
-        if (isMobileUpload) {
-          delete (enhancedTask as any)._mobileFiles;
-        }
-        
         // Create temporary optimistic task
         const optimisticTask: Task = {
-          id: `temp-${Date.now()}`,
+          id: tempId,
           ...enhancedTask,
           createdAt: new Date().toISOString(),
           updatedAt: new Date().toISOString(),
@@ -227,35 +239,29 @@ export function TaskManager({
         // Add to local state immediately
         setLocalTasks(prev => [optimisticTask, ...prev]);
         
-        // Check for file attachments in description
-        const hasAttachments = enhancedTask.description.includes('**Attachments:**');
-        console.log('[Debug] Task has attachments:', hasAttachments, 'Mobile upload:', isMobileUpload);
-        
-        // Clone the task to avoid modifying the original
-        const taskToCreate = { ...enhancedTask };
-        
-        // If this is a mobile upload, ensure the _mobileFiles property is passed
-        if (isMobileUpload) {
-          (taskToCreate as any)._mobileFiles = mobileFiles;
+        try {
+          // Make actual API call - explicitly pass sectionId as second parameter
+          await onCreateTask(taskToProcess, sectionId);
+          console.log('[Debug] Task created successfully with section ID');
+          showSuccessToast('Task created successfully');
+          
+          // Clear timeout if it exists
+          if (timeoutId) window.clearTimeout(timeoutId);
+        } catch (error: any) {
+          // Clear timeout if it exists
+          if (timeoutId) window.clearTimeout(timeoutId);
+          
+          console.error('[Error] Failed to create task:', error);
+          showErrorToast(`Error creating task: ${error.message}`);
+          
+          // Remove optimistic task on error
+          setLocalTasks(prev => prev.filter(t => t.id !== tempId));
         }
-        
-        // Make actual API call - explicitly pass sectionId as second parameter
-        await onCreateTask(taskToCreate, sectionId);
-        console.log('[Debug] Task created successfully with section ID');
-        showSuccessToast('Task created successfully');
       } else {
         // Similar handling for non-section tasks
-        // Clone the task to avoid modifying the original
-        const taskToCreate = { ...task };
-        
-        // Don't include the _mobileFiles property in the optimistic task
-        if (isMobileUpload) {
-          delete (taskToCreate as any)._mobileFiles;
-        }
-        
         const optimisticTask: Task = {
-          id: `temp-${Date.now()}`,
-          ...taskToCreate,
+          id: tempId,
+          ...taskToProcess,
           createdAt: new Date().toISOString(),
           updatedAt: new Date().toISOString(),
           assignedBy: 'Pending...',
@@ -266,26 +272,30 @@ export function TaskManager({
         
         setLocalTasks(prev => [optimisticTask, ...prev]);
         
-        // Check for file attachments in description
-        const hasAttachments = task.description.includes('**Attachments:**');
-        console.log('[Debug] Task has attachments:', hasAttachments, 'Mobile upload:', isMobileUpload);
-        
-        // If this is a mobile upload, ensure the _mobileFiles property is preserved
-        const finalTask = { ...task };
-        if (isMobileUpload) {
-          (finalTask as any)._mobileFiles = mobileFiles;
+        try {
+          await onCreateTask(taskToProcess);
+          console.log('[Debug] Task created successfully without section ID');
+          showSuccessToast('Task created successfully');
+          
+          // Clear timeout if it exists
+          if (timeoutId) window.clearTimeout(timeoutId);
+        } catch (error: any) {
+          // Clear timeout if it exists
+          if (timeoutId) window.clearTimeout(timeoutId);
+          
+          console.error('[Error] Failed to create task:', error);
+          showErrorToast(`Error creating task: ${error.message}`);
+          
+          // Remove optimistic task on error
+          setLocalTasks(prev => prev.filter(t => t.id !== tempId));
         }
-        
-        await onCreateTask(finalTask);
-        console.log('[Debug] Task created successfully without section ID');
-        showSuccessToast('Task created successfully');
       }
     } catch (error: any) {
-      console.error('Error creating task:', error);
+      console.error('[Error] Task creation error:', error);
       showErrorToast(`Error creating task: ${error.message}`);
       
       // Remove optimistic task on error
-      setLocalTasks(prev => prev.filter(t => !t.id.startsWith('temp-')));
+      setLocalTasks(prev => prev.filter(t => t.id !== tempId));
     }
   }, [onCreateTask, isSectionAdmin, sectionId, showSuccessToast, showErrorToast]);
   

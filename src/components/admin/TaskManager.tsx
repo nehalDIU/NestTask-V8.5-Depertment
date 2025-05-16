@@ -24,7 +24,7 @@ import {
 } from 'lucide-react';
 import type { Task } from '../../types';
 import type { NewTask, TaskStatus } from '../../types/task';
-import { showErrorToast, showSuccessToast, showInfoToast } from '../../utils/notifications';
+import { showErrorToast, showSuccessToast } from '../../utils/notifications';
 
 interface TaskManagerProps {
   tasks: Task[];
@@ -186,7 +186,7 @@ export function TaskManager({
   
   // Handle task creation with optimistic update and better error handling for mobile
   const handleCreateTask = useCallback(async (task: NewTask) => {
-    // Generate a unique temporary ID for optimistic updates
+    // Generate a unique temporary ID to track this optimistic update
     const tempId = `temp-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
     
     try {
@@ -203,89 +203,105 @@ export function TaskManager({
       if (isMobileUpload) {
         console.log('[Debug] Detected mobile file upload with', mobileFiles.length, 'files');
         
-        // Show progress indication to UI
-        showInfoToast(`Uploading ${mobileFiles.length} file(s). This may take a moment...`);
+        // Show immediate feedback to the user
+        showSuccessToast('Starting file upload. This may take a moment...', { duration: 5000 });
         
         // Set a timeout to clear the optimistic update if it takes too long
+        // Increased to match our new service timeout (60 seconds)
         timeoutId = window.setTimeout(() => {
-          console.error('[Error] Task creation timed out after 90 seconds');
+          console.error('[Error] Task creation timed out after 60 seconds');
           // Remove optimistic task on timeout
           setLocalTasks(prev => prev.filter(t => t.id !== tempId));
-          showErrorToast(
-            'Task submission is taking longer than expected. Your task might still be processed in the background. ' + 
-            'Please check the task list in a few minutes to see if it was created successfully.'
-          );
-        }, 90000); // 90 seconds timeout for mobile uploads
+          showErrorToast('Task submission is taking longer than expected. Please check tasks list later to confirm if it was created.');
+        }, 60000); // 60 seconds timeout
       }
       
-      // Create optimistic update with temporary ID for immediate feedback
-      const optimisticTask: Task = {
-        id: tempId,
-        name: task.name,
-        category: task.category as any,
-        dueDate: task.dueDate,
-        description: task.description,
-        status: task.status as 'my-tasks' | 'in-progress' | 'completed',
-        createdAt: new Date().toISOString(),
-        isAdminTask: true,
-        assignedBy: 'Pending...',
-        assignedById: '',
-        updatedAt: new Date().toISOString(),
-        sectionId: task.sectionId
-      };
+      // Clone task to prevent modifying the original
+      const taskToProcess = { ...task };
       
-      // Add optimistic task to local state for immediate feedback
-      setLocalTasks(prev => [optimisticTask, ...prev]);
-      
-      // Create task in database
-      const createdTask = await onCreateTask(task);
-      
-      // Clear timeout since task was created successfully
-      if (timeoutId !== null) {
-        clearTimeout(timeoutId);
-      }
-      
-      // Replace optimistic task with real task
-      setLocalTasks(prev => {
-        const updated = [...prev];
-        const index = updated.findIndex(t => t.id === tempId);
-        if (index !== -1) {
-          updated[index] = createdTask;
+      // If section admin, automatically associate with section
+      if (isSectionAdmin && sectionId) {
+        console.log('[Debug] Section admin creating task with sectionId:', sectionId);
+        
+        const enhancedTask = {
+          ...taskToProcess,
+          sectionId
+        };
+        
+        // Create temporary optimistic task
+        const optimisticTask: Task = {
+          id: tempId,
+          ...enhancedTask,
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+          assignedBy: 'Pending...',
+          assignedById: '',
+          status: enhancedTask.status || 'my-tasks',
+          isAdminTask: true
+        };
+        
+        // Add to local state immediately
+        setLocalTasks(prev => [optimisticTask, ...prev]);
+        
+        try {
+          // Make actual API call - explicitly pass sectionId as second parameter
+          await onCreateTask(taskToProcess, sectionId);
+          console.log('[Debug] Task created successfully with section ID');
+          showSuccessToast('Task created successfully');
+          
+          // Clear timeout if it exists
+          if (timeoutId) window.clearTimeout(timeoutId);
+        } catch (error: any) {
+          // Clear timeout if it exists
+          if (timeoutId) window.clearTimeout(timeoutId);
+          
+          console.error('[Error] Failed to create task:', error);
+          showErrorToast(`Error creating task: ${error.message}`);
+          
+          // Remove optimistic task on error
+          setLocalTasks(prev => prev.filter(t => t.id !== tempId));
         }
-        return updated;
-      });
-      
-      // Show success message
-      showSuccessToast('Task created successfully');
-      
-      return createdTask;
-    } catch (error) {
-      console.error('[Error] Task creation failed:', error);
-      
-      // Show detailed error to user
-      let errorMessage = 'Failed to create task.';
-      
-      if (error instanceof Error) {
-        errorMessage = `Error: ${error.message}`;
-        // Check for common error types
-        if (error.message.includes('timeout') || error.message.includes('network')) {
-          errorMessage = 'Network timeout. Your task might still be processed. Please check back later.';
-        } else if (error.message.includes('storage') || error.message.includes('upload')) {
-          errorMessage = 'File upload failed. Try with smaller files or fewer attachments.';
-        } else if (error.message.includes('permission')) {
-          errorMessage = 'Permission denied. You may not have rights to create this type of task.';
+      } else {
+        // Similar handling for non-section tasks
+        const optimisticTask: Task = {
+          id: tempId,
+          ...taskToProcess,
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+          assignedBy: 'Pending...',
+          assignedById: '',
+          status: task.status || 'my-tasks',
+          isAdminTask: true
+        };
+        
+        setLocalTasks(prev => [optimisticTask, ...prev]);
+        
+        try {
+          await onCreateTask(taskToProcess);
+          console.log('[Debug] Task created successfully without section ID');
+          showSuccessToast('Task created successfully');
+          
+          // Clear timeout if it exists
+          if (timeoutId) window.clearTimeout(timeoutId);
+        } catch (error: any) {
+          // Clear timeout if it exists
+          if (timeoutId) window.clearTimeout(timeoutId);
+          
+          console.error('[Error] Failed to create task:', error);
+          showErrorToast(`Error creating task: ${error.message}`);
+          
+          // Remove optimistic task on error
+          setLocalTasks(prev => prev.filter(t => t.id !== tempId));
         }
       }
-      
-      // Show error toast
-      showErrorToast(errorMessage);
+    } catch (error: any) {
+      console.error('[Error] Task creation error:', error);
+      showErrorToast(`Error creating task: ${error.message}`);
       
       // Remove optimistic task on error
       setLocalTasks(prev => prev.filter(t => t.id !== tempId));
-      
-      throw error;
     }
-  }, [onCreateTask, showErrorToast, showSuccessToast, showInfoToast]);
+  }, [onCreateTask, isSectionAdmin, sectionId, showSuccessToast, showErrorToast]);
   
   // Handle task deletion with optimistic update
   const handleDeleteTask = useCallback(async (taskId: string) => {

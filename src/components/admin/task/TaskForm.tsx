@@ -39,7 +39,6 @@ export function TaskForm({ onSubmit, sectionId, isSectionAdmin = false }: TaskFo
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [success, setSuccess] = useState(false);
   const [showAdvanced, setShowAdvanced] = useState(false);
-  const [uploadStatus, setUploadStatus] = useState<string | null>(null);
   
   // Debug logging on mount
   useEffect(() => {
@@ -114,63 +113,44 @@ export function TaskForm({ onSubmit, sectionId, isSectionAdmin = false }: TaskFo
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files) {
       const newFiles = Array.from(e.target.files);
-      console.log('[Debug] Files selected:', newFiles.map(f => ({name: f.name, size: f.size, type: f.type})));
+      console.log('[Debug] Files selected:', newFiles.map(f => ({name: f.name, size: f.size})));
       
-      // Check file sizes
-      const oversizedFiles = newFiles.filter(file => file.size > 10 * 1024 * 1024); // 10MB limit
-      if (oversizedFiles.length > 0) {
-        alert(`Some files are too large (max 10MB): ${oversizedFiles.map(f => f.name).join(", ")}`);
-        // Filter out oversized files
-        const validFiles = newFiles.filter(file => file.size <= 10 * 1024 * 1024);
-        if (validFiles.length === 0) return; // No valid files to add
-        
-        // Continue with valid files only
-        console.log('[Debug] Proceeding with valid files only:', validFiles.length);
-        
-        // Store actual File objects for mobile handling
-        const isMobile = /iPhone|iPad|iPod|Android|webOS|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
-        console.log('[Debug] Device detected as mobile:', isMobile);
-        
-        // Defer DOM updates to prevent forced reflow
-        requestAnimationFrame(() => {
-          if (isMobile) {
-            // On mobile, create a dedicated file handler that works with the files directly
-            console.log('[Debug] Using mobile-specific file handling');
-            // Store the files without attempting to create object URLs which might not work on mobile
-            setFiles(prev => [...prev, ...validFiles]);
-            // Create simple placeholder URLs for display only
-            const displayUrls = validFiles.map(file => `placeholder-${file.name}`);
-            setFileUrls(prev => [...prev, ...displayUrls]);
-          } else {
-            // Desktop flow - use object URLs
-            setFiles(prev => [...prev, ...validFiles]);
-            const newUrls = validFiles.map(file => URL.createObjectURL(file));
-            setFileUrls(prev => [...prev, ...newUrls]);
-          }
-        });
-      } else {
-        // Store actual File objects for mobile handling
-        const isMobile = /iPhone|iPad|iPod|Android|webOS|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
-        console.log('[Debug] Device detected as mobile:', isMobile);
-        
-        // Defer DOM updates to prevent forced reflow
-        requestAnimationFrame(() => {
-          if (isMobile) {
-            // On mobile, create a dedicated file handler that works with the files directly
-            console.log('[Debug] Using mobile-specific file handling');
-            // Store the files without attempting to create object URLs which might not work on mobile
-            setFiles(prev => [...prev, ...newFiles]);
-            // Create simple placeholder URLs for display only
-            const displayUrls = newFiles.map(file => `placeholder-${file.name}`);
-            setFileUrls(prev => [...prev, ...displayUrls]);
-          } else {
-            // Desktop flow - use object URLs
-            setFiles(prev => [...prev, ...newFiles]);
-            const newUrls = newFiles.map(file => URL.createObjectURL(file));
-            setFileUrls(prev => [...prev, ...newUrls]);
-          }
-        });
+      // Check for valid files
+      const validFiles = newFiles.filter(file => file.size > 0);
+      if (validFiles.length < newFiles.length) {
+        console.warn('[Warning] Some files were invalid and will be skipped');
       }
+      
+      if (validFiles.length === 0) {
+        alert('The selected file(s) appear to be invalid or empty. Please try selecting them again.');
+        return;
+      }
+      
+      // Store actual File objects for mobile handling
+      const isMobile = /iPhone|iPad|iPod|Android|webOS|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+      console.log('[Debug] Device detected as mobile:', isMobile);
+      
+      // Defer DOM updates to prevent forced reflow
+      requestAnimationFrame(() => {
+        if (isMobile) {
+          // On mobile, create a dedicated file handler that works with the files directly
+          console.log('[Debug] Using mobile-specific file handling');
+          // Store the files without attempting to create object URLs which might not work on mobile
+          setFiles(prev => [...prev, ...validFiles]);
+          // Create simple placeholder URLs for display only
+          const displayUrls = validFiles.map(file => `placeholder-${file.name}`);
+          setFileUrls(prev => [...prev, ...displayUrls]);
+          // Provide immediate feedback
+          if (validFiles.length > 0) {
+            alert(`${validFiles.length} file(s) selected. They'll be uploaded when you submit the task.`);
+          }
+        } else {
+          // Desktop flow - use object URLs
+          setFiles(prev => [...prev, ...validFiles]);
+          const newUrls = validFiles.map(file => URL.createObjectURL(file));
+          setFileUrls(prev => [...prev, ...newUrls]);
+        }
+      });
     }
   };
   
@@ -212,17 +192,19 @@ export function TaskForm({ onSubmit, sectionId, isSectionAdmin = false }: TaskFo
     
     if (!validate()) return;
     
-    setIsSubmitting(true);
-    setUploadStatus("Preparing task submission...");
+    // Prevent multiple submissions
+    if (isSubmitting) return;
     
-    // Set a timeout to prevent UI from being stuck if submission takes too long
+    // Set submitting state on next frame to avoid forced reflow
+    requestAnimationFrame(() => {
+      setIsSubmitting(true);
+    });
+    
+    // Add submission timeout to prevent infinite loading state
     const submissionTimeout = setTimeout(() => {
-      setUploadStatus("This is taking longer than expected. Please be patient...");
-    }, 8000); // 8 second timeout
-    
-    // Set another timeout for very slow operations
-    const longSubmissionTimeout = setTimeout(() => {
-      setUploadStatus("Still working on your task. For large files, this may take a minute...");
+      console.error('[Error] Task submission timed out after 20 seconds');
+      setIsSubmitting(false);
+      alert('Task submission is taking longer than expected. Your task might still be processing in the background.');
     }, 20000); // 20 second timeout
     
     try {
@@ -246,7 +228,6 @@ export function TaskForm({ onSubmit, sectionId, isSectionAdmin = false }: TaskFo
       // Add file references with better error handling
       const filesToProcess = [...files];
       if (filesToProcess.length > 0) {
-        setUploadStatus(`Processing ${filesToProcess.length} attachments...`);
         console.log('[Debug] Adding file attachments to description. Mobile:', isMobile);
         enhancedDescription += '\n\n**Attachments:**\n';
         
@@ -263,7 +244,6 @@ export function TaskForm({ onSubmit, sectionId, isSectionAdmin = false }: TaskFo
                 total: filesToProcess.length,
                 valid: validFiles.length
               });
-              setUploadStatus(`Found ${validFiles.length} valid files out of ${filesToProcess.length}`);
             }
             
             validFiles.forEach(file => {
@@ -307,7 +287,6 @@ export function TaskForm({ onSubmit, sectionId, isSectionAdmin = false }: TaskFo
       
       if (isMobile && filesToProcess.length > 0) {
         console.log('[Debug] This is a mobile submission with files. Count:', filesToProcess.length);
-        setUploadStatus(`Preparing to upload ${filesToProcess.length} files. Please wait...`);
         
         try {
           // Validate files before sending
@@ -329,12 +308,10 @@ export function TaskForm({ onSubmit, sectionId, isSectionAdmin = false }: TaskFo
       }
       
       console.log('[Debug] Submitting final task:', finalTask);
-      setUploadStatus("Submitting task to server...");
       await onSubmit(finalTask);
       
       // Clear timeout since submission was successful
       clearTimeout(submissionTimeout);
-      clearTimeout(longSubmissionTimeout);
       
       // Reset form - do all state updates in a single animation frame
       requestAnimationFrame(() => {
@@ -352,7 +329,6 @@ export function TaskForm({ onSubmit, sectionId, isSectionAdmin = false }: TaskFo
         setErrors({});
         setSuccess(true);
         setIsSubmitting(false);
-        setUploadStatus(null);
       
         // Clear success message after 3 seconds
         setTimeout(() => {
@@ -362,14 +338,12 @@ export function TaskForm({ onSubmit, sectionId, isSectionAdmin = false }: TaskFo
     } catch (error) {
       console.error('[Error] Task creation failed:', error);
       clearTimeout(submissionTimeout);
-      clearTimeout(longSubmissionTimeout);
       
       // Show error to user
       alert(`Failed to create task: ${error instanceof Error ? error.message : 'Unknown error'}`);
       
       requestAnimationFrame(() => {
         setIsSubmitting(false);
-        setUploadStatus(null);
       });
     }
   };
@@ -686,23 +660,6 @@ export function TaskForm({ onSubmit, sectionId, isSectionAdmin = false }: TaskFo
           </button>
         </div>
       </form>
-
-      {isSubmitting && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-          <div className="bg-white dark:bg-gray-800 p-6 rounded-2xl max-w-md w-full shadow-xl">
-            <div className="flex flex-col items-center text-center">
-              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 dark:border-blue-400 mb-4"></div>
-              <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">Creating Task...</h3>
-              {uploadStatus && (
-                <p className="text-sm text-gray-600 dark:text-gray-300 mb-2">{uploadStatus}</p>
-              )}
-              <p className="text-xs text-gray-500 dark:text-gray-400">
-                Please don't close this window.
-              </p>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }

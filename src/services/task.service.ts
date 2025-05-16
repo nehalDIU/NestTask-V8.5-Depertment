@@ -93,21 +93,63 @@ export const fetchTasks = async (userId: string, sectionId?: string | null): Pro
 
 async function uploadFile(file: File): Promise<string> {
   try {
+    console.log('[Debug] Starting file upload for:', file.name, `(${file.size} bytes)`);
+    
+    // Add basic file validation
+    if (!file.name || file.size === 0) {
+      throw new Error(`Invalid file: ${file.name} (${file.size} bytes)`);
+    }
+    
     const fileExt = file.name.split('.').pop();
     const fileName = `${crypto.randomUUID()}.${fileExt}`;
     const filePath = `task-files/${fileName}`;
 
-    const { error: uploadError } = await supabase.storage
-      .from('task-attachments')
-      .upload(filePath, file);
+    console.log('[Debug] Uploading file to path:', filePath);
 
-    if (uploadError) throw uploadError;
+    // More robust upload with retries
+    let attempts = 0;
+    const maxAttempts = 3;
+    let lastError = null;
 
-    const { data: { publicUrl } } = supabase.storage
-      .from('task-attachments')
-      .getPublicUrl(filePath);
+    while (attempts < maxAttempts) {
+      attempts++;
+      try {
+        const { error: uploadError } = await supabase.storage
+          .from('task-attachments')
+          .upload(filePath, file, {
+            cacheControl: '3600',
+            upsert: attempts > 1 // Try upsert on retry attempts
+          });
 
-    return publicUrl;
+        if (uploadError) {
+          console.error(`[Error] Upload attempt ${attempts}/${maxAttempts} failed:`, uploadError);
+          lastError = uploadError;
+          // Wait before retrying
+          if (attempts < maxAttempts) {
+            await new Promise(resolve => setTimeout(resolve, 1000));
+            continue;
+          }
+          throw uploadError;
+        }
+
+        // Upload succeeded, get public URL
+        const { data: { publicUrl } } = supabase.storage
+          .from('task-attachments')
+          .getPublicUrl(filePath);
+
+        console.log('[Debug] File uploaded successfully, public URL generated');
+        return publicUrl;
+      } catch (error) {
+        console.error(`[Error] Upload attempt ${attempts}/${maxAttempts} exception:`, error);
+        lastError = error;
+        if (attempts < maxAttempts) {
+          await new Promise(resolve => setTimeout(resolve, 1000));
+        }
+      }
+    }
+
+    // If we got here, all attempts failed
+    throw lastError || new Error('Upload failed after multiple attempts');
   } catch (error) {
     console.error('Error uploading file:', error);
     throw error;
@@ -158,7 +200,7 @@ export const createTask = async (
       try {
         console.log('[Debug] Uploading mobile files', mobileFiles.map(f => ({name: f.name, size: f.size})));
         
-        // Wrap file upload in a promise with timeout
+        // Wrap file upload in a promise with timeout - increase timeout for mobile
         const uploadFileWithTimeout = async (file: File, timeoutMs = 60000): Promise<string> => {
           return new Promise(async (resolve, reject) => {
             // Set a timeout to reject the promise if it takes too long
@@ -178,41 +220,37 @@ export const createTask = async (
         };
         
         // Upload each mobile file with retry logic
-        const failedFiles = [];
         for (const file of mobileFiles) {
           if (!file.name || file.size === 0) {
             console.warn('[Warning] Skipping invalid file', file);
-            failedFiles.push(file.name || 'unnamed file');
             continue;
           }
           
           try {
-            console.log('[Debug] Uploading mobile file:', file.name, 'Size:', file.size, 'Type:', file.type);
+            console.log('[Debug] Uploading mobile file:', file.name, `(${file.size} bytes)`);
             
-            // Try up to 5 times with longer wait periods between attempts
+            // Try up to 3 times with longer timeout
             let permanentUrl = '';
             let attempts = 0;
             let lastError = null;
             
-            while (attempts < 5 && !permanentUrl) {
+            while (attempts < 3 && !permanentUrl) {
               try {
                 attempts++;
-                permanentUrl = await uploadFileWithTimeout(file);
-                console.log(`[Debug] File upload successful on attempt ${attempts}: ${file.name}`);
+                // Increase timeout to 60 seconds for better mobile performance
+                permanentUrl = await uploadFileWithTimeout(file, 60000);
+                console.log('[Debug] Mobile file upload succeeded:', file.name);
                 break;
               } catch (uploadError) {
-                console.error(`[Error] Failed to upload mobile file (attempt ${attempts}/5):`, file.name, uploadError);
+                console.error(`[Error] Failed to upload mobile file (attempt ${attempts}/3):`, file.name, uploadError);
                 lastError = uploadError;
-                // Wait longer between retries (1s, 2s, 4s, 8s)
-                if (attempts < 5) await new Promise(resolve => setTimeout(resolve, Math.pow(2, attempts-1) * 1000));
+                // Wait 2 seconds before retrying on mobile
+                if (attempts < 3) await new Promise(resolve => setTimeout(resolve, 2000));
               }
             }
             
             if (!permanentUrl) {
-              console.error(`[Error] All upload attempts failed for file: ${file.name}`);
-              failedFiles.push(file.name);
-              // Continue instead of throwing, so other files can still be processed
-              continue;
+              throw lastError || new Error(`Failed to upload file after 3 attempts: ${file.name}`);
             }
             
             // Update description to replace attachment references with permanent URLs
@@ -222,10 +260,16 @@ export const createTask = async (
             const oldDescription = description;
             description = description.replace(attachmentPattern, permanentRef);
             
+            // Also handle placeholder format from mobile
             if (oldDescription === description) {
-              // If the description didn't change, try a more general approach
+              // Try placeholder format (used on mobile)
+              description = description.replace(new RegExp(`\\[${file.name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\]\\(placeholder-${file.name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\)`, 'g'), permanentRef);
+            }
+            
+            // If still no match, try a more general approach
+            if (oldDescription === description) {
               console.warn('[Warning] Failed to find exact attachment reference, trying general pattern');
-              description = description.replace(/\[(.*?)\]\(attachment:(.*?)\)/g, (match, fileName, ref) => {
+              description = description.replace(/\[(.*?)\]\((attachment:|placeholder-)?(.*?)\)/g, (match, fileName, prefix, ref) => {
                 if (fileName === file.name) {
                   return `[${fileName}](${permanentUrl})`;
                 }

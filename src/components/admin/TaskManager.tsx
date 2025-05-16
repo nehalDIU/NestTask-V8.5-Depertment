@@ -197,23 +197,39 @@ export function TaskManager({
       const mobileFiles = (task as any)._mobileFiles;
       const isMobileUpload = !!mobileFiles && mobileFiles.length > 0;
       
+      // Log device information for debugging
+      const isMobile = typeof navigator !== 'undefined' && /iPhone|iPad|iPod|Android|webOS|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+      console.log('[Debug] Device info:', { 
+        isMobile, 
+        userAgent: navigator?.userAgent,
+        isMobileUpload,
+        mobileFilesCount: isMobileUpload ? mobileFiles.length : 0
+      });
+      
       // Add a timeout to prevent infinite "creating" state
       let timeoutId: number | null = null;
       
       if (isMobileUpload) {
         console.log('[Debug] Detected mobile file upload with', mobileFiles.length, 'files');
         
-        // Show immediate feedback to the user with filecount
-        showSuccessToast(`Starting upload of ${mobileFiles.length} file(s). This may take 1-2 minutes...`, { duration: 8000 });
+        // Log file details
+        console.log('[Debug] Mobile files details:', mobileFiles.map((f: File) => ({
+          name: f.name,
+          size: f.size,
+          type: f.type || 'unknown',
+          lastModified: f.lastModified
+        })));
         
         // Set a timeout to clear the optimistic update if it takes too long
-        // Increased to 3 minutes for large files or slow connections
         timeoutId = window.setTimeout(() => {
-          console.error('[Error] Task creation timed out after 180 seconds');
+          console.error('[Error] Task creation timed out after 45 seconds');
           // Remove optimistic task on timeout
           setLocalTasks(prev => prev.filter(t => t.id !== tempId));
           showErrorToast('Task submission is taking longer than expected. Please check tasks list later to confirm if it was created.');
-        }, 180000); // 3 minutes timeout
+        }, 45000); // 45 seconds timeout for mobile uploads which can be slow
+        
+        // Show a temporary toast for mobile uploads
+        showSuccessToast('Uploading files, please wait...');
       }
       
       // Clone task to prevent modifying the original
@@ -240,12 +256,11 @@ export function TaskManager({
           isAdminTask: true
         };
         
-        // Add to local state immediately to show progress
+        // Add to local state immediately
         setLocalTasks(prev => [optimisticTask, ...prev]);
         
         try {
           // Make actual API call - explicitly pass sectionId as second parameter
-          console.log('[Debug] Calling onCreateTask for section admin with files:', isMobileUpload);
           await onCreateTask(taskToProcess, sectionId);
           console.log('[Debug] Task created successfully with section ID');
           showSuccessToast('Task created successfully');
@@ -261,13 +276,6 @@ export function TaskManager({
           
           // Remove optimistic task on error
           setLocalTasks(prev => prev.filter(t => t.id !== tempId));
-          
-          // Provide better error feedback for common issues
-          if (isMobileUpload && error.message?.includes('timeout')) {
-            alert('File upload timed out. Please try again with smaller files or a better connection.');
-          } else if (isMobileUpload) {
-            alert('Failed to upload files. Please try again with smaller files or use fewer attachments.');
-          }
         }
       } else {
         // Similar handling for non-section tasks

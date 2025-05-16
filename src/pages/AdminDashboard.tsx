@@ -347,11 +347,25 @@ export function AdminDashboard({
     try {
       // If section admin, automatically associate with section
       if (isSectionAdmin && sectionId) {
+        // Log the task data including if it has mobile files
+        console.log('[Debug] Section admin creating task:', {
+          taskName: taskData.name,
+          sectionId,
+          hasMobileFiles: !!(taskData as any)._mobileFiles,
+          filesCount: (taskData as any)._mobileFiles?.length || 0
+        });
+
         // Create the task with section ID attached
         const enhancedTask = {
           ...taskData,
           sectionId
         };
+        
+        // Show a loading toast for mobile uploads
+        if ((taskData as any)._mobileFiles?.length > 0) {
+          showSuccessToast('Uploading files, please wait...');
+        }
+        
         // Create task with section ID
         await onCreateTask(enhancedTask, sectionId);
       } else {
@@ -364,7 +378,7 @@ export function AdminDashboard({
       showSuccessToast('Task created successfully');
     } catch (error: any) {
       console.error('Error creating task:', error);
-      showErrorToast(`Error creating task: ${error.message}`);
+      showErrorToast(`Error creating task: ${error.message || 'Unknown error'}`);
     }
   };
 

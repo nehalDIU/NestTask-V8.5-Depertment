@@ -115,20 +115,40 @@ export function TaskForm({ onSubmit, sectionId, isSectionAdmin = false }: TaskFo
       const newFiles = Array.from(e.target.files);
       console.log('[Debug] Files selected:', newFiles.map(f => ({name: f.name, size: f.size})));
       
-      // Check for valid files
-      const validFiles = newFiles.filter(file => file.size > 0);
+      // Check for valid files but be more lenient for mobile
+      const isMobile = /iPhone|iPad|iPod|Android|webOS|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+      console.log('[Debug] Device detected as mobile:', isMobile);
+      
+      // On mobile, we'll accept files with any size (even 0) but require a name
+      const validFiles = newFiles.filter(file => file.name && (isMobile || file.size > 0));
+      
       if (validFiles.length < newFiles.length) {
         console.warn('[Warning] Some files were invalid and will be skipped');
+        alert(`${newFiles.length - validFiles.length} invalid file(s) were skipped. Valid files: ${validFiles.length}`);
       }
       
       if (validFiles.length === 0) {
-        alert('The selected file(s) appear to be invalid or empty. Please try selecting them again.');
+        alert('No valid files selected. Please try again.');
         return;
       }
       
-      // Store actual File objects for mobile handling
-      const isMobile = /iPhone|iPad|iPod|Android|webOS|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
-      console.log('[Debug] Device detected as mobile:', isMobile);
+      // Check file size limits - warn on large files that might timeout
+      const maxRecommendedSizeMB = isMobile ? 5 : 10;
+      const largeFiles = validFiles.filter(f => f.size > maxRecommendedSizeMB * 1024 * 1024);
+      
+      if (largeFiles.length > 0) {
+        const proceed = window.confirm(
+          `${largeFiles.length} file(s) are larger than ${maxRecommendedSizeMB}MB and may cause upload issues on mobile. Continue anyway?`
+        );
+        if (!proceed) return;
+      }
+      
+      // Limit number of files on mobile devices
+      const maxMobileFiles = 3;
+      if (isMobile && (files.length + validFiles.length > maxMobileFiles)) {
+        alert(`For best results on mobile, please limit to ${maxMobileFiles} files total.`);
+        // Continue anyway, but warn the user
+      }
       
       // Defer DOM updates to prevent forced reflow
       requestAnimationFrame(() => {
@@ -142,7 +162,7 @@ export function TaskForm({ onSubmit, sectionId, isSectionAdmin = false }: TaskFo
           setFileUrls(prev => [...prev, ...displayUrls]);
           // Provide immediate feedback
           if (validFiles.length > 0) {
-            alert(`${validFiles.length} file(s) selected. They'll be uploaded when you submit the task.`);
+            alert(`${validFiles.length} file(s) selected. They'll be uploaded when you submit the task.\n\nPlease wait for the upload to complete - this may take 1-2 minutes for larger files.`);
           }
         } else {
           // Desktop flow - use object URLs
@@ -195,17 +215,32 @@ export function TaskForm({ onSubmit, sectionId, isSectionAdmin = false }: TaskFo
     // Prevent multiple submissions
     if (isSubmitting) return;
     
+    // Check if we're on mobile and have files
+    const isMobile = /iPhone|iPad|iPod|Android|webOS|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+    const hasFiles = files.length > 0;
+    
+    // Warn mobile users about file uploads
+    if (isMobile && hasFiles && !window.confirm(`You're about to upload ${files.length} file(s) on a mobile connection. This may take time. Continue?`)) {
+      return;
+    }
+    
     // Set submitting state on next frame to avoid forced reflow
     requestAnimationFrame(() => {
       setIsSubmitting(true);
     });
     
     // Add submission timeout to prevent infinite loading state
+    // Use longer timeout for mobile with files
+    const timeoutDuration = isMobile && hasFiles ? 180000 : 30000; // 3 minutes for mobile with files, 30 seconds otherwise
     const submissionTimeout = setTimeout(() => {
-      console.error('[Error] Task submission timed out after 20 seconds');
+      console.error(`[Error] Task submission timed out after ${timeoutDuration/1000} seconds`);
       setIsSubmitting(false);
-      alert('Task submission is taking longer than expected. Your task might still be processing in the background.');
-    }, 20000); // 20 second timeout
+      if (isMobile && hasFiles) {
+        alert('File upload is taking longer than expected. Your task might still be processing in the background. Please check the task list in a few minutes.');
+      } else {
+        alert('Task submission is taking longer than expected. Your task might still be processing in the background.');
+      }
+    }, timeoutDuration);
     
     try {
       // Clone task details to avoid modifying state during preparation

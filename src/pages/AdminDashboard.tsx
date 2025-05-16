@@ -577,16 +577,16 @@ export function AdminDashboard({
                   </div>
                 )}
                 
-                <TaskManager
-                  tasks={filteredTasks}
-                  onCreateTask={handleCreateTask}
-                  onDeleteTask={onDeleteTask}
-                  onUpdateTask={onUpdateTask}
+              <TaskManager
+                tasks={filteredTasks}
+                onCreateTask={handleCreateTask}
+                onDeleteTask={onDeleteTask}
+                onUpdateTask={onUpdateTask}
                   showTaskForm={showTaskForm}
-                  sectionId={sectionId}
-                  isSectionAdmin={isSectionAdmin}
+                sectionId={sectionId}
+                isSectionAdmin={isSectionAdmin}
                   isLoading={tasksLoading || isRefreshing}
-                />
+              />
               </>
             )}
 

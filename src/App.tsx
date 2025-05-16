@@ -283,7 +283,7 @@ export default function App() {
                         setActivePage(prev => prev);
                       } else {
                         // All refreshes succeeded, force UI update
-                        setActivePage(prev => prev);
+                      setActivePage(prev => prev);
                       }
                     });
                   } else {

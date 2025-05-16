@@ -114,36 +114,61 @@ export function TaskForm({ onSubmit, sectionId, isSectionAdmin = false }: TaskFo
     if (e.target.files) {
       const newFiles = Array.from(e.target.files);
       console.log('[Debug] Files selected:', newFiles.map(f => f.name));
-      setFiles(prev => [...prev, ...newFiles]);
       
-      // Create temporary URLs for display
-      const newUrls = newFiles.map(file => URL.createObjectURL(file));
-      setFileUrls(prev => [...prev, ...newUrls]);
+      // Store actual File objects for mobile handling
+      const isMobile = /iPhone|iPad|iPod|Android|webOS|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+      console.log('[Debug] Device detected as mobile:', isMobile);
       
-      // Debug log for mobile
-      const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
-      console.log('[Debug] File upload on mobile:', isMobile);
+      // Defer DOM updates to prevent forced reflow
+      requestAnimationFrame(() => {
+        if (isMobile) {
+          // On mobile, create a dedicated file handler that works with the files directly
+          console.log('[Debug] Using mobile-specific file handling');
+          // Store the files without attempting to create object URLs which might not work on mobile
+          setFiles(prev => [...prev, ...newFiles]);
+          // Create simple placeholder URLs for display only
+          const displayUrls = newFiles.map(file => `placeholder-${file.name}`);
+          setFileUrls(prev => [...prev, ...displayUrls]);
+        } else {
+          // Desktop flow - use object URLs
+          setFiles(prev => [...prev, ...newFiles]);
+          const newUrls = newFiles.map(file => URL.createObjectURL(file));
+          setFileUrls(prev => [...prev, ...newUrls]);
+        }
+      });
     }
   };
   
   // Remove file
   const removeFile = (index: number) => {
-    URL.revokeObjectURL(fileUrls[index]);
-    setFiles(prev => prev.filter((_, i) => i !== index));
-    setFileUrls(prev => prev.filter((_, i) => i !== index));
+    // Batch DOM updates to prevent forced reflow
+    requestAnimationFrame(() => {
+      // Only revoke URL if it's a real object URL (not a placeholder)
+      if (fileUrls[index] && !fileUrls[index].startsWith('placeholder-')) {
+        URL.revokeObjectURL(fileUrls[index]);
+      }
+      setFiles(prev => prev.filter((_, i) => i !== index));
+      setFileUrls(prev => prev.filter((_, i) => i !== index));
+    });
   };
   
   // Add link
   const addLink = () => {
     if (linkInput.trim() && !links.includes(linkInput)) {
-      setLinks(prev => [...prev, linkInput]);
-      setLinkInput('');
+      // Batch DOM updates
+      requestAnimationFrame(() => {
+        setLinks(prev => [...prev, linkInput]);
+        setLinkInput('');
+      });
     }
   };
   
   // Remove link
   const removeLink = (index: number) => {
-    setLinks(prev => prev.filter((_, i) => i !== index));
+    // Batch DOM updates
+    requestAnimationFrame(() => {
+      setLinks(prev => prev.filter((_, i) => i !== index));
+    });
   };
   
   // Handle form submission
@@ -152,79 +177,110 @@ export function TaskForm({ onSubmit, sectionId, isSectionAdmin = false }: TaskFo
     
     if (!validate()) return;
     
-    setIsSubmitting(true);
+    // Set submitting state on next frame to avoid forced reflow
+    requestAnimationFrame(() => {
+      setIsSubmitting(true);
+    });
     
     try {
-      // In a real app, you would upload files to a server here
-      // For now, we'll just add the links to the description
-      let enhancedDescription = taskDetails.description;
+      // Clone task details to avoid modifying state during preparation
+      // Creating a new object outside of React state updates avoids synchronous 
+      // DOM measurements during JavaScript execution
+      const taskDescription = taskDetails.description;
+      let enhancedDescription = taskDescription;
       
+      // Prepare all data before any state updates
       // Add links to description
-      if (links.length > 0) {
+      const linksToAdd = [...links];
+      if (linksToAdd.length > 0) {
         enhancedDescription += '\n\n**Links:**\n';
-        links.forEach(link => {
+        linksToAdd.forEach(link => {
           enhancedDescription += `- [${link}](${link})\n`;
         });
       }
       
+      // Detect if we're on mobile
+      const isMobile = /iPhone|iPad|iPod|Android|webOS|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+      
       // Add file references
-      if (files.length > 0) {
-        console.log('[Debug] Adding file attachments to description:', files.map(f => f.name));
+      const filesToProcess = [...files];
+      if (filesToProcess.length > 0) {
+        console.log('[Debug] Adding file attachments to description. Mobile:', isMobile);
         enhancedDescription += '\n\n**Attachments:**\n';
         
-        // Detect if we're on mobile
-        const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
-        
-        files.forEach(file => {
-          if (isMobile) {
-            // On mobile, use a special format that the backend can detect
+        // For mobile devices, create direct attachment references
+        if (isMobile) {
+          filesToProcess.forEach(file => {
+            console.log('[Debug] Adding mobile attachment:', file.name);
+            // Mobile - use attachment: protocol that will be recognized by the backend
             enhancedDescription += `- [${file.name}](attachment:${file.name})\n`;
-          } else {
-            // On desktop, we can use the blob URL that will get processed by the backend
+          });
+          
+          // Add a special flag for mobile uploads that the backend can detect
+          enhancedDescription += '\n<!-- mobile-uploads -->\n';
+        } else {
+          // For desktop, create blob URLs that can be processed
+          filesToProcess.forEach(file => {
+            console.log('[Debug] Adding desktop attachment with blob URL');
             const fileUrl = URL.createObjectURL(file);
             enhancedDescription += `- [${file.name}](${fileUrl})\n`;
-          }
-        });
+          });
+        }
       }
       
       // Add notice for section tasks if this is a section admin
       if (isSectionAdmin && sectionId) {
+        console.log('[Debug] Adding section ID to description:', sectionId);
         enhancedDescription += `\n\n*This task is assigned to section ID: ${sectionId}*`;
       }
       
-      console.log('[Debug] Final description with attachments:', enhancedDescription);
+      console.log('[Debug] Final task description with attachments:', enhancedDescription);
       
+      // Create task object outside of state updates
       const finalTask: NewTask = {
         ...taskDetails,
         description: enhancedDescription,
         sectionId: sectionId,
       };
       
-      onSubmit(finalTask);
+      if (isMobile && filesToProcess.length > 0) {
+        console.log('[Debug] This is a mobile submission with files. Count:', filesToProcess.length);
+        
+        // On mobile, we'll pass the actual files to the onSubmit handler
+        // by attaching them to the task object with a custom property
+        (finalTask as any)._mobileFiles = filesToProcess;
+      }
       
-      // Reset form
-      setTaskDetails({
-        name: '',
-        category: 'task',
-        dueDate: '',
-        description: '',
-        status: 'in-progress',
-        sectionId: sectionId || undefined
+      console.log('[Debug] Submitting final task:', finalTask);
+      await onSubmit(finalTask);
+      
+      // Reset form - do all state updates in a single animation frame
+      requestAnimationFrame(() => {
+        setTaskDetails({
+          name: '',
+          category: 'task',
+          dueDate: '',
+          description: '',
+          status: 'in-progress',
+          sectionId: sectionId || undefined
+        });
+        setFiles([]);
+        setFileUrls([]);
+        setLinks([]);
+        setErrors({});
+        setSuccess(true);
+        setIsSubmitting(false);
+      
+        // Clear success message after 3 seconds
+        setTimeout(() => {
+          setSuccess(false);
+        }, 3000);
       });
-      setFiles([]);
-      setFileUrls([]);
-      setLinks([]);
-      setErrors({});
-      setSuccess(true);
-      
-      // Clear success message after 3 seconds
-      setTimeout(() => {
-        setSuccess(false);
-      }, 3000);
     } catch (error) {
       console.error('Error creating task:', error);
-    } finally {
-      setIsSubmitting(false);
+      requestAnimationFrame(() => {
+        setIsSubmitting(false);
+      });
     }
   };
   
@@ -455,9 +511,13 @@ export function TaskForm({ onSubmit, sectionId, isSectionAdmin = false }: TaskFo
                 </div>
 
                 {links.length > 0 && (
-                  <div className="mt-2 space-y-2">
+                  <div className="mt-2 space-y-2 will-change-transform">
                     {links.map((link, index) => (
-                      <div key={index} className="flex items-center justify-between py-1 px-3 bg-gray-50 dark:bg-gray-700 rounded-lg">
+                      <div 
+                        key={index} 
+                        className="flex items-center justify-between py-1 px-3 bg-gray-50 dark:bg-gray-700 rounded-lg transform translate-z-0"
+                        style={{ contain: 'layout' }}
+                      >
                         <a
                           href={link}
                           target="_blank"
@@ -469,7 +529,8 @@ export function TaskForm({ onSubmit, sectionId, isSectionAdmin = false }: TaskFo
                         <button
                           type="button"
                           onClick={() => removeLink(index)}
-                          className="text-gray-500 hover:text-red-500 dark:text-gray-400 dark:hover:text-red-400 ml-2"
+                          className="text-gray-500 hover:text-red-500 dark:text-gray-400 dark:hover:text-red-400 ml-2 transform translate-z-0"
+                          aria-label={`Remove link to ${link}`}
                         >
                           <X className="w-4 h-4" />
                         </button>
@@ -495,9 +556,13 @@ export function TaskForm({ onSubmit, sectionId, isSectionAdmin = false }: TaskFo
                 </div>
 
                 {fileUrls.length > 0 && (
-                  <div className="mt-2 space-y-2">
+                  <div className="mt-2 space-y-2 will-change-transform">
                     {files.map((file, index) => (
-                      <div key={index} className="flex items-center justify-between py-2 px-3 bg-gray-50 dark:bg-gray-700 rounded-lg">
+                      <div 
+                        key={index} 
+                        className="flex items-center justify-between py-2 px-3 bg-gray-50 dark:bg-gray-700 rounded-lg transform translate-z-0"
+                        style={{ contain: 'layout' }}
+                      >
                         <div className="flex items-center gap-2 truncate max-w-[85%]">
                           <span className="text-sm text-gray-700 dark:text-gray-300 truncate">{file.name}</span>
                           <span className="text-xs text-gray-500">({(file.size / 1024).toFixed(1)} KB)</span>
@@ -505,7 +570,8 @@ export function TaskForm({ onSubmit, sectionId, isSectionAdmin = false }: TaskFo
                         <button
                           type="button"
                           onClick={() => removeFile(index)}
-                          className="text-gray-500 hover:text-red-500 dark:text-gray-400 dark:hover:text-red-400 ml-2"
+                          className="text-gray-500 hover:text-red-500 dark:text-gray-400 dark:hover:text-red-400 ml-2 transform translate-z-0"
+                          aria-label={`Remove ${file.name}`}
                         >
                           <X className="w-4 h-4" />
                         </button>

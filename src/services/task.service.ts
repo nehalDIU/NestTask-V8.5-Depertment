@@ -129,7 +129,8 @@ export const createTask = async (
     console.log('[Debug] Creating task with data:', { 
       userId, 
       task,
-      sectionId
+      sectionId,
+      hasMobileFiles: !!(task as any)._mobileFiles
     });
 
     // Get user data to determine role
@@ -142,55 +143,84 @@ export const createTask = async (
       userSectionId 
     });
 
-    // Extract file information from description
-    // Updated pattern to match both standard attachment formats from desktop and mobile
-    const fileMatches = task.description.match(/\[([^\]]+)\]\((blob:.*?|attachment:.*?)\)/g) || [];
+    // Check for mobile file uploads
+    const mobileFiles = (task as any)._mobileFiles as File[] | undefined;
+    const isMobileUpload = !!mobileFiles && mobileFiles.length > 0;
+    
+    if (isMobileUpload) {
+      console.log('[Debug] Processing mobile file upload with', mobileFiles.length, 'files');
+    }
+    
     let description = task.description;
     
-    console.log('[Debug] Found file matches in description:', fileMatches);
-
-    // Upload each file and update description with permanent URLs
-    for (const match of fileMatches) {
-      // Updated regex to handle both blob: URLs (desktop) and attachment: references (mobile)
-      const [, fileName, url] = match.match(/\[(.*?)\]\((blob:.*?|attachment:(.*?))\)/) || [];
-      console.log('[Debug] Processing file match:', { match, fileName, url });
-      
-      if (fileName) {
-        try {
-          // If it's already an attachment reference without a blob URL, preserve it
-          if (url && !url.startsWith('blob:')) {
-            console.log('[Debug] Skipping non-blob URL:', url);
-            continue;
-          }
-          
-          // For blob URLs, process normally
-          if (url && url.startsWith('blob:')) {
-            console.log('[Debug] Fetching blob URL:', url);
-            const response = await fetch(url);
-            const blob = await response.blob();
-            const file = new File([blob], fileName, { type: blob.type });
+    // Process mobile files first if they exist
+    if (isMobileUpload) {
+      try {
+        console.log('[Debug] Uploading mobile files', mobileFiles.map(f => f.name));
+        
+        // Upload each mobile file
+        for (const file of mobileFiles) {
+          try {
+            console.log('[Debug] Uploading mobile file:', file.name);
             const permanentUrl = await uploadFile(file);
-            description = description.replace(match, `[${fileName}](${permanentUrl})`);
-            console.log('[Debug] Uploaded file and replaced URL with:', permanentUrl);
+            
+            // Update description to replace attachment references with permanent URLs
+            const attachmentRef = `[${file.name}](attachment:${file.name})`;
+            const permanentRef = `[${file.name}](${permanentUrl})`;
+            
+            description = description.replace(attachmentRef, permanentRef);
+            console.log('[Debug] Replaced attachment reference with permanent URL');
+          } catch (fileError) {
+            console.error('[Error] Failed to upload mobile file:', file.name, fileError);
           }
-        } catch (error) {
-          console.error('[Error] Processing file failed:', { fileName, error });
+        }
+        
+        // Remove the mobile upload marker comment
+        description = description.replace(/\n<!-- mobile-uploads -->\n/g, '');
+      } catch (mobileUploadError) {
+        console.error('[Error] Mobile file upload process failed:', mobileUploadError);
+      }
+    } else {
+      // Standard desktop file processing
+      // Extract file information from description
+      const fileMatches = description.match(/\[([^\]]+)\]\((blob:.*?|attachment:.*?)\)/g) || [];
+      console.log('[Debug] Found file matches in description:', fileMatches);
+
+      // Upload each file and update description with permanent URLs
+      for (const match of fileMatches) {
+        // Updated regex to handle both blob: URLs (desktop) and attachment: references (mobile)
+        const [, fileName, url] = match.match(/\[(.*?)\]\((blob:.*?|attachment:(.*?))\)/) || [];
+        console.log('[Debug] Processing file match:', { match, fileName, url });
+        
+        if (fileName) {
+          try {
+            // If it's already an attachment reference without a blob URL, preserve it
+            if (url && !url.startsWith('blob:')) {
+              console.log('[Debug] Skipping non-blob URL:', url);
+              continue;
+            }
+            
+            // For blob URLs, process normally
+            if (url && url.startsWith('blob:')) {
+              console.log('[Debug] Fetching blob URL:', url);
+              const response = await fetch(url);
+              const blob = await response.blob();
+              const file = new File([blob], fileName, { type: blob.type });
+              const permanentUrl = await uploadFile(file);
+              description = description.replace(match, `[${fileName}](${permanentUrl})`);
+              console.log('[Debug] Uploaded file and replaced URL with:', permanentUrl);
+            }
+          } catch (error) {
+            console.error('[Error] Processing file failed:', { fileName, error });
+          }
         }
       }
     }
 
-    // Also handle the attachment: format that's used on mobile
-    const attachmentMatches = task.description.match(/\[([^\]]+)\]\(attachment:([^)]+)\)/g) || [];
+    // Also handle any remaining attachment: format references
+    const attachmentMatches = description.match(/\[([^\]]+)\]\(attachment:([^)]+)\)/g) || [];
     console.log('[Debug] Found attachment matches:', attachmentMatches);
     
-    for (const match of attachmentMatches) {
-      const [, fileName] = match.match(/\[(.*?)\]\(attachment:(.*?)\)/) || [];
-      
-      // If we found a file reference but don't have an actual file to upload,
-      // we need to leave the reference in place
-      console.log('[Debug] Preserving attachment reference:', fileName);
-    }
-
     // Prepare the task data
     const taskInsertData: any = {
       name: task.name,
@@ -201,18 +231,6 @@ export const createTask = async (
       user_id: userId,
       is_admin_task: userRole === 'admin' || userRole === 'section_admin' || false,
     };
-
-    // For mobile uploads, we need to handle files differently
-    // On mobile, files are added with the format [filename](attachment:filename)
-    const isMobile = description.includes('attachment:');
-    
-    if (isMobile) {
-      console.log('[Debug] Detected mobile file format, processing accordingly');
-      
-      // For now, we just keep the attachment references as is
-      // In a production system, we would implement proper file upload here
-      // or recover actual files from temporary storage
-    }
 
     // Determine correct section_id based on role and available data
     // Section admin: Always set section_id to their section

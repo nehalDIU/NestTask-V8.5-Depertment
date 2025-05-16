@@ -75,10 +75,6 @@ export function TaskManager({
   const [sortBy, setSortBy] = useState<'createdAt' | 'dueDate' | 'name' | 'category' | 'priority'>('dueDate');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');
   
-  // Pagination
-  const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(10);
-  
   // Bulk operations
   const [selectedTaskIds, setSelectedTaskIds] = useState<string[]>([]);
   const [isProcessingBulk, setIsProcessingBulk] = useState(false);
@@ -107,7 +103,6 @@ export function TaskManager({
     
     searchTimeoutRef.current = window.setTimeout(() => {
       setDebouncedSearchTerm(searchTerm);
-      setPage(1); // Reset to first page on new search
     }, 300);
     
     return () => {
@@ -116,11 +111,6 @@ export function TaskManager({
       }
     };
   }, [searchTerm]);
-  
-  // Reset pagination when filters change
-  useEffect(() => {
-    setPage(1);
-  }, [categoryFilter, statusFilter, startDate, endDate, debouncedSearchTerm]);
   
   // Filter tasks with memoization
   const filteredTasks = useMemo(() => {
@@ -194,21 +184,19 @@ export function TaskManager({
     });
   }, [filteredTasks, sortBy, sortOrder]);
   
-  // Paginate tasks
-  const paginatedTasks = useMemo(() => {
-    const startIndex = (page - 1) * pageSize;
-    return sortedTasks.slice(startIndex, startIndex + pageSize);
-  }, [sortedTasks, page, pageSize]);
-  
   // Handle task creation with optimistic update
   const handleCreateTask = useCallback(async (task: NewTask) => {
     try {
       // Log initial task data
       console.log('[Debug] Handling task creation with data:', task);
       
-      // Detect mobile device
-      const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
-      console.log('[Debug] Creating task on mobile device:', isMobile);
+      // Check for mobile files
+      const mobileFiles = (task as any)._mobileFiles;
+      const isMobileUpload = !!mobileFiles && mobileFiles.length > 0;
+      
+      if (isMobileUpload) {
+        console.log('[Debug] Detected mobile file upload with', mobileFiles.length, 'files');
+      }
       
       // If section admin, automatically associate with section
       if (isSectionAdmin && sectionId) {
@@ -218,6 +206,11 @@ export function TaskManager({
           ...task,
           sectionId
         };
+        
+        // Don't include the _mobileFiles property in the optimistic task
+        if (isMobileUpload) {
+          delete (enhancedTask as any)._mobileFiles;
+        }
         
         // Create temporary optimistic task
         const optimisticTask: Task = {
@@ -236,17 +229,33 @@ export function TaskManager({
         
         // Check for file attachments in description
         const hasAttachments = enhancedTask.description.includes('**Attachments:**');
-        console.log('[Debug] Task has attachments:', hasAttachments);
+        console.log('[Debug] Task has attachments:', hasAttachments, 'Mobile upload:', isMobileUpload);
+        
+        // Clone the task to avoid modifying the original
+        const taskToCreate = { ...enhancedTask };
+        
+        // If this is a mobile upload, ensure the _mobileFiles property is passed
+        if (isMobileUpload) {
+          (taskToCreate as any)._mobileFiles = mobileFiles;
+        }
         
         // Make actual API call - explicitly pass sectionId as second parameter
-        await onCreateTask(enhancedTask, sectionId);
+        await onCreateTask(taskToCreate, sectionId);
         console.log('[Debug] Task created successfully with section ID');
         showSuccessToast('Task created successfully');
       } else {
         // Similar handling for non-section tasks
+        // Clone the task to avoid modifying the original
+        const taskToCreate = { ...task };
+        
+        // Don't include the _mobileFiles property in the optimistic task
+        if (isMobileUpload) {
+          delete (taskToCreate as any)._mobileFiles;
+        }
+        
         const optimisticTask: Task = {
           id: `temp-${Date.now()}`,
-          ...task,
+          ...taskToCreate,
           createdAt: new Date().toISOString(),
           updatedAt: new Date().toISOString(),
           assignedBy: 'Pending...',
@@ -259,9 +268,15 @@ export function TaskManager({
         
         // Check for file attachments in description
         const hasAttachments = task.description.includes('**Attachments:**');
-        console.log('[Debug] Task has attachments:', hasAttachments);
+        console.log('[Debug] Task has attachments:', hasAttachments, 'Mobile upload:', isMobileUpload);
         
-        await onCreateTask(task);
+        // If this is a mobile upload, ensure the _mobileFiles property is preserved
+        const finalTask = { ...task };
+        if (isMobileUpload) {
+          (finalTask as any)._mobileFiles = mobileFiles;
+        }
+        
+        await onCreateTask(finalTask);
         console.log('[Debug] Task created successfully without section ID');
         showSuccessToast('Task created successfully');
       }
@@ -393,12 +408,12 @@ export function TaskManager({
     );
   };
   
-  // Select all visible tasks
+  // Fix the selectAllTasks function to ensure it works properly with all tasks
   const selectAllTasks = () => {
-    if (selectedTaskIds.length === paginatedTasks.length) {
+    if (selectedTaskIds.length === sortedTasks.length) {
       setSelectedTaskIds([]);
     } else {
-      setSelectedTaskIds(paginatedTasks.map(t => t.id));
+      setSelectedTaskIds(sortedTasks.map(t => t.id));
     }
   };
   
@@ -434,9 +449,6 @@ export function TaskManager({
     document.body.removeChild(link);
   };
   
-  // Calculate pagination
-  const totalPages = Math.ceil(sortedTasks.length / pageSize);
-  
   // Reset all filters
   const resetFilters = () => {
     setCategoryFilter('all');
@@ -447,8 +459,31 @@ export function TaskManager({
     setDebouncedSearchTerm('');
     setSortBy('dueDate');
     setSortOrder('asc');
-    setPage(1);
   };
+
+  // Fix keyboard navigation logic for pagination (even though we don't display pagination)
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Only handle keyboard navigation when not in an input field
+      if (document.activeElement?.tagName === 'INPUT' || 
+          document.activeElement?.tagName === 'TEXTAREA' || 
+          document.activeElement?.tagName === 'SELECT') {
+        return;
+      }
+      
+      // Since we're showing all tasks and not paginating,
+      // keyboard navigation is no longer needed, but we'll leave the code
+      // here as a reference if pagination is re-enabled in the future
+    };
+    
+    // Add event listener
+    window.addEventListener('keydown', handleKeyDown);
+    
+    // Clean up
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, []);
 
   return (
     <div className="space-y-4 sm:space-y-6 px-1 sm:px-0">
@@ -499,7 +534,7 @@ export function TaskManager({
             <button
               className="w-full px-3 sm:px-4 py-2 rounded-xl flex items-center justify-center gap-2 bg-gray-100 text-gray-700 hover:bg-gray-200 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700 transition-colors text-xs sm:text-sm"
               onClick={exportToCSV}
-              disabled={isLoading || filteredTasks.length === 0}
+              disabled={isLoading || sortedTasks.length === 0}
               title="Export to CSV"
             >
               <Download className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
@@ -512,21 +547,21 @@ export function TaskManager({
           <div className="relative">
             <div className="flex items-center px-3 sm:px-4 py-2 bg-gray-100 border border-gray-200 dark:bg-gray-800 dark:border-gray-700 rounded-xl">
               <Search className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-gray-500 dark:text-gray-400 mr-2" />
-              <input
-                type="text"
+          <input
+            type="text"
                 placeholder="Search tasks..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
                 className="bg-transparent border-none outline-none focus:ring-0 text-xs sm:text-sm w-full text-gray-700 dark:text-gray-300 placeholder-gray-500 dark:placeholder-gray-400"
-              />
-              {searchTerm && (
-                <button
-                  onClick={() => setSearchTerm('')}
+          />
+          {searchTerm && (
+            <button
+              onClick={() => setSearchTerm('')}
                   className="ml-1 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300"
-                >
+            >
                   <X className="w-3.5 h-3.5" />
-                </button>
-              )}
+            </button>
+          )}
             </div>
           </div>
         </div>
@@ -590,23 +625,6 @@ export function TaskManager({
                 <option value="quiz">Quiz</option>
                 <option value="task">Task</option>
                 <option value="others">Others</option>
-              </select>
-            </div>
-            
-            <div>
-              <label className="block text-xs sm:text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                Page Size
-              </label>
-              <select
-                value={pageSize}
-                onChange={(e) => setPageSize(Number(e.target.value))}
-                className="w-full px-3 py-2 border dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white text-xs sm:text-sm"
-              >
-                <option value="5">5 per page</option>
-                <option value="10">10 per page</option>
-                <option value="25">25 per page</option>
-                <option value="50">50 per page</option>
-                <option value="100">100 per page</option>
               </select>
             </div>
 
@@ -700,7 +718,7 @@ export function TaskManager({
             />
           )}
           
-          {filteredTasks.length === 0 ? (
+          {sortedTasks.length === 0 ? (
             <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6 sm:p-12 text-center">
               <p className="text-gray-500 dark:text-gray-400 mb-4 text-sm sm:text-base">
                 {tasks.length === 0 
@@ -721,81 +739,30 @@ export function TaskManager({
             <>
               {/* Task Analytics - moved to appear after the task form */}
               <div className="mb-4 sm:mb-6">
-                <TaskStats tasks={filteredTasks} />
+                <TaskStats tasks={sortedTasks} />
               </div>
 
               {/* Task Table with bulk selection */}
-              <TaskTable
-                tasks={paginatedTasks}
-                onDeleteTask={handleDeleteTask}
-                onUpdateTask={handleUpdateTask}
-                isSectionAdmin={isSectionAdmin}
-                viewMode={viewMode}
-                selectedTaskIds={selectedTaskIds}
-                onToggleSelection={toggleTaskSelection}
-                onSelectAll={selectAllTasks}
-                sortBy={sortBy}
-                sortOrder={sortOrder}
-                onSort={(field) => {
-                  if (sortBy === field) {
-                    setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc');
-                  } else {
-                    setSortBy(field as any);
-                    setSortOrder('asc');
-                  }
-                }}
-              />
-              
-              {/* Pagination Controls */}
-              {totalPages > 1 && (
-                <div className="flex flex-wrap items-center justify-between gap-3 mt-4 text-sm">
-                  <div className="text-gray-600 dark:text-gray-400">
-                    Showing {Math.min((page - 1) * pageSize + 1, sortedTasks.length)} - {Math.min(page * pageSize, sortedTasks.length)} of {sortedTasks.length}
-                  </div>
-                  
-                  <div className="flex items-center justify-center gap-1">
-                    <button 
-                      onClick={() => setPage(1)} 
-                      disabled={page === 1}
-                      className="p-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed"
-                      aria-label="First page"
-                    >
-                      <ChevronLeft className="w-3 h-3 sm:w-4 sm:h-4" />
-                      <ChevronLeft className="w-3 h-3 sm:w-4 sm:h-4 -ml-2" />
-                    </button>
-                    <button 
-                      onClick={() => setPage(p => Math.max(1, p - 1))} 
-                      disabled={page === 1}
-                      className="p-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed"
-                      aria-label="Previous page"
-                    >
-                      <ChevronLeft className="w-3 h-3 sm:w-4 sm:h-4" />
-                    </button>
-                    
-                    <div className="px-2 sm:px-3 py-1 text-xs sm:text-sm">
-                      {page} / {totalPages}
-                    </div>
-                    
-                    <button 
-                      onClick={() => setPage(p => Math.min(totalPages, p + 1))} 
-                      disabled={page === totalPages}
-                      className="p-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed"
-                      aria-label="Next page"
-                    >
-                      <ChevronRight className="w-3 h-3 sm:w-4 sm:h-4" />
-                    </button>
-                    <button 
-                      onClick={() => setPage(totalPages)} 
-                      disabled={page === totalPages}
-                      className="p-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed"
-                      aria-label="Last page"
-                    >
-                      <ChevronRight className="w-3 h-3 sm:w-4 sm:h-4" />
-                      <ChevronRight className="w-3 h-3 sm:w-4 sm:h-4 -ml-2" />
-                    </button>
-                  </div>
-                </div>
-              )}
+                <TaskTable 
+                  tasks={sortedTasks} 
+                  onDeleteTask={handleDeleteTask} 
+                  onUpdateTask={handleUpdateTask}
+                  isSectionAdmin={isSectionAdmin}
+                  viewMode={viewMode}
+                  selectedTaskIds={selectedTaskIds}
+                  onToggleSelection={toggleTaskSelection}
+                  onSelectAll={selectAllTasks}
+                  sortBy={sortBy}
+                  sortOrder={sortOrder}
+                  onSort={(field) => {
+                    if (sortBy === field) {
+                      setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc');
+                    } else {
+                      setSortBy(field as any);
+                      setSortOrder('asc');
+                    }
+                  }}
+                />
             </>
           )}
         </>

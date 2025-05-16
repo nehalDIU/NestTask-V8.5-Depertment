@@ -254,7 +254,7 @@ export function TaskTable({
           ))}
         </div>
       )}
-      
+
       {/* Table View - Only on desktop */}
       {viewMode === 'table' && !isMobileView && (
         <div className="overflow-x-auto">
@@ -263,21 +263,21 @@ export function TaskTable({
               <tr>
                 <th className="p-4 w-8">
                   <div className="flex items-center justify-center">
-                    <button
-                      onClick={onSelectAll}
+                  <button 
+                    onClick={onSelectAll}
                       className="p-1 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-700"
-                      aria-label="Select all tasks"
-                    >
+                    aria-label="Select all tasks"
+                  >
                       {selectedTaskIds.length > 0 && selectedTaskIds.length === tasks.length ? (
                         <CheckSquare className="w-5 h-5 text-blue-500 dark:text-blue-400" />
-                      ) : (
+                    ) : (
                         <Square className="w-5 h-5 text-gray-400 dark:text-gray-500" />
-                      )}
-                    </button>
+                    )}
+                  </button>
                   </div>
                 </th>
                 <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                  <button
+                  <button 
                     onClick={() => onSort('name')}
                     className="flex items-center focus:outline-none hover:text-gray-700 dark:hover:text-gray-200"
                   >
@@ -286,7 +286,7 @@ export function TaskTable({
                   </button>
                 </th>
                 <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                  <button
+                  <button 
                     onClick={() => onSort('category')}
                     className="flex items-center focus:outline-none hover:text-gray-700 dark:hover:text-gray-200"
                   >
@@ -295,7 +295,7 @@ export function TaskTable({
                   </button>
                 </th>
                 <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                  <button
+                  <button 
                     onClick={() => onSort('dueDate')}
                     className="flex items-center focus:outline-none hover:text-gray-700 dark:hover:text-gray-200"
                   >
@@ -308,7 +308,7 @@ export function TaskTable({
                     onClick={() => onSort('status')}
                     className="flex items-center focus:outline-none hover:text-gray-700 dark:hover:text-gray-200"
                   >
-                    Status
+                  Status
                     {renderSortIndicator('status')}
                   </button>
                 </th>
@@ -320,30 +320,30 @@ export function TaskTable({
             <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
               {tasks.map(task => (
                 <tr 
-                  key={task.id}
+                  key={task.id} 
                   className={
-                    selectedTaskIds.includes(task.id)
-                      ? 'bg-blue-50 dark:bg-blue-900/10'
+                    selectedTaskIds.includes(task.id) 
+                      ? 'bg-blue-50 dark:bg-blue-900/10' 
                       : 'bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700/30'
                   }
                 >
                   <td className="p-4">
                     <div className="flex items-center justify-center">
-                      <button
-                        onClick={() => onToggleSelection(task.id)}
+                    <button 
+                      onClick={() => onToggleSelection(task.id)}
                         className="p-1 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-700"
-                      >
-                        {selectedTaskIds.includes(task.id) ? (
+                    >
+                      {selectedTaskIds.includes(task.id) ? (
                           <CheckSquare className="w-5 h-5 text-blue-500 dark:text-blue-400" />
-                        ) : (
+                      ) : (
                           <Square className="w-5 h-5 text-gray-400 dark:text-gray-500" />
-                        )}
-                      </button>
+                      )}
+                    </button>
                     </div>
                   </td>
                   <td className="px-4 py-2.5">
                     <div className="text-sm font-medium text-gray-900 dark:text-white">
-                      {task.name}
+                    {task.name}
                     </div>
                     <div className="text-xs text-gray-500 dark:text-gray-400 line-clamp-1">
                       {truncateText(task.description, 50)}
@@ -351,7 +351,7 @@ export function TaskTable({
                   </td>
                   <td className="px-4 py-2.5">
                     <div className="text-sm capitalize text-gray-900 dark:text-white">
-                      {task.category.replace(/-/g, ' ')}
+                    {task.category.replace(/-/g, ' ')}
                     </div>
                     {task.priority && (
                       <div className="mt-1">{getPriorityBadge(task.priority)}</div>
@@ -399,7 +399,7 @@ export function TaskTable({
           </table>
         </div>
       )}
-      
+
       {/* Task edit modal */}
       {editingTask && (
         <TaskEditModal

@@ -115,15 +115,15 @@ export function TaskForm({ onSubmit, sectionId, isSectionAdmin = false }: TaskFo
       const newFiles = Array.from(e.target.files);
       console.log('[Debug] Files selected:', newFiles.map(f => f.name));
       
-      // Store actual File objects for mobile handling
-      const isMobile = /iPhone|iPad|iPod|Android|webOS|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
-      console.log('[Debug] Device detected as mobile:', isMobile);
+      // Improved mobile detection with additional checks for section admins
+      const isMobile = /iPhone|iPad|iPod|Android|webOS|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) || window.innerWidth < 768;
+      console.log('[Debug] Device detected as mobile:', isMobile, 'Section admin:', isSectionAdmin);
       
       // Defer DOM updates to prevent forced reflow
       requestAnimationFrame(() => {
         if (isMobile) {
           // On mobile, create a dedicated file handler that works with the files directly
-          console.log('[Debug] Using mobile-specific file handling');
+          console.log('[Debug] Using mobile-specific file handling for', isSectionAdmin ? 'section admin' : 'user');
           // Store the files without attempting to create object URLs which might not work on mobile
           setFiles(prev => [...prev, ...newFiles]);
           // Create simple placeholder URLs for display only
@@ -171,25 +171,27 @@ export function TaskForm({ onSubmit, sectionId, isSectionAdmin = false }: TaskFo
     });
   };
   
-  // Handle form submission with timeout to prevent infinite submission state
+  // Handle form submission
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (!validate()) return;
+    // Validation
+    const errors: Partial<Record<keyof NewTask, string>> = {};
+    if (!taskDetails.name.trim()) errors.name = 'Task name is required';
+    if (!taskDetails.dueDate) errors.dueDate = 'Due date is required';
     
-    // Prevent multiple submissions
-    if (isSubmitting) return;
+    if (Object.keys(errors).length > 0) {
+      setErrors(errors);
+      return;
+    }
     
-    // Set submitting state on next frame to avoid forced reflow
-    requestAnimationFrame(() => {
-      setIsSubmitting(true);
-    });
+    setIsSubmitting(true);
     
     // Add submission timeout to prevent infinite loading state
     const submissionTimeout = setTimeout(() => {
       console.error('[Error] Task submission timed out after 20 seconds');
       setIsSubmitting(false);
-      alert('Task submission is taking longer than expected. Your task might still be processing in the background.');
+      setErrors({ name: 'Submission timed out. Please try again.' });
     }, 20000); // 20 second timeout
     
     try {
@@ -207,8 +209,9 @@ export function TaskForm({ onSubmit, sectionId, isSectionAdmin = false }: TaskFo
         });
       }
       
-      // Detect if we're on mobile
-      const isMobile = /iPhone|iPad|iPod|Android|webOS|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+      // Improved mobile detection with additional checks for section admins
+      const isMobile = /iPhone|iPad|iPod|Android|webOS|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) || window.innerWidth < 768;
+      console.log('[Debug] Submission device detected as mobile:', isMobile, 'Section admin:', isSectionAdmin);
       
       // Add file references with better error handling
       const filesToProcess = [...files];
@@ -271,7 +274,7 @@ export function TaskForm({ onSubmit, sectionId, isSectionAdmin = false }: TaskFo
       };
       
       if (isMobile && filesToProcess.length > 0) {
-        console.log('[Debug] This is a mobile submission with files. Count:', filesToProcess.length);
+        console.log('[Debug] This is a mobile submission with files. Count:', filesToProcess.length, 'Section admin:', isSectionAdmin);
         
         try {
           // Validate files before sending
@@ -285,6 +288,12 @@ export function TaskForm({ onSubmit, sectionId, isSectionAdmin = false }: TaskFo
           // On mobile, we'll pass the actual files to the onSubmit handler
           // by attaching them to the task object with a custom property
           (finalTask as any)._mobileFiles = filesToProcess;
+          // Add additional flag for section admin mobile uploads
+          if (isSectionAdmin && sectionId) {
+            (finalTask as any)._isSectionAdminMobile = true;
+            (finalTask as any)._sectionId = sectionId;
+            console.log('[Debug] Adding section admin mobile flags to task.');
+          }
         } catch (mobileFileError) {
           console.error('[Error] Mobile file preparation failed:', mobileFileError);
           // Continue with submission without files if there's an error
@@ -298,7 +307,7 @@ export function TaskForm({ onSubmit, sectionId, isSectionAdmin = false }: TaskFo
       // Clear timeout since submission was successful
       clearTimeout(submissionTimeout);
       
-      // Reset form - do all state updates in a single animation frame
+      // Reset form
       requestAnimationFrame(() => {
         setTaskDetails({
           name: '',
@@ -597,10 +606,22 @@ export function TaskForm({ onSubmit, sectionId, isSectionAdmin = false }: TaskFo
                   <label 
                     htmlFor="file-upload" 
                     className="w-full flex flex-col items-center justify-center px-4 py-4 bg-white dark:bg-gray-800 text-gray-500 rounded-xl border-2 border-dashed border-gray-300 dark:border-gray-600 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700/50"
+                    aria-label="Upload files - tap to select files"
                   >
                     <Upload className="w-6 h-6 text-gray-400 dark:text-gray-500" />
-                    <p className="mt-1 text-sm text-center">Drag & drop files here, or click to select files</p>
-                    <input id="file-upload" type="file" className="hidden" onChange={handleFileUpload} multiple />
+                    <p className="mt-1 text-sm text-center">
+                      {/iPhone|iPad|iPod|Android|webOS|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) || window.innerWidth < 768 ? 
+                        'Tap to select files' : 
+                        'Drag & drop files here, or click to select files'}
+                    </p>
+                    <input 
+                      id="file-upload" 
+                      type="file" 
+                      className="hidden" 
+                      onChange={handleFileUpload} 
+                      multiple 
+                      accept="image/*,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/plain,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                    />
                   </label>
                 </div>
 

@@ -130,7 +130,8 @@ export const createTask = async (
       userId, 
       task,
       sectionId,
-      hasMobileFiles: !!(task as any)._mobileFiles
+      hasMobileFiles: !!(task as any)._mobileFiles,
+      isSectionAdminMobile: !!(task as any)._isSectionAdminMobile
     });
 
     // Get user data to determine role
@@ -146,9 +147,14 @@ export const createTask = async (
     // Check for mobile file uploads
     const mobileFiles = (task as any)._mobileFiles as File[] | undefined;
     const isMobileUpload = !!mobileFiles && mobileFiles.length > 0;
+    const isSectionAdminMobile = !!(task as any)._isSectionAdminMobile;
+    const explicitSectionId = (task as any)._sectionId || sectionId;
     
     if (isMobileUpload) {
       console.log('[Debug] Processing mobile file upload with', mobileFiles.length, 'files');
+      if (isSectionAdminMobile) {
+        console.log('[Debug] This is a section admin mobile upload with section ID:', explicitSectionId);
+      }
     }
     
     let description = task.description;
@@ -210,6 +216,7 @@ export const createTask = async (
             }
             
             // Update description to replace attachment references with permanent URLs
+            // Enhanced pattern matching with better handling for section admin mobile uploads
             const attachmentPattern = new RegExp(`\\[${file.name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\]\\(attachment:${file.name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\)`, 'g');
             const permanentRef = `[${file.name}](${permanentUrl})`;
             
@@ -225,6 +232,15 @@ export const createTask = async (
                 }
                 return match;
               });
+              
+              // Special case for section admin mobile uploads if still not found
+              if (oldDescription === description && isSectionAdminMobile) {
+                console.log('[Debug] Using fallback for section admin mobile file:', file.name);
+                // Add the attachment at the end if we couldn't find a match
+                if (!description.includes(`[${file.name}]`)) {
+                  description += `\n[${file.name}](${permanentUrl})`;
+                }
+              }
             }
             
             console.log('[Debug] Replaced attachment reference with permanent URL');
@@ -312,12 +328,12 @@ export const createTask = async (
       description: description,
       status: task.status,
       user_id: userId,
-      is_admin_task: userRole === 'admin' || userRole === 'section_admin' || false,
+      is_admin_task: userRole === 'admin' || userRole === 'section_admin' || userRole === 'section-admin' || false,
     };
 
     // Determine correct section_id based on role and available data
     // Section admin: Always set section_id to their section
-    if (userRole === 'section_admin' && userSectionId) {
+    if ((userRole === 'section_admin' || userRole === 'section-admin') && userSectionId) {
       taskInsertData.section_id = userSectionId;
       console.log('[Debug] Section admin creating task for section:', userSectionId);
       

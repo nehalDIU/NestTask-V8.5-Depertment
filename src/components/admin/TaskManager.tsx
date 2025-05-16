@@ -196,12 +196,14 @@ export function TaskManager({
       // Check for mobile files
       const mobileFiles = (task as any)._mobileFiles;
       const isMobileUpload = !!mobileFiles && mobileFiles.length > 0;
+      const isSectionAdminMobile = !!(task as any)._isSectionAdminMobile;
       
       // Add a timeout to prevent infinite "creating" state
       let timeoutId: number | null = null;
       
       if (isMobileUpload) {
-        console.log('[Debug] Detected mobile file upload with', mobileFiles.length, 'files');
+        console.log('[Debug] Detected mobile file upload with', mobileFiles.length, 'files', 
+          isSectionAdminMobile ? '(section admin)' : '');
         
         // Set a timeout to clear the optimistic update if it takes too long
         timeoutId = window.setTimeout(() => {
@@ -224,6 +226,13 @@ export function TaskManager({
           sectionId
         };
         
+        // For section admin mobile uploads, add extra metadata
+        if (isMobileUpload && isSectionAdminMobile) {
+          console.log('[Debug] Adding section admin mobile metadata to task');
+          (enhancedTask as any)._isSectionAdminMobile = true;
+          (enhancedTask as any)._sectionId = sectionId;
+        }
+        
         // Create temporary optimistic task
         const optimisticTask: Task = {
           id: tempId,
@@ -232,72 +241,47 @@ export function TaskManager({
           updatedAt: new Date().toISOString(),
           assignedBy: 'Pending...',
           assignedById: '',
-          status: enhancedTask.status || 'my-tasks',
+          status: enhancedTask.status || 'in-progress',
           isAdminTask: true
         };
         
-        // Add to local state immediately
+        // Add to local tasks for optimistic UI update
         setLocalTasks(prev => [optimisticTask, ...prev]);
         
+        // Submit to the server
         try {
-          // Make actual API call - explicitly pass sectionId as second parameter
-          await onCreateTask(taskToProcess, sectionId);
-          console.log('[Debug] Task created successfully with section ID');
-          showSuccessToast('Task created successfully');
+          await onCreateTask(enhancedTask, sectionId);
+          if (timeoutId) clearTimeout(timeoutId);
           
-          // Clear timeout if it exists
-          if (timeoutId) window.clearTimeout(timeoutId);
-        } catch (error: any) {
-          // Clear timeout if it exists
-          if (timeoutId) window.clearTimeout(timeoutId);
-          
-          console.error('[Error] Failed to create task:', error);
-          showErrorToast(`Error creating task: ${error.message}`);
-          
-          // Remove optimistic task on error
+          // Remove temporary task
           setLocalTasks(prev => prev.filter(t => t.id !== tempId));
+          showSuccessToast('Task created successfully');
+        } catch (error) {
+          console.error('[Error] Failed to create task:', error);
+          
+          // Remove temporary task on error
+          setLocalTasks(prev => prev.filter(t => t.id !== tempId));
+          showErrorToast('Failed to create task. Please try again.');
+          if (timeoutId) clearTimeout(timeoutId);
         }
       } else {
-        // Similar handling for non-section tasks
-        const optimisticTask: Task = {
-          id: tempId,
-          ...taskToProcess,
-          createdAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString(),
-          assignedBy: 'Pending...',
-          assignedById: '',
-          status: task.status || 'my-tasks',
-          isAdminTask: true
-        };
-        
-        setLocalTasks(prev => [optimisticTask, ...prev]);
-        
-        try {
-          await onCreateTask(taskToProcess);
-          console.log('[Debug] Task created successfully without section ID');
-          showSuccessToast('Task created successfully');
-          
-          // Clear timeout if it exists
-          if (timeoutId) window.clearTimeout(timeoutId);
-        } catch (error: any) {
-          // Clear timeout if it exists
-          if (timeoutId) window.clearTimeout(timeoutId);
-          
-          console.error('[Error] Failed to create task:', error);
-          showErrorToast(`Error creating task: ${error.message}`);
-          
-          // Remove optimistic task on error
-          setLocalTasks(prev => prev.filter(t => t.id !== tempId));
-        }
+        // Standard task creation flow
+        await onCreateTask(taskToProcess);
+        if (isMobileUpload && timeoutId) clearTimeout(timeoutId);
       }
-    } catch (error: any) {
-      console.error('[Error] Task creation error:', error);
-      showErrorToast(`Error creating task: ${error.message}`);
       
-      // Remove optimistic task on error
-      setLocalTasks(prev => prev.filter(t => t.id !== tempId));
+      // Reset filters on successful task creation to show the new task
+      setStartDate('');
+      setEndDate('');
+      setStatusFilter('all');
+      setCategoryFilter('all');
+      setSearchTerm('');
+      
+    } catch (error) {
+      console.error('Error creating task:', error);
+      showErrorToast('Failed to create task. Please try again.');
     }
-  }, [onCreateTask, isSectionAdmin, sectionId, showSuccessToast, showErrorToast]);
+  }, [onCreateTask, isSectionAdmin, sectionId, setLocalTasks, showSuccessToast, showErrorToast]);
   
   // Handle task deletion with optimistic update
   const handleDeleteTask = useCallback(async (taskId: string) => {

@@ -159,7 +159,7 @@ export const createTask = async (
         console.log('[Debug] Uploading mobile files', mobileFiles.map(f => ({name: f.name, size: f.size})));
         
         // Wrap file upload in a promise with timeout
-        const uploadFileWithTimeout = async (file: File, timeoutMs = 15000): Promise<string> => {
+        const uploadFileWithTimeout = async (file: File, timeoutMs = 60000): Promise<string> => {
           return new Promise(async (resolve, reject) => {
             // Set a timeout to reject the promise if it takes too long
             const timeoutId = setTimeout(() => {
@@ -178,35 +178,41 @@ export const createTask = async (
         };
         
         // Upload each mobile file with retry logic
+        const failedFiles = [];
         for (const file of mobileFiles) {
           if (!file.name || file.size === 0) {
             console.warn('[Warning] Skipping invalid file', file);
+            failedFiles.push(file.name || 'unnamed file');
             continue;
           }
           
           try {
-            console.log('[Debug] Uploading mobile file:', file.name);
+            console.log('[Debug] Uploading mobile file:', file.name, 'Size:', file.size, 'Type:', file.type);
             
-            // Try up to 3 times
+            // Try up to 5 times with longer wait periods between attempts
             let permanentUrl = '';
             let attempts = 0;
             let lastError = null;
             
-            while (attempts < 3 && !permanentUrl) {
+            while (attempts < 5 && !permanentUrl) {
               try {
                 attempts++;
                 permanentUrl = await uploadFileWithTimeout(file);
+                console.log(`[Debug] File upload successful on attempt ${attempts}: ${file.name}`);
                 break;
               } catch (uploadError) {
-                console.error(`[Error] Failed to upload mobile file (attempt ${attempts}/3):`, file.name, uploadError);
+                console.error(`[Error] Failed to upload mobile file (attempt ${attempts}/5):`, file.name, uploadError);
                 lastError = uploadError;
-                // Wait 1 second before retrying
-                if (attempts < 3) await new Promise(resolve => setTimeout(resolve, 1000));
+                // Wait longer between retries (1s, 2s, 4s, 8s)
+                if (attempts < 5) await new Promise(resolve => setTimeout(resolve, Math.pow(2, attempts-1) * 1000));
               }
             }
             
             if (!permanentUrl) {
-              throw lastError || new Error(`Failed to upload file after 3 attempts: ${file.name}`);
+              console.error(`[Error] All upload attempts failed for file: ${file.name}`);
+              failedFiles.push(file.name);
+              // Continue instead of throwing, so other files can still be processed
+              continue;
             }
             
             // Update description to replace attachment references with permanent URLs

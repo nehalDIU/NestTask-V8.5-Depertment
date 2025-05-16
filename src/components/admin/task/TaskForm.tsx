@@ -115,10 +115,8 @@ export function TaskForm({ onSubmit, sectionId, isSectionAdmin = false }: TaskFo
       const newFiles = Array.from(e.target.files);
       console.log('[Debug] Files selected:', newFiles.map(f => f.name));
       
-      // Improved mobile detection with fallback methods
-      const isMobile = /iPhone|iPad|iPod|Android|webOS|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) || 
-                      window.innerWidth < 768 || 
-                      ('ontouchstart' in window);
+      // Store actual File objects for mobile handling
+      const isMobile = /iPhone|iPad|iPod|Android|webOS|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
       console.log('[Debug] Device detected as mobile:', isMobile);
       
       // Defer DOM updates to prevent forced reflow
@@ -126,21 +124,10 @@ export function TaskForm({ onSubmit, sectionId, isSectionAdmin = false }: TaskFo
         if (isMobile) {
           // On mobile, create a dedicated file handler that works with the files directly
           console.log('[Debug] Using mobile-specific file handling');
-          
-          // Create a copy of the files to ensure they persist
-          const fileCopies = newFiles.map(file => {
-            // Create a copy of the file to avoid browser garbage collection issues
-            return new File([file], file.name, { 
-              type: file.type,
-              lastModified: file.lastModified
-            });
-          });
-          
-          // Store the file copies
-          setFiles(prev => [...prev, ...fileCopies]);
-          
+          // Store the files without attempting to create object URLs which might not work on mobile
+          setFiles(prev => [...prev, ...newFiles]);
           // Create simple placeholder URLs for display only
-          const displayUrls = fileCopies.map(file => `placeholder-${file.name}`);
+          const displayUrls = newFiles.map(file => `placeholder-${file.name}`);
           setFileUrls(prev => [...prev, ...displayUrls]);
         } else {
           // Desktop flow - use object URLs
@@ -220,10 +207,8 @@ export function TaskForm({ onSubmit, sectionId, isSectionAdmin = false }: TaskFo
         });
       }
       
-      // Improved mobile detection
-      const isMobile = /iPhone|iPad|iPod|Android|webOS|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) || 
-                      window.innerWidth < 768 || 
-                      ('ontouchstart' in window);
+      // Detect if we're on mobile
+      const isMobile = /iPhone|iPad|iPod|Android|webOS|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
       
       // Add file references with better error handling
       const filesToProcess = [...files];
@@ -234,25 +219,10 @@ export function TaskForm({ onSubmit, sectionId, isSectionAdmin = false }: TaskFo
         try {
           // For mobile devices, create direct attachment references
           if (isMobile) {
-            // Check if files are valid and ensure they have proper properties
+            // Check if files are valid
             const validFiles = filesToProcess.filter(file => 
-              file && file.size > 0 && file.name && typeof file.name === 'string'
-            ).map(file => {
-              // Ensure the file object has all required properties
-              if (!file.type) {
-                // Try to infer MIME type from extension
-                const ext = file.name.split('.').pop()?.toLowerCase();
-                let mimeType = 'application/octet-stream'; // Default
-                
-                if (ext === 'pdf') mimeType = 'application/pdf';
-                else if (['jpg', 'jpeg'].includes(ext || '')) mimeType = 'image/jpeg';
-                else if (ext === 'png') mimeType = 'image/png';
-                else if (ext === 'doc' || ext === 'docx') mimeType = 'application/msword';
-                
-                return new File([file], file.name, { type: mimeType });
-              }
-              return file;
-            });
+              file.size > 0 && file.name && typeof file.name === 'string'
+            );
             
             if (validFiles.length !== filesToProcess.length) {
               console.warn('[Warning] Some files appear to be invalid', {
@@ -262,7 +232,7 @@ export function TaskForm({ onSubmit, sectionId, isSectionAdmin = false }: TaskFo
             }
             
             validFiles.forEach(file => {
-              console.log('[Debug] Adding mobile attachment:', file.name, 'Size:', file.size, 'Type:', file.type);
+              console.log('[Debug] Adding mobile attachment:', file.name, 'Size:', file.size);
               // Mobile - use attachment: protocol that will be recognized by the backend
               enhancedDescription += `- [${file.name}](attachment:${file.name})\n`;
             });
@@ -270,7 +240,7 @@ export function TaskForm({ onSubmit, sectionId, isSectionAdmin = false }: TaskFo
             // Add a special flag for mobile uploads that the backend can detect
             enhancedDescription += '\n<!-- mobile-uploads -->\n';
             
-            // Replace filesToProcess with validated files
+            // Only use valid files
             filesToProcess.length = 0;
             filesToProcess.push(...validFiles);
           } else {
@@ -304,35 +274,17 @@ export function TaskForm({ onSubmit, sectionId, isSectionAdmin = false }: TaskFo
         console.log('[Debug] This is a mobile submission with files. Count:', filesToProcess.length);
         
         try {
-          // Additional validation for mobile files
-          const validatedFiles = filesToProcess.filter(file => {
-            if (!file || !file.name || file.size === 0) {
+          // Validate files before sending
+          for (const file of filesToProcess) {
+            if (!file.name || file.size === 0) {
               console.error('[Error] Invalid file detected:', file);
-              return false;
+              throw new Error('Invalid file detected. Please try again with different files.');
             }
-            return true;
-          });
-          
-          // Ensure we have the file objects with all required properties
-          const fileObjects = validatedFiles.map(file => {
-            // Create a new File object to ensure it has all required properties
-            return new File(
-              [file], 
-              file.name, 
-              { 
-                type: file.type || 'application/octet-stream',
-                lastModified: file.lastModified || Date.now()
-              }
-            );
-          });
-          
-          console.log('[Debug] Prepared validated file objects for upload:', 
-            fileObjects.map(f => ({name: f.name, size: f.size, type: f.type}))
-          );
+          }
           
           // On mobile, we'll pass the actual files to the onSubmit handler
           // by attaching them to the task object with a custom property
-          (finalTask as any)._mobileFiles = fileObjects;
+          (finalTask as any)._mobileFiles = filesToProcess;
         } catch (mobileFileError) {
           console.error('[Error] Mobile file preparation failed:', mobileFileError);
           // Continue with submission without files if there's an error

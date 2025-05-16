@@ -197,39 +197,19 @@ export function TaskManager({
       const mobileFiles = (task as any)._mobileFiles;
       const isMobileUpload = !!mobileFiles && mobileFiles.length > 0;
       
-      // Log device information for debugging
-      const isMobile = typeof navigator !== 'undefined' && /iPhone|iPad|iPod|Android|webOS|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
-      console.log('[Debug] Device info:', { 
-        isMobile, 
-        userAgent: navigator?.userAgent,
-        isMobileUpload,
-        mobileFilesCount: isMobileUpload ? mobileFiles.length : 0
-      });
-      
       // Add a timeout to prevent infinite "creating" state
       let timeoutId: number | null = null;
       
       if (isMobileUpload) {
         console.log('[Debug] Detected mobile file upload with', mobileFiles.length, 'files');
         
-        // Log file details
-        console.log('[Debug] Mobile files details:', mobileFiles.map((f: File) => ({
-          name: f.name,
-          size: f.size,
-          type: f.type || 'unknown',
-          lastModified: f.lastModified
-        })));
-        
         // Set a timeout to clear the optimistic update if it takes too long
         timeoutId = window.setTimeout(() => {
-          console.error('[Error] Task creation timed out after 45 seconds');
+          console.error('[Error] Task creation timed out after 30 seconds');
           // Remove optimistic task on timeout
           setLocalTasks(prev => prev.filter(t => t.id !== tempId));
           showErrorToast('Task submission is taking longer than expected. Please check tasks list later to confirm if it was created.');
-        }, 45000); // 45 seconds timeout for mobile uploads which can be slow
-        
-        // Show a temporary toast for mobile uploads
-        showSuccessToast('Uploading files, please wait...');
+        }, 30000); // 30 seconds timeout
       }
       
       // Clone task to prevent modifying the original

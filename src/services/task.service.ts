@@ -93,62 +93,19 @@ export const fetchTasks = async (userId: string, sectionId?: string | null): Pro
 
 async function uploadFile(file: File): Promise<string> {
   try {
-    // Validate file before upload
-    if (!file || !file.name || file.size === 0) {
-      console.error('[Error] Invalid file object provided to uploadFile:', 
-        file ? {name: file.name, size: file.size} : 'undefined'
-      );
-      throw new Error('Invalid file object');
-    }
-    
-    // Create a safe filename by removing special characters and spaces
-    const originalName = file.name;
-    const cleanName = originalName.replace(/[^a-zA-Z0-9.-]/g, '_');
-    const fileExt = cleanName.split('.').pop() || 'bin';
+    const fileExt = file.name.split('.').pop();
     const fileName = `${crypto.randomUUID()}.${fileExt}`;
     const filePath = `task-files/${fileName}`;
-    
-    console.log(`[Debug] Uploading file ${originalName} as ${fileName} (${file.size} bytes, type: ${file.type || 'unknown'})`);
 
-    // Use a timeout to prevent hanging uploads
-    const uploadWithTimeout = async (maxTimeMs = 30000) => {
-      return new Promise<void>((resolve, reject) => {
-        const timeoutId = setTimeout(() => {
-          reject(new Error(`Upload operation timed out after ${maxTimeMs}ms`));
-        }, maxTimeMs);
-        
-        // Perform the actual upload
-        supabase.storage
-          .from('task-attachments')
-          .upload(filePath, file, {
-            cacheControl: '3600',
-            upsert: false
-          })
-          .then(({ error }) => {
-            clearTimeout(timeoutId);
-            if (error) {
-              reject(error);
-            } else {
-              resolve();
-            }
-          })
-          .catch((err) => {
-            clearTimeout(timeoutId);
-            reject(err);
-          });
-      });
-    };
-    
-    // Try upload with timeout
-    await uploadWithTimeout();
-    console.log(`[Debug] Successfully uploaded ${originalName} to storage path ${filePath}`);
+    const { error: uploadError } = await supabase.storage
+      .from('task-attachments')
+      .upload(filePath, file);
 
-    // Get public URL
+    if (uploadError) throw uploadError;
+
     const { data: { publicUrl } } = supabase.storage
       .from('task-attachments')
       .getPublicUrl(filePath);
-      
-    console.log(`[Debug] Generated public URL: ${publicUrl}`);
 
     return publicUrl;
   } catch (error) {
@@ -173,8 +130,7 @@ export const createTask = async (
       userId, 
       task,
       sectionId,
-      hasMobileFiles: !!(task as any)._mobileFiles,
-      userAgent: typeof navigator !== 'undefined' ? navigator.userAgent : 'server'
+      hasMobileFiles: !!(task as any)._mobileFiles
     });
 
     // Get user data to determine role
@@ -184,8 +140,7 @@ export const createTask = async (
     
     console.log('[Debug] User role and section when creating task:', { 
       userRole, 
-      userSectionId,
-      providedSectionId: sectionId
+      userSectionId 
     });
 
     // Check for mobile file uploads
@@ -194,12 +149,6 @@ export const createTask = async (
     
     if (isMobileUpload) {
       console.log('[Debug] Processing mobile file upload with', mobileFiles.length, 'files');
-      console.log('[Debug] Mobile file details:', mobileFiles.map(f => ({
-        name: f.name,
-        size: f.size,
-        type: f.type || 'unknown',
-        lastModified: f.lastModified
-      })));
     }
     
     let description = task.description;
@@ -207,10 +156,10 @@ export const createTask = async (
     // Process mobile files first if they exist
     if (isMobileUpload) {
       try {
-        console.log('[Debug] Starting mobile files upload process');
+        console.log('[Debug] Uploading mobile files', mobileFiles.map(f => ({name: f.name, size: f.size})));
         
         // Wrap file upload in a promise with timeout
-        const uploadFileWithTimeout = async (file: File, timeoutMs = 30000): Promise<string> => {
+        const uploadFileWithTimeout = async (file: File, timeoutMs = 15000): Promise<string> => {
           return new Promise(async (resolve, reject) => {
             // Set a timeout to reject the promise if it takes too long
             const timeoutId = setTimeout(() => {
@@ -218,14 +167,11 @@ export const createTask = async (
             }, timeoutMs);
             
             try {
-              console.log(`[Debug] Beginning upload for ${file.name} (${file.size} bytes)`);
               const url = await uploadFile(file);
               clearTimeout(timeoutId);
-              console.log(`[Debug] Successfully uploaded ${file.name} to ${url}`);
               resolve(url);
             } catch (error) {
               clearTimeout(timeoutId);
-              console.error(`[Error] Failed to upload ${file.name}:`, error);
               reject(error);
             }
           });
@@ -233,15 +179,13 @@ export const createTask = async (
         
         // Upload each mobile file with retry logic
         for (const file of mobileFiles) {
-          if (!file || !file.name || file.size === 0) {
-            console.warn('[Warning] Skipping invalid file', 
-              file ? `${file.name} (${file.size} bytes)` : 'undefined file'
-            );
+          if (!file.name || file.size === 0) {
+            console.warn('[Warning] Skipping invalid file', file);
             continue;
           }
           
           try {
-            console.log('[Debug] Uploading mobile file:', file.name, file.size, 'bytes');
+            console.log('[Debug] Uploading mobile file:', file.name);
             
             // Try up to 3 times
             let permanentUrl = '';
@@ -251,18 +195,13 @@ export const createTask = async (
             while (attempts < 3 && !permanentUrl) {
               try {
                 attempts++;
-                console.log(`[Debug] Upload attempt ${attempts}/3 for ${file.name}`);
                 permanentUrl = await uploadFileWithTimeout(file);
-                console.log(`[Debug] Upload successful on attempt ${attempts} for ${file.name}`);
                 break;
               } catch (uploadError) {
                 console.error(`[Error] Failed to upload mobile file (attempt ${attempts}/3):`, file.name, uploadError);
                 lastError = uploadError;
                 // Wait 1 second before retrying
-                if (attempts < 3) {
-                  console.log(`[Debug] Waiting before retry ${attempts + 1} for ${file.name}`);
-                  await new Promise(resolve => setTimeout(resolve, 1000));
-                }
+                if (attempts < 3) await new Promise(resolve => setTimeout(resolve, 1000));
               }
             }
             
@@ -286,12 +225,6 @@ export const createTask = async (
                 }
                 return match;
               });
-              
-              // Check if description was updated
-              if (oldDescription === description) {
-                console.warn('[Warning] Could not find attachment reference in description, adding it manually');
-                description += `\n\n**Uploaded File:** [${file.name}](${permanentUrl})\n`;
-              }
             }
             
             console.log('[Debug] Replaced attachment reference with permanent URL');

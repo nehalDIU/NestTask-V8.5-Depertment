@@ -45,6 +45,7 @@ let serviceWorkerRegistration: ServiceWorkerRegistration | null = null;
 
 // Register service worker for offline support
 export async function registerServiceWorker() {
+  // Early return if in StackBlitz
   if (isStackBlitz) {
     console.log('Service Worker registration skipped - running in StackBlitz environment');
     return null;

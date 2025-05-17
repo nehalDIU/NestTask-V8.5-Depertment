@@ -97,19 +97,47 @@ async function uploadFile(file: File): Promise<string> {
     const fileName = `${crypto.randomUUID()}.${fileExt}`;
     const filePath = `task-files/${fileName}`;
 
-    const { error: uploadError } = await supabase.storage
-      .from('task-attachments')
-      .upload(filePath, file);
+    console.log(`[Debug] Starting upload for file: ${file.name}, size: ${file.size}, type: ${file.type}`);
+    console.log(`[Debug] Generated path: ${filePath}`);
 
-    if (uploadError) throw uploadError;
+    const { data, error: uploadError } = await supabase.storage
+      .from('task-attachments')
+      .upload(filePath, file, {
+        cacheControl: '3600',
+        upsert: false
+      });
+
+    if (uploadError) {
+      console.error('[Error] Supabase storage upload error:', uploadError);
+      console.error('[Error] Failed file details:', { 
+        name: file.name, 
+        size: file.size, 
+        type: file.type,
+        path: filePath
+      });
+      throw uploadError;
+    }
+
+    if (!data || !data.path) {
+      console.error('[Error] Upload completed but returned invalid data:', data);
+      throw new Error('Upload completed but returned invalid data');
+    }
+
+    console.log(`[Debug] File uploaded successfully to path: ${data.path}`);
 
     const { data: { publicUrl } } = supabase.storage
       .from('task-attachments')
       .getPublicUrl(filePath);
 
+    if (!publicUrl) {
+      console.error('[Error] Failed to get public URL for file:', filePath);
+      throw new Error('Failed to get public URL for uploaded file');
+    }
+
+    console.log(`[Debug] Public URL generated: ${publicUrl.substring(0, 50)}...`);
     return publicUrl;
   } catch (error) {
-    console.error('Error uploading file:', error);
+    console.error('[Error] File upload failed:', error);
     throw error;
   }
 }
@@ -193,6 +221,17 @@ export const createTask = async (
           try {
             console.log('[Debug] Uploading mobile file:', file.name);
             
+            // Enhanced debugging for mobile uploads
+            if (isSectionAdminMobile) {
+              console.log('[Debug] Section admin mobile file upload details:', {
+                fileName: file.name,
+                fileSize: file.size,
+                fileType: file.type,
+                sectionId: explicitSectionId,
+                userRole: userRole
+              });
+            }
+            
             // Try up to 3 times
             let permanentUrl = '';
             let attempts = 0;
@@ -201,7 +240,9 @@ export const createTask = async (
             while (attempts < 3 && !permanentUrl) {
               try {
                 attempts++;
+                console.log(`[Debug] Upload attempt ${attempts}/3 for file ${file.name}`);
                 permanentUrl = await uploadFileWithTimeout(file);
+                console.log(`[Debug] Upload successful for ${file.name}, URL: ${permanentUrl.substring(0, 50)}...`);
                 break;
               } catch (uploadError) {
                 console.error(`[Error] Failed to upload mobile file (attempt ${attempts}/3):`, file.name, uploadError);
@@ -332,8 +373,18 @@ export const createTask = async (
     };
 
     // Determine correct section_id based on role and available data
-    // Section admin: Always set section_id to their section
-    if ((userRole === 'section_admin' || userRole === 'section-admin') && userSectionId) {
+    // First check for explicit section ID from mobile uploads
+    if (isSectionAdminMobile && explicitSectionId) {
+      taskInsertData.section_id = explicitSectionId;
+      console.log('[Debug] Using section ID from mobile section admin upload:', explicitSectionId);
+      
+      // Ensure this appears in the description for clarity
+      if (!description.includes(`For section:`) && !description.includes(`Section ID:`)) {
+        taskInsertData.description += `\n\nFor section: ${explicitSectionId}`;
+      }
+    }
+    // Next check for section admin's own section ID
+    else if ((userRole === 'section_admin' || userRole === 'section-admin') && userSectionId) {
       taskInsertData.section_id = userSectionId;
       console.log('[Debug] Section admin creating task for section:', userSectionId);
       

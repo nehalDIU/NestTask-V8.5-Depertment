@@ -11,7 +11,7 @@ import { mapTaskFromDB } from '../utils/taskMapper';
 export const fetchTasks = async (userId: string, sectionId?: string | null): Promise<Task[]> => {
   try {
     // For development environment, return faster with reduced logging
-    if (import.meta.env.DEV) {
+    if (process.env.NODE_ENV === 'development') {
       let query = supabase.from('tasks').select('*');
       query = query.order('created_at', { ascending: false });
       const { data, error } = await query;
@@ -55,7 +55,7 @@ export const fetchTasks = async (userId: string, sectionId?: string | null): Pro
     const tasks = data.map(mapTaskFromDB);
     
     // Minimal logging in production
-    if (!import.meta.env.PROD) {
+    if (process.env.NODE_ENV !== 'production') {
       console.log(`[Debug] Fetched ${tasks.length} tasks for user ${userId}`);
       if (tasks.length > 0) {
         console.log('[Debug] Sample task data:', {
@@ -69,12 +69,12 @@ export const fetchTasks = async (userId: string, sectionId?: string | null): Pro
 
     // Additional debug for section tasks
     if (userSectionId) {
-      const sectionTasks = tasks.filter((task: Task) => task.sectionId === userSectionId);
+      const sectionTasks = tasks.filter(task => task.sectionId === userSectionId);
       console.log(`[Debug] Found ${sectionTasks.length} section tasks with sectionId: ${userSectionId}`);
       
       // Log the section task IDs for easier troubleshooting
       if (sectionTasks.length > 0) {
-        console.log('[Debug] Section task IDs:', sectionTasks.map((task: Task) => task.id));
+        console.log('[Debug] Section task IDs:', sectionTasks.map(task => task.id));
       }
     }
 
@@ -246,8 +246,6 @@ export const createTask = async (
             console.log('[Debug] Replaced attachment reference with permanent URL');
           } catch (fileError) {
             console.error('[Error] Failed to upload mobile file:', file.name, fileError);
-            // Propagate individual file upload errors to ensure the main catch block is hit
-            throw new Error(`Failed to process mobile file "${file.name}": ${fileError instanceof Error ? fileError.message : String(fileError)}`);
           }
         }
         
@@ -255,8 +253,6 @@ export const createTask = async (
         description = description.replace(/\n<!-- mobile-uploads -->\n/g, '');
       } catch (mobileUploadError) {
         console.error('[Error] Mobile file upload process failed:', mobileUploadError);
-        // Re-throw the error to prevent task creation if mobile file uploads fail.
-        throw new Error(`Failed to process mobile file attachments: ${mobileUploadError instanceof Error ? mobileUploadError.message : String(mobileUploadError)}`);
       }
     } else {
       // Standard desktop file processing
@@ -422,7 +418,7 @@ async function sendPushNotifications(task: Task) {
     };
 
     // Send push notification to each subscription
-    const notifications = subscriptions.map(async ({ subscription }: { subscription: string }) => {
+    const notifications = subscriptions.map(async ({ subscription }) => {
       try {
         const parsedSubscription = JSON.parse(subscription);
         

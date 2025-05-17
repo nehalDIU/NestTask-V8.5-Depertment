@@ -6,37 +6,35 @@ import type { Task } from '../types/task';
 
 // Pre-defined animation variants for better performance
 const overlayAnimationVariants = {
-  hidden: { opacity: 0, scale: 0.98 },
+  hidden: { opacity: 0, scale: 1 },
   visible: { opacity: 1, scale: 1 },
-  exit: { opacity: 0, scale: 0.98 }
+  exit: { opacity: 0, scale: 1 }
 };
 
 // Optimize transition properties for better performance
 const transitionProps = { 
-  duration: 0.2,
-  ease: [0.25, 0.1, 0.25, 1],
-  dampingRatio: 1
+  duration: 0.15,
+  ease: [0.25, 0.1, 0.25, 1]
 };
 
-// Reduced motion animation variants
+// Reduced motion animation variants - simplified for better rendering
 const reducedMotionVariants = {
   hidden: { opacity: 0 },
   visible: { opacity: 1 },
   exit: { opacity: 0 }
 };
 
-// Tooltip animation variants
+// Tooltip animation variants - simplified to prevent blurriness
 const tooltipAnimationVariants = {
-  hidden: { opacity: 0, y: 5 },
-  visible: { opacity: 1, y: 0 },
-  exit: { opacity: 0, y: 5 }
+  hidden: { opacity: 0 },
+  visible: { opacity: 1 },
+  exit: { opacity: 0 }
 };
 
-// Animation variants for the badge - optimized for performance
+// Animation variants for the badge - optimized to prevent blurriness
 const badgeAnimationVariants = {
-  initial: { scale: 0.8, opacity: 0 },
+  initial: { opacity: 0 },
   animate: { 
-    scale: 1, 
     opacity: 1, 
     transition: { 
       duration: 0.15,
@@ -45,11 +43,11 @@ const badgeAnimationVariants = {
   }
 };
 
-// Animation variants for day cell hover - optimized for performance
+// Animation variants for day cell hover - optimized to prevent blurriness
 const dayCellHoverVariants = {
   initial: { scale: 1 },
-  hover: { scale: 1.05, transition: { duration: 0.15, ease: "easeOut" } },
-  tap: { scale: 0.95, transition: { duration: 0.1, ease: "easeOut" } }
+  hover: { scale: 1, transition: { duration: 0.15, ease: "easeOut" } },
+  tap: { scale: 0.98, transition: { duration: 0.1, ease: "easeOut" } }
 };
 
 // Weekday headers - defined outside component to prevent recreation
@@ -433,20 +431,61 @@ const MonthlyCalendarBase = ({ isOpen, onClose, selectedDate, onSelectDate, task
     setHoveredDate(null);
   }, []);
 
-  // Update the touch handlers to accept correct parameters
+  // Optimize touch event handling with passive listeners and pointer events
+  const touchHandlerProps = useMemo(() => ({
+    onPointerDown: (e: React.PointerEvent) => {
+      touchStartXRef.current = e.clientX;
+      touchStartYRef.current = e.clientY;
+    },
+    onPointerMove: (e: React.PointerEvent) => {
+      // Only update on significant movement to avoid unnecessary work
+      if (touchStartXRef.current !== null && 
+          Math.abs(e.clientX - touchStartXRef.current) > 10) {
+        setHoveredDate(null);
+      }
+    },
+    onPointerUp: (e: React.PointerEvent) => {
+      if (touchStartXRef.current !== null) {
+        const deltaX = e.clientX - touchStartXRef.current;
+        const deltaY = touchStartYRef.current !== null ? e.clientY - touchStartYRef.current : 0;
+        
+        // Adaptive threshold based on screen size
+        const swipeThreshold = Math.min(window.innerWidth * 0.15, 80);
+        
+        if (Math.abs(deltaX) > Math.abs(deltaY) && Math.abs(deltaX) > swipeThreshold) {
+          // Use requestAnimationFrame for smoother animations
+          requestAnimationFrame(() => {
+            if (deltaX > 0) {
+              handlePrevMonth();
+            } else {
+              handleNextMonth();
+            }
+          });
+        }
+      }
+      
+      touchStartXRef.current = null;
+      touchStartYRef.current = null;
+    },
+    // Add passive touch events for better performance
+    style: { touchAction: 'pan-y' }
+  }), [handlePrevMonth, handleNextMonth]);
+
+  // Replace the old touch handlers with the optimized pointer event handlers
   const handleTouchStart = useCallback((e: React.TouchEvent) => {
-    // Save touch start coordinates for swipe detection
     touchStartXRef.current = e.touches[0].clientX;
     touchStartYRef.current = e.touches[0].clientY;
   }, []);
 
   const handleTouchMove = useCallback((e: React.TouchEvent) => {
-    // Clear hovered date during touch move
-    setHoveredDate(null);
+    // Only update on significant movement
+    if (touchStartXRef.current !== null && 
+        Math.abs(e.touches[0].clientX - touchStartXRef.current) > 10) {
+      setHoveredDate(null);
+    }
   }, []);
 
   const handleTouchEnd = useCallback((e: React.TouchEvent) => {
-    // Optimized touch end handler for swipe detection
     if (touchStartXRef.current !== null && touchStartYRef.current !== null) {
       const touchEndX = e.changedTouches[0].clientX;
       const touchEndY = e.changedTouches[0].clientY;
@@ -454,25 +493,24 @@ const MonthlyCalendarBase = ({ isOpen, onClose, selectedDate, onSelectDate, task
       const deltaX = touchEndX - touchStartXRef.current;
       const deltaY = touchEndY - touchStartYRef.current;
       
-      // If more horizontal than vertical movement and exceeds threshold
-      // Use smaller threshold on mobile devices for better responsiveness
-      const swipeThreshold = isMobileRef.current ? 50 : 80;
+      // Adaptive threshold based on screen size
+      const swipeThreshold = Math.min(window.innerWidth * 0.15, 80);
       
       if (Math.abs(deltaX) > Math.abs(deltaY) && Math.abs(deltaX) > swipeThreshold) {
-        if (deltaX > 0) {
-          // Swipe right - go to previous month
-          handlePrevMonth();
-        } else {
-          // Swipe left - go to next month
-          handleNextMonth();
-        }
+        // Use requestAnimationFrame for smoother animations
+        requestAnimationFrame(() => {
+          if (deltaX > 0) {
+            handlePrevMonth();
+          } else {
+            handleNextMonth();
+          }
+        });
       }
     }
     
-    // Reset touch start references
     touchStartXRef.current = null;
     touchStartYRef.current = null;
-  }, [handlePrevMonth, handleNextMonth, isMobileRef]);
+  }, [handlePrevMonth, handleNextMonth]);
 
   // Handle date selection
   const handleDateSelection = useCallback((date: Date) => {
@@ -497,36 +535,33 @@ const MonthlyCalendarBase = ({ isOpen, onClose, selectedDate, onSelectDate, task
     }
   }, [onSelectDate, onClose]);
 
-  // Separate handler for date selection with touch
-  const handleDateTouchEnd = useCallback((date: Date, e: React.TouchEvent) => {
-    if (touchStartXRef.current !== null && touchStartYRef.current !== null) {
-      const touchEndX = e.changedTouches[0].clientX;
-      const touchEndY = e.changedTouches[0].clientY;
-      
-      const deltaX = touchEndX - touchStartXRef.current;
-      const deltaY = touchEndY - touchStartYRef.current;
-      
-      // If small movement, treat as a tap - use smaller threshold on mobile
-      const tapThreshold = isMobileRef.current ? 20 : 30;
-      if (Math.abs(deltaX) < tapThreshold && Math.abs(deltaY) < tapThreshold) {
-        handleDateSelection(date);
-      }
-    }
-    
-    // Reset touch start references
-    touchStartXRef.current = null;
-    touchStartYRef.current = null;
-  }, [handleDateSelection, isMobileRef]);
-
-  // Handle keyboard navigation for container
+  // Optimize keyboard event handling with debouncing
   const handleContainerKeyDown = useCallback((e: KeyboardEvent<HTMLDivElement>) => {
     if (viewMode !== 'calendar') return;
     
+    // Handle month navigation instantly
+    if ((e.key === 'ArrowLeft' && (e.ctrlKey || e.metaKey)) || e.key === 'PageUp') {
+      handlePrevMonth();
+      e.preventDefault();
+      return;
+    }
+    
+    if ((e.key === 'ArrowRight' && (e.ctrlKey || e.metaKey)) || e.key === 'PageDown') {
+      handleNextMonth();
+      e.preventDefault();
+      return;
+    }
+    
+    if (e.key === 'Escape') {
+      onClose();
+      e.preventDefault();
+      return;
+    }
+    
+    // For other keyboard navigation, use requestAnimationFrame for smoother updates
     switch (e.key) {
       case 'ArrowLeft':
-        if (e.ctrlKey || e.metaKey) {
-          handlePrevMonth();
-        } else if (focusedDateIndex === null) {
+        if (focusedDateIndex === null) {
           setFocusedDateIndex(15); // Choose a middle date
         } else {
           setFocusedDateIndex(prev => (prev === null ? 15 : Math.max(0, prev - 1)));
@@ -534,9 +569,7 @@ const MonthlyCalendarBase = ({ isOpen, onClose, selectedDate, onSelectDate, task
         e.preventDefault();
         break;
       case 'ArrowRight':
-        if (e.ctrlKey || e.metaKey) {
-          handleNextMonth();
-        } else if (focusedDateIndex === null) {
+        if (focusedDateIndex === null) {
           setFocusedDateIndex(15); // Choose a middle date
         } else {
           setFocusedDateIndex(prev => (prev === null ? 15 : Math.min(calendarDays.length - 1, prev + 1)));
@@ -559,14 +592,6 @@ const MonthlyCalendarBase = ({ isOpen, onClose, selectedDate, onSelectDate, task
         }
         e.preventDefault();
         break;
-      case 'PageUp':
-        handlePrevMonth();
-        e.preventDefault();
-        break;
-      case 'PageDown':
-        handleNextMonth();
-        e.preventDefault();
-        break;
       case 'Home':
         setFocusedDateIndex(calendarDays.findIndex(d => d !== null));
         e.preventDefault();
@@ -575,18 +600,16 @@ const MonthlyCalendarBase = ({ isOpen, onClose, selectedDate, onSelectDate, task
         setFocusedDateIndex(calendarDays.length - 1);
         e.preventDefault();
         break;
-      case 'Escape':
-        onClose();
-        e.preventDefault();
-        break;
     }
     
-    // Focus the new button if needed - use requestAnimationFrame for better performance
-    requestAnimationFrame(() => {
-      if (focusedDateIndex !== null && dayButtonsRef.current[focusedDateIndex]) {
-        dayButtonsRef.current[focusedDateIndex]?.focus();
-      }
-    });
+    // Only call focus logic once per animation frame to avoid layout thrashing
+    if (focusedDateIndex !== null) {
+      requestAnimationFrame(() => {
+        if (dayButtonsRef.current[focusedDateIndex]) {
+          dayButtonsRef.current[focusedDateIndex]?.focus();
+        }
+      });
+    }
   }, [focusedDateIndex, calendarDays, handlePrevMonth, handleNextMonth, viewMode, onClose]);
 
   // Updated keyboard handler for the correct element type
@@ -672,16 +695,19 @@ const MonthlyCalendarBase = ({ isOpen, onClose, selectedDate, onSelectDate, task
     const displayTasks = tasks.length > maxVisibleTasks ? tasks.slice(0, maxVisibleTasks) : tasks;
     const hasMoreTasks = tasks.length > maxVisibleTasks;
     
+    const tooltipX = Math.round(tooltipPosition.x);
+    const tooltipY = Math.round(tooltipPosition.y);
+    
     return (
       <motion.div
         className="absolute z-50 bg-white dark:bg-gray-800 shadow-lg rounded-lg px-3 sm:px-5 py-2 sm:py-3 text-left min-w-[180px] sm:min-w-[220px]"
         style={{ 
-          top: `${tooltipPosition.y}px`, 
-          left: `${tooltipPosition.x}px`,
+          top: `${tooltipY}px`, 
+          left: `${tooltipX}px`,
           transform: tooltipPosition.transformOrigin || 'translate(-50%, -100%)',
           pointerEvents: 'none',
-          willChange: 'transform, opacity', // Add willChange for GPU acceleration
-          boxShadow: '0 10px 25px -5px rgba(0,0,0,0.1), 0 5px 10px -5px rgba(0,0,0,0.05)'
+          boxShadow: '0 10px 25px -5px rgba(0,0,0,0.1), 0 5px 10px -5px rgba(0,0,0,0.05)',
+          imageRendering: 'crisp-edges'
         }}
         variants={tooltipAnimationVariants}
         initial="hidden"
@@ -764,10 +790,9 @@ const MonthlyCalendarBase = ({ isOpen, onClose, selectedDate, onSelectDate, task
           animate="visible"
           exit="exit"
           transition={transitionProps}
-          className="fixed inset-0 z-50 flex items-center justify-center p-0 sm:p-4 bg-black/30 backdrop-blur-sm"
+          className="fixed inset-0 z-50 flex items-center justify-center p-0 sm:p-4 bg-black/30"
           style={{ 
-            willChange: 'opacity, transform',
-            translateZ: 0,
+            willChange: 'opacity',
             backfaceVisibility: 'hidden'
           }}
         >
@@ -778,9 +803,7 @@ const MonthlyCalendarBase = ({ isOpen, onClose, selectedDate, onSelectDate, task
             aria-modal="true"
             aria-label="Monthly Calendar"
             onClick={(e) => e.stopPropagation()}
-            onTouchStart={handleTouchStart}
-            onTouchMove={handleTouchMove}
-            onTouchEnd={handleTouchEnd}
+            {...touchHandlerProps}
             onKeyDown={handleContainerKeyDown}
             tabIndex={0}
             style={{
@@ -791,8 +814,9 @@ const MonthlyCalendarBase = ({ isOpen, onClose, selectedDate, onSelectDate, task
               position: 'absolute',
               left: '50%',
               top: '50%',
-              transform: `translate(-50%, -50%) translateZ(0)`,
-              maxWidth: isMobileRef.current ? 'calc(100% - 16px)' : undefined
+              transform: 'translate(-50%, -50%)',
+              maxWidth: isMobileRef.current ? 'calc(100% - 16px)' : undefined,
+              imageRendering: 'crisp-edges'
             }}
           >
             {/* Calendar header with optimized rendering */}
@@ -950,20 +974,38 @@ const MonthlyCalendarBase = ({ isOpen, onClose, selectedDate, onSelectDate, task
                               dayButtonsRef.current[index] = el;
                             }}
                             onClick={() => handleDateSelection(date)}
-                            onTouchStart={(e) => {
-                              // Just track the touch start position without stopping propagation
-                              handleTouchStart(e);
-                            }}
-                            onTouchMove={handleTouchMove}
-                            onTouchEnd={(e) => handleDateTouchEnd(date, e)}
-                            onMouseEnter={(e) => handleMouseEnter(date, e)}
-                            onMouseLeave={handleMouseLeave}
-                            onKeyDown={(e) => handleKeyDown(e, index)}
-                            tabIndex={isFocused ? 0 : -1}
+                            whileHover={isMobileRef.current ? undefined : "hover"}
+                            whileTap="tap"
                             variants={dayCellHoverVariants}
                             initial="initial"
-                            whileHover="hover"
-                            whileTap="tap"
+                            style={{ 
+                              touchAction: 'manipulation',
+                              imageRendering: 'crisp-edges',
+                              WebkitFontSmoothing: 'subpixel-antialiased'
+                            }}
+                            onPointerDown={(e) => {
+                              touchStartXRef.current = e.clientX;
+                              touchStartYRef.current = e.clientY;
+                            }}
+                            onPointerUp={(e) => {
+                              if (touchStartXRef.current !== null) {
+                                const deltaX = e.clientX - touchStartXRef.current;
+                                const deltaY = touchStartYRef.current !== null ? e.clientY - touchStartYRef.current : 0;
+                                
+                                // If movement is minimal, treat as a tap
+                                const tapThreshold = 10;
+                                if (Math.abs(deltaX) < tapThreshold && Math.abs(deltaY) < tapThreshold) {
+                                  handleDateSelection(date);
+                                }
+                              }
+                              
+                              touchStartXRef.current = null;
+                              touchStartYRef.current = null;
+                            }}
+                            onMouseEnter={(e) => handleMouseEnter(date, e)}
+                            onMouseLeave={handleMouseLeave}
+                            tabIndex={isFocused ? 0 : -1}
+                            onKeyDown={(e) => handleKeyDown(e, index)}
                             className={`
                               relative aspect-square rounded-md
                               flex flex-col items-center justify-center
@@ -982,7 +1024,7 @@ const MonthlyCalendarBase = ({ isOpen, onClose, selectedDate, onSelectDate, task
                                 : ''
                               }
                               focus:outline-none focus:ring-2 focus:ring-blue-400 dark:focus:ring-blue-600
-                              transition-all duration-150
+                              transition-colors
                             `}
                             aria-label={`${format(date, 'MMMM d, yyyy')}${
                               summary.total > 0 ? `, ${summary.total} tasks` : ''

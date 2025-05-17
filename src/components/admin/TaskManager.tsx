@@ -191,15 +191,7 @@ export function TaskManager({
     
     try {
       // Log initial task data
-      console.log('[Debug] Handling task creation with data:', {
-        ...task,
-        hasMobileFiles: !!(task as any)._mobileFiles,
-        mobileFilesCount: (task as any)._mobileFiles?.length || 0,
-        isSectionAdmin,
-        sectionId,
-        isSectionAdminMobile: !!(task as any)._isSectionAdminMobile,
-        explicitSectionId: (task as any)._sectionId
-      });
+      console.log('[Debug] Handling task creation with data:', task);
       
       // Check for mobile files
       const mobileFiles = (task as any)._mobileFiles;
@@ -225,54 +217,8 @@ export function TaskManager({
       // Clone task to prevent modifying the original
       const taskToProcess = { ...task };
       
-      // Mobile section admin gets priority handling
-      if (isMobileUpload && isSectionAdminMobile && sectionId) {
-        console.log('[Debug] Processing mobile section admin task with files');
-        
-        // Ensure section ID is explicitly set
-        const enhancedTask = {
-          ...taskToProcess,
-          sectionId
-        };
-        
-        // Ensure flags are set properly for the backend
-        (enhancedTask as any)._isSectionAdminMobile = true;
-        (enhancedTask as any)._sectionId = sectionId;
-        
-        // Create temporary optimistic task
-        const optimisticTask: Task = {
-          id: tempId,
-          ...enhancedTask,
-          createdAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString(),
-          assignedBy: 'Pending...',
-          assignedById: '',
-          status: enhancedTask.status || 'in-progress',
-          isAdminTask: true
-        };
-        
-        // Add to local tasks for optimistic UI update
-        setLocalTasks(prev => [optimisticTask, ...prev]);
-        
-        try {
-          console.log('[Debug] Sending section admin mobile task to server, sectionId:', sectionId);
-          await onCreateTask(enhancedTask, sectionId);
-          if (timeoutId) clearTimeout(timeoutId);
-          
-          // Remove temporary task
-          setLocalTasks(prev => prev.filter(t => t.id !== tempId));
-          showSuccessToast('Task created successfully');
-        } catch (error) {
-          console.error('[Error] Failed to create mobile section admin task:', error);
-          
-          // Remove temporary task on error
-          setLocalTasks(prev => prev.filter(t => t.id !== tempId));
-          showErrorToast('Failed to create task. Please try again.');
-          if (timeoutId) clearTimeout(timeoutId);
-        }
-      }
-      // Regular section admin task
-      else if (isSectionAdmin && sectionId) {
+      // If section admin, automatically associate with section
+      if (isSectionAdmin && sectionId) {
         console.log('[Debug] Section admin creating task with sectionId:', sectionId);
         
         const enhancedTask = {
@@ -280,8 +226,8 @@ export function TaskManager({
           sectionId
         };
         
-        // For regular section admin uploads, still add metadata
-        if (isMobileUpload) {
+        // For section admin mobile uploads, add extra metadata
+        if (isMobileUpload && isSectionAdminMobile) {
           console.log('[Debug] Adding section admin mobile metadata to task');
           (enhancedTask as any)._isSectionAdminMobile = true;
           (enhancedTask as any)._sectionId = sectionId;
@@ -320,10 +266,8 @@ export function TaskManager({
         }
       } else {
         // Standard task creation flow
-        console.log('[Debug] Standard task creation flow');
         await onCreateTask(taskToProcess);
         if (isMobileUpload && timeoutId) clearTimeout(timeoutId);
-        showSuccessToast('Task created successfully');
       }
       
       // Reset filters on successful task creation to show the new task

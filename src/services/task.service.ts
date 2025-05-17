@@ -11,7 +11,7 @@ import { mapTaskFromDB } from '../utils/taskMapper';
 export const fetchTasks = async (userId: string, sectionId?: string | null): Promise<Task[]> => {
   try {
     // For development environment, return faster with reduced logging
-    if (process.env.NODE_ENV === 'development') {
+    if (import.meta.env.DEV) {
       let query = supabase.from('tasks').select('*');
       query = query.order('created_at', { ascending: false });
       const { data, error } = await query;
@@ -55,7 +55,7 @@ export const fetchTasks = async (userId: string, sectionId?: string | null): Pro
     const tasks = data.map(mapTaskFromDB);
     
     // Minimal logging in production
-    if (process.env.NODE_ENV !== 'production') {
+    if (!import.meta.env.PROD) {
       console.log(`[Debug] Fetched ${tasks.length} tasks for user ${userId}`);
       if (tasks.length > 0) {
         console.log('[Debug] Sample task data:', {
@@ -69,12 +69,12 @@ export const fetchTasks = async (userId: string, sectionId?: string | null): Pro
 
     // Additional debug for section tasks
     if (userSectionId) {
-      const sectionTasks = tasks.filter(task => task.sectionId === userSectionId);
+      const sectionTasks = tasks.filter((task: Task) => task.sectionId === userSectionId);
       console.log(`[Debug] Found ${sectionTasks.length} section tasks with sectionId: ${userSectionId}`);
       
       // Log the section task IDs for easier troubleshooting
       if (sectionTasks.length > 0) {
-        console.log('[Debug] Section task IDs:', sectionTasks.map(task => task.id));
+        console.log('[Debug] Section task IDs:', sectionTasks.map((task: Task) => task.id));
       }
     }
 
@@ -97,47 +97,19 @@ async function uploadFile(file: File): Promise<string> {
     const fileName = `${crypto.randomUUID()}.${fileExt}`;
     const filePath = `task-files/${fileName}`;
 
-    console.log(`[Debug] Starting upload for file: ${file.name}, size: ${file.size}, type: ${file.type}`);
-    console.log(`[Debug] Generated path: ${filePath}`);
-
-    const { data, error: uploadError } = await supabase.storage
+    const { error: uploadError } = await supabase.storage
       .from('task-attachments')
-      .upload(filePath, file, {
-        cacheControl: '3600',
-        upsert: false
-      });
+      .upload(filePath, file);
 
-    if (uploadError) {
-      console.error('[Error] Supabase storage upload error:', uploadError);
-      console.error('[Error] Failed file details:', { 
-        name: file.name, 
-        size: file.size, 
-        type: file.type,
-        path: filePath
-      });
-      throw uploadError;
-    }
-
-    if (!data || !data.path) {
-      console.error('[Error] Upload completed but returned invalid data:', data);
-      throw new Error('Upload completed but returned invalid data');
-    }
-
-    console.log(`[Debug] File uploaded successfully to path: ${data.path}`);
+    if (uploadError) throw uploadError;
 
     const { data: { publicUrl } } = supabase.storage
       .from('task-attachments')
       .getPublicUrl(filePath);
 
-    if (!publicUrl) {
-      console.error('[Error] Failed to get public URL for file:', filePath);
-      throw new Error('Failed to get public URL for uploaded file');
-    }
-
-    console.log(`[Debug] Public URL generated: ${publicUrl.substring(0, 50)}...`);
     return publicUrl;
   } catch (error) {
-    console.error('[Error] File upload failed:', error);
+    console.error('Error uploading file:', error);
     throw error;
   }
 }
@@ -221,17 +193,6 @@ export const createTask = async (
           try {
             console.log('[Debug] Uploading mobile file:', file.name);
             
-            // Enhanced debugging for mobile uploads
-            if (isSectionAdminMobile) {
-              console.log('[Debug] Section admin mobile file upload details:', {
-                fileName: file.name,
-                fileSize: file.size,
-                fileType: file.type,
-                sectionId: explicitSectionId,
-                userRole: userRole
-              });
-            }
-            
             // Try up to 3 times
             let permanentUrl = '';
             let attempts = 0;
@@ -240,9 +201,7 @@ export const createTask = async (
             while (attempts < 3 && !permanentUrl) {
               try {
                 attempts++;
-                console.log(`[Debug] Upload attempt ${attempts}/3 for file ${file.name}`);
                 permanentUrl = await uploadFileWithTimeout(file);
-                console.log(`[Debug] Upload successful for ${file.name}, URL: ${permanentUrl.substring(0, 50)}...`);
                 break;
               } catch (uploadError) {
                 console.error(`[Error] Failed to upload mobile file (attempt ${attempts}/3):`, file.name, uploadError);
@@ -287,6 +246,8 @@ export const createTask = async (
             console.log('[Debug] Replaced attachment reference with permanent URL');
           } catch (fileError) {
             console.error('[Error] Failed to upload mobile file:', file.name, fileError);
+            // Propagate individual file upload errors to ensure the main catch block is hit
+            throw new Error(`Failed to process mobile file "${file.name}": ${fileError instanceof Error ? fileError.message : String(fileError)}`);
           }
         }
         
@@ -294,6 +255,8 @@ export const createTask = async (
         description = description.replace(/\n<!-- mobile-uploads -->\n/g, '');
       } catch (mobileUploadError) {
         console.error('[Error] Mobile file upload process failed:', mobileUploadError);
+        // Re-throw the error to prevent task creation if mobile file uploads fail.
+        throw new Error(`Failed to process mobile file attachments: ${mobileUploadError instanceof Error ? mobileUploadError.message : String(mobileUploadError)}`);
       }
     } else {
       // Standard desktop file processing
@@ -373,18 +336,8 @@ export const createTask = async (
     };
 
     // Determine correct section_id based on role and available data
-    // First check for explicit section ID from mobile uploads
-    if (isSectionAdminMobile && explicitSectionId) {
-      taskInsertData.section_id = explicitSectionId;
-      console.log('[Debug] Using section ID from mobile section admin upload:', explicitSectionId);
-      
-      // Ensure this appears in the description for clarity
-      if (!description.includes(`For section:`) && !description.includes(`Section ID:`)) {
-        taskInsertData.description += `\n\nFor section: ${explicitSectionId}`;
-      }
-    }
-    // Next check for section admin's own section ID
-    else if ((userRole === 'section_admin' || userRole === 'section-admin') && userSectionId) {
+    // Section admin: Always set section_id to their section
+    if ((userRole === 'section_admin' || userRole === 'section-admin') && userSectionId) {
       taskInsertData.section_id = userSectionId;
       console.log('[Debug] Section admin creating task for section:', userSectionId);
       
@@ -469,7 +422,7 @@ async function sendPushNotifications(task: Task) {
     };
 
     // Send push notification to each subscription
-    const notifications = subscriptions.map(async ({ subscription }) => {
+    const notifications = subscriptions.map(async ({ subscription }: { subscription: string }) => {
       try {
         const parsedSubscription = JSON.parse(subscription);
         

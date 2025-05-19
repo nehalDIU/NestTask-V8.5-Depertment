@@ -15,39 +15,47 @@ export const LoadingScreen = memo(function LoadingScreen({
   const [fadeOut, setFadeOut] = useState(false);
   const startTimeRef = useRef(Date.now());
   
-  // Simplified effect without asset preloading (moved to main.tsx)
+  // Single effect for all loading operations
   useEffect(() => {
     // Calculate how much time has already passed
     const elapsedTime = Date.now() - startTimeRef.current;
     const remainingTime = Math.max(0, minimumLoadTime - elapsedTime);
     
-    // Use a single timeout for the entire loading process
+    // Use a single timeout for everything
     const timer = setTimeout(() => {
-      // Start fade out animation before completely hiding
       setFadeOut(true);
       
       // Remove from DOM after animation completes
-      setTimeout(() => {
-        setShow(false);
-      }, 200); // Reduced from 300ms to 200ms
+      setTimeout(() => setShow(false), 180);
     }, remainingTime);
 
-    // Simplified progress animation with fewer updates
+    // Handle progress updates with fewer state changes
     if (showProgress) {
-      let progressInterval: number;
+      let progressTimer: number;
+      let currentProgress = 0;
       
-      progressInterval = window.setInterval(() => {
-        setProgress(prev => {
-          // Faster progress increase
-          const increment = 100 - prev > 50 ? 15 : (100 - prev > 20 ? 8 : 3);
-          const next = prev + increment;
-          return next > 96 ? 96 : next; // Cap at 96% to avoid jumps
-        });
-      }, 300); // Longer interval = fewer updates = better performance
+      const updateProgress = () => {
+        // Calculate a larger increment to reduce updates
+        const increment = 100 - currentProgress > 50 ? 18 : (100 - currentProgress > 20 ? 10 : 5);
+        currentProgress += increment;
+        
+        if (currentProgress > 96) currentProgress = 96;
+        
+        // Update state less frequently
+        setProgress(currentProgress);
+        
+        // Schedule next update with larger interval
+        if (currentProgress < 96 && show) {
+          progressTimer = window.setTimeout(updateProgress, 400);
+        }
+      };
+      
+      // Start progress updates
+      progressTimer = window.setTimeout(updateProgress, 200);
       
       return () => {
         clearTimeout(timer);
-        clearInterval(progressInterval);
+        clearTimeout(progressTimer);
       };
     }
 
@@ -58,11 +66,34 @@ export const LoadingScreen = memo(function LoadingScreen({
 
   return (
     <div 
-      className={`fixed inset-0 bg-white dark:bg-gray-900 flex items-center justify-center z-50 transition-opacity duration-200 ${fadeOut ? 'opacity-0' : 'opacity-100'}`}
+      className={`fixed inset-0 bg-white dark:bg-gray-900 flex items-center justify-center z-50 transition-opacity duration-180 ${fadeOut ? 'opacity-0' : 'opacity-100'}`}
     >
       <div className="flex flex-col items-center">
-        {/* Simpler loading indicator with better performance */}
-        <div className="w-8 h-8 border-4 border-blue-600 dark:border-blue-400 border-t-transparent rounded-full animate-spin" />
+        {/* Inline SVG spinner for better performance */}
+        <svg width="32" height="32" viewBox="0 0 32 32" className="text-blue-600 dark:text-blue-400">
+          <circle cx="16" cy="16" r="14" 
+            fill="none" 
+            stroke="currentColor" 
+            strokeOpacity="0.2" 
+            strokeWidth="4" 
+          />
+          <path
+            d="M16 2 A14 14 0 0 1 30 16"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="4"
+            strokeLinecap="round"
+          >
+            <animateTransform
+              attributeName="transform"
+              type="rotate"
+              from="0 16 16"
+              to="360 16 16"
+              dur="0.75s"
+              repeatCount="indefinite"
+            />
+          </path>
+        </svg>
         
         <div className="text-base font-medium text-gray-800/90 dark:text-gray-100/90 mt-3 tracking-wide">
           NestTask
@@ -73,7 +104,12 @@ export const LoadingScreen = memo(function LoadingScreen({
             <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-0.5 overflow-hidden">
               <div 
                 className="bg-blue-600 dark:bg-blue-400 h-0.5 rounded-full" 
-                style={{ width: `${progress}%`, transition: 'width 150ms ease-out' }}
+                style={{ 
+                  width: `${progress}%`, 
+                  transitionProperty: 'width',
+                  transitionDuration: '120ms',
+                  transitionTimingFunction: 'ease-out' 
+                }}
               />
             </div>
           </div>

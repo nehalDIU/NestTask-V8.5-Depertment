@@ -2,140 +2,131 @@ import { useEffect, useState, useRef } from 'react';
 import { Wifi, WifiOff, AlertCircle } from 'lucide-react';
 
 export const OfflineIndicator = () => {
-  const [isOffline, setIsOffline] = useState(!navigator.onLine);
-  const [isSlowConnection, setIsSlowConnection] = useState(false);
-  const [showIndicator, setShowIndicator] = useState(false);
-  const timeoutRef = useRef<NodeJS.Timeout | null>(null);
-  const connectionCheckRef = useRef<NodeJS.Timeout | null>(null);
+  const [status, setStatus] = useState<'online' | 'offline' | 'slow' | null>(
+    navigator.onLine ? 'online' : 'offline'
+  );
+  const [visible, setVisible] = useState(false);
+  const timeoutRef = useRef<number | null>(null);
+  const checkIntervalRef = useRef<number | null>(null);
 
-  // Check connection status and performance
+  // More efficient single effect approach
   useEffect(() => {
-    // Update offline status when network status changes
-    const handleOnline = () => {
-      setIsOffline(false);
+    // Combined handlers for better performance
+    const handleNetworkChange = () => {
+      const isOnline = navigator.onLine;
       
-      // When coming back online, check connection quality
-      checkConnectionQuality();
-      
-      // Show for 3 seconds then hide
-      setShowIndicator(true);
-      
+      // Clear any existing timeouts
       if (timeoutRef.current) {
-        clearTimeout(timeoutRef.current);
-      }
-      
-      timeoutRef.current = setTimeout(() => {
-        setShowIndicator(false);
-        setIsSlowConnection(false);
-      }, 3000);
-    };
-    
-    const handleOffline = () => {
-      setIsOffline(true);
-      setShowIndicator(true);
-      
-      if (timeoutRef.current) {
-        clearTimeout(timeoutRef.current);
+        window.clearTimeout(timeoutRef.current);
         timeoutRef.current = null;
       }
+      
+      if (isOnline) {
+        // Check connection quality when online
+        checkConnectionQuality();
+      } else {
+        // Show offline status immediately
+        setStatus('offline');
+        setVisible(true);
+      }
     };
     
-    // Function to check connection quality
+    // Optimized connection quality check
     const checkConnectionQuality = () => {
-      // Use Navigator Connection API if available
-      if ('connection' in navigator) {
-        const connection = (navigator as any).connection;
-        
-        if (connection) {
-          // Check if we're on a slow connection
-          const isSlow = connection.effectiveType === '2g' || 
+      // Skip if offline
+      if (!navigator.onLine) return;
+      
+      const connection = (navigator as any).connection;
+      
+      if (connection) {
+        // Use effectiveType for more reliable detection
+        const isOnSlow = connection.effectiveType === '2g' || 
                          connection.effectiveType === 'slow-2g' || 
-                         connection.downlink < 0.5;
+                         (connection.downlink && connection.downlink < 0.5);
+        
+        if (isOnSlow) {
+          setStatus('slow');
+          setVisible(true);
           
-          setIsSlowConnection(isSlow);
+          // Hide after 5 seconds
+          timeoutRef.current = window.setTimeout(() => {
+            setVisible(false);
+          }, 5000);
+        } else if (status !== 'online') {
+          // Show online message only when changing from offline/slow
+          setStatus('online');
+          setVisible(true);
           
-          // Show slow connection warning if needed
-          if (isSlow) {
-            setShowIndicator(true);
-            
-            if (timeoutRef.current) {
-              clearTimeout(timeoutRef.current);
-            }
-            
-            timeoutRef.current = setTimeout(() => {
-              setShowIndicator(false);
-            }, 5000);
-          }
+          // Hide after 3 seconds
+          timeoutRef.current = window.setTimeout(() => {
+            setVisible(false);
+          }, 3000);
         }
       }
     };
     
-    // Initial check
-    setIsOffline(!navigator.onLine);
+    // Do initial check
+    handleNetworkChange();
     
-    if (navigator.onLine) {
-      checkConnectionQuality();
-    }
+    // Attach event listeners for online/offline events
+    window.addEventListener('online', handleNetworkChange);
+    window.addEventListener('offline', handleNetworkChange);
     
-    // Add event listeners
-    window.addEventListener('online', handleOnline);
-    window.addEventListener('offline', handleOffline);
+    // Check connection quality less frequently to save battery
+    checkIntervalRef.current = window.setInterval(checkConnectionQuality, 60000);
     
-    // Periodically check connection quality (use less frequent checks to save battery)
-    connectionCheckRef.current = setInterval(checkConnectionQuality, 30000);
-    
+    // Cleanup function
     return () => {
-      window.removeEventListener('online', handleOnline);
-      window.removeEventListener('offline', handleOffline);
+      window.removeEventListener('online', handleNetworkChange);
+      window.removeEventListener('offline', handleNetworkChange);
       
       if (timeoutRef.current) {
-        clearTimeout(timeoutRef.current);
+        window.clearTimeout(timeoutRef.current);
       }
       
-      if (connectionCheckRef.current) {
-        clearInterval(connectionCheckRef.current);
+      if (checkIntervalRef.current) {
+        window.clearInterval(checkIntervalRef.current);
       }
     };
-  }, []);
+  }, [status]);
   
-  // If online and not showing temporary status, don't render anything
-  if (!isOffline && !isSlowConnection && !showIndicator) {
+  // Don't render if not visible
+  if (!visible || status === null) {
     return null;
   }
   
+  // Simplified, performance-optimized UI
   return (
     <div 
-      className={`fixed bottom-16 left-0 right-0 mx-auto max-w-md py-2 px-4 rounded-md shadow-lg transition-all duration-300 ${
-        showIndicator ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'
+      className={`fixed bottom-16 left-0 right-0 mx-auto py-2 px-4 rounded-md shadow-lg z-50 transition-opacity duration-200 ${
+        visible ? 'opacity-100' : 'opacity-0'
       } ${
-        isOffline 
+        status === 'offline' 
           ? 'bg-red-500 text-white' 
-          : isSlowConnection 
+          : status === 'slow' 
             ? 'bg-amber-500 text-white' 
             : 'bg-green-500 text-white'
       }`}
       style={{ 
         width: '90%', 
-        maxWidth: '400px',
-        zIndex: 50,
-        transform: showIndicator ? 'translateY(0)' : 'translateY(1rem)',
-        pointerEvents: 'none' 
+        maxWidth: '320px', 
+        pointerEvents: 'none',
       }}
     >
-      <div className="flex items-center justify-center space-x-2">
-        {isOffline ? (
+      <div className="flex items-center justify-center gap-2">
+        {status === 'offline' ? (
           <>
-            <WifiOff className="w-4 h-4" />
+            <WifiOff size={16} />
             <span className="text-sm font-medium">You are offline</span>
           </>
-        ) : isSlowConnection ? (
+        ) : status === 'slow' ? (
           <>
-            <AlertCircle className="w-4 h-4" />
-            <span className="text-sm font-medium">Slow connection detected</span>
+            <AlertCircle size={16} />
+            <span className="text-sm font-medium">Slow connection</span>
           </>
         ) : (
           <>
-            <Wifi className="w-4 h-4" />
+            <Wifi size={16} />
             <span className="text-sm font-medium">Connected</span>
           </>
         )}

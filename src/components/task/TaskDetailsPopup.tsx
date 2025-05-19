@@ -1,7 +1,8 @@
-import { X, Calendar, Tag, Clock, Crown, Download, CheckCircle2 } from 'lucide-react';
+import { X, Calendar, Tag, Clock, Crown, Download, CheckCircle2, Clipboard, Copy } from 'lucide-react';
 import { parseLinks } from '../../utils/linkParser';
 import type { Task } from '../../types';
 import type { TaskStatus } from '../../types/task';
+import { useState, useEffect } from 'react';
 
 interface TaskDetailsPopupProps {
   task: Task;
@@ -16,6 +17,17 @@ export function TaskDetailsPopup({
   onStatusUpdate,
   isUpdating = false
 }: TaskDetailsPopupProps) {
+  const [copied, setCopied] = useState(false);
+  
+  // Reset copied state after 2 seconds
+  useEffect(() => {
+    let timer: NodeJS.Timeout;
+    if (copied) {
+      timer = setTimeout(() => setCopied(false), 2000);
+    }
+    return () => clearTimeout(timer);
+  }, [copied]);
+  
   // Filter out section ID text
   const filteredDescription = task.description.replace(/\*This task is assigned to section ID: [0-9a-f-]+\*/g, '').trim();
   
@@ -102,6 +114,37 @@ export function TaskDetailsPopup({
     return null;
   };
 
+  const copyTaskToClipboard = () => {
+    // Format the task information
+    const formattedDate = new Date(task.dueDate).toLocaleDateString('en-US', {
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric'
+    });
+    
+    const taskUrl = `${window.location.origin}/task/${task.id}`;
+    
+    const formattedTask = `
+📋 TASK: ${task.name}
+📅 Due Date: ${formattedDate}${overdue ? ' (Overdue)' : ''}
+🏷️ Category: ${task.category.replace('-', ' ')}
+${task.isAdminTask ? '👑 Admin Task\n' : ''}
+📝 Description:
+${regularDescription}
+
+🔗 View Task: ${taskUrl}
+`;
+
+    // Copy to clipboard
+    navigator.clipboard.writeText(formattedTask)
+      .then(() => {
+        setCopied(true);
+      })
+      .catch(err => {
+        console.error('Failed to copy task: ', err);
+      });
+  };
+
   return (
     <>
       <div 
@@ -162,13 +205,62 @@ export function TaskDetailsPopup({
               )}
             </div>
           </div>
-          <button
-            onClick={onClose}
-            disabled={isUpdating}
-            className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            <X className="w-5 h-5 text-gray-500 dark:text-gray-400" />
-          </button>
+          <div className="flex items-center space-x-1">
+            {/* Copy Button with Tooltip */}
+            <div className="relative group">
+              <button
+                onClick={copyTaskToClipboard}
+                disabled={isUpdating}
+                className={`
+                  p-2 flex items-center justify-center rounded-lg transition-all duration-200
+                  ${copied 
+                    ? 'bg-green-50 text-green-600 dark:bg-green-900/20 dark:text-green-400'
+                    : 'hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-500 dark:text-gray-400'
+                  }
+                  disabled:opacity-50 disabled:cursor-not-allowed
+                  focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-opacity-50
+                `}
+                aria-label={copied ? "Task details copied" : "Copy task details"}
+              >
+                <span className={`transition-all duration-200 ${copied ? 'scale-110' : ''}`}>
+                  {copied ? (
+                    <CheckCircle2 className="w-[18px] h-[18px] sm:w-5 sm:h-5" />
+                  ) : (
+                    <Copy className="w-[18px] h-[18px] sm:w-5 sm:h-5" />
+                  )}
+                </span>
+              </button>
+              
+              {/* Responsive tooltip that changes position based on screen size */}
+              <div 
+                className={`
+                  absolute z-50 transition-all duration-200 transform pointer-events-none
+                  text-xs font-medium text-white bg-gray-900/90 dark:bg-black/80 rounded px-2 py-1 whitespace-nowrap
+                  left-1/2 -translate-x-1/2 select-none
+                  
+                  /* Mobile positioning (top) */
+                  -top-9
+                  
+                  /* Desktop positioning (right) */
+                  md:top-1/2 md:-translate-y-1/2 md:left-auto md:right-full md:mr-2 md:-translate-x-0
+                  
+                  ${copied ? 'opacity-100 scale-100' : 'opacity-0 scale-95'}
+                `}
+              >
+                {copied ? 'Copied!' : 'Copy task details'}
+              </div>
+            </div>
+            
+            {/* Close Button */}
+            <button
+              onClick={onClose}
+              disabled={isUpdating}
+              className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-opacity-50"
+              aria-label="Close task details"
+            >
+              <X className="w-[18px] h-[18px] sm:w-5 sm:h-5 text-gray-500 dark:text-gray-400" />
+            </button>
+          </div>
         </div>
 
         {/* Content */}

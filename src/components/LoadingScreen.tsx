@@ -13,24 +13,15 @@ export const LoadingScreen = memo(function LoadingScreen({
   const [show, setShow] = useState(true);
   const [progress, setProgress] = useState(0);
   const [fadeOut, setFadeOut] = useState(false);
-  const containerRef = useRef<HTMLDivElement>(null);
+  const startTimeRef = useRef(Date.now());
   
-  // Preload key app assets
+  // Simplified effect without asset preloading (moved to main.tsx)
   useEffect(() => {
-    const preloadAssets = () => {
-      // Preload logo and any other critical images
-      const imagesToPreload = ['/icons/icon-192x192.png'];
-      
-      imagesToPreload.forEach(src => {
-        const img = new Image();
-        img.src = src;
-      });
-    };
+    // Calculate how much time has already passed
+    const elapsedTime = Date.now() - startTimeRef.current;
+    const remainingTime = Math.max(0, minimumLoadTime - elapsedTime);
     
-    preloadAssets();
-  }, []);
-
-  useEffect(() => {
+    // Use a single timeout for the entire loading process
     const timer = setTimeout(() => {
       // Start fade out animation before completely hiding
       setFadeOut(true);
@@ -38,55 +29,40 @@ export const LoadingScreen = memo(function LoadingScreen({
       // Remove from DOM after animation completes
       setTimeout(() => {
         setShow(false);
-      }, 300);
-    }, minimumLoadTime);
+      }, 200); // Reduced from 300ms to 200ms
+    }, remainingTime);
 
-    // Simulate loading progress if needed (with requestAnimationFrame for better performance)
+    // Simplified progress animation with fewer updates
     if (showProgress) {
-      let lastTimestamp = 0;
-      let animationFrameId: number;
+      let progressInterval: number;
       
-      const updateProgress = (timestamp: number) => {
-        // Only update every ~250ms for better performance
-        if (timestamp - lastTimestamp > 250 || lastTimestamp === 0) {
-          lastTimestamp = timestamp;
-          setProgress(prev => {
-            // More realistic progress that starts fast and slows down
-            const increment = 100 - prev > 40 ? 10 : (100 - prev > 20 ? 5 : 2);
-            const next = prev + Math.min(increment, Math.random() * increment);
-            return next > 100 ? 100 : next;
-          });
-        }
-        
-        if (progress < 100) {
-          animationFrameId = requestAnimationFrame(updateProgress);
-        }
-      };
-      
-      animationFrameId = requestAnimationFrame(updateProgress);
+      progressInterval = window.setInterval(() => {
+        setProgress(prev => {
+          // Faster progress increase
+          const increment = 100 - prev > 50 ? 15 : (100 - prev > 20 ? 8 : 3);
+          const next = prev + increment;
+          return next > 96 ? 96 : next; // Cap at 96% to avoid jumps
+        });
+      }, 300); // Longer interval = fewer updates = better performance
       
       return () => {
         clearTimeout(timer);
-        cancelAnimationFrame(animationFrameId);
+        clearInterval(progressInterval);
       };
     }
 
     return () => clearTimeout(timer);
-  }, [minimumLoadTime, showProgress, progress]);
+  }, [minimumLoadTime, showProgress]);
 
   if (!show) return null;
 
   return (
     <div 
-      ref={containerRef}
-      className={`fixed inset-0 bg-white dark:bg-gray-900 flex items-center justify-center z-50 transition-opacity duration-300 ${fadeOut ? 'opacity-0' : 'opacity-100'}`}
+      className={`fixed inset-0 bg-white dark:bg-gray-900 flex items-center justify-center z-50 transition-opacity duration-200 ${fadeOut ? 'opacity-0' : 'opacity-100'}`}
     >
       <div className="flex flex-col items-center">
-        {/* Modern pulse loader */}
-        <div className="relative w-8 h-8">
-          <div className="absolute inset-0 rounded-full bg-blue-600/15 dark:bg-blue-400/15 animate-pulse"></div>
-          <div className="absolute inset-[7px] rounded-full bg-blue-600 dark:bg-blue-400"></div>
-        </div>
+        {/* Simpler loading indicator with better performance */}
+        <div className="w-8 h-8 border-4 border-blue-600 dark:border-blue-400 border-t-transparent rounded-full animate-spin" />
         
         <div className="text-base font-medium text-gray-800/90 dark:text-gray-100/90 mt-3 tracking-wide">
           NestTask
@@ -96,8 +72,8 @@ export const LoadingScreen = memo(function LoadingScreen({
           <div className="w-28 mx-auto mt-3">
             <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-0.5 overflow-hidden">
               <div 
-                className="bg-blue-600 dark:bg-blue-400 h-0.5 rounded-full"
-                style={{ width: `${progress}%`, transition: 'width 200ms ease-out' }}
+                className="bg-blue-600 dark:bg-blue-400 h-0.5 rounded-full" 
+                style={{ width: `${progress}%`, transition: 'width 150ms ease-out' }}
               />
             </div>
           </div>

@@ -3,16 +3,11 @@ import {
   Tag, 
   Calendar, 
   AlignLeft, 
-  Plus, 
-  Link2, 
   ListTodo, 
-  Upload, 
-  X,
-  ChevronDown,
-  ChevronUp,
   AlertCircle,
   CheckCircle,
-  Clock,
+  Upload,
+  X,
   Paperclip
 } from 'lucide-react';
 import type { NewTask } from '../../../types/task';
@@ -32,11 +27,8 @@ interface FormState {
   errors: TaskFormErrors;
   files: File[];
   fileUrls: string[];
-  linkInput: string;
-  links: string[];
   isSubmitting: boolean;
   success: boolean;
-  showAdvanced: boolean;
   uploadProgress: number;
 }
 
@@ -47,12 +39,8 @@ type FormAction =
   | { type: 'CLEAR_ERROR', field: keyof NewTask | 'files' }
   | { type: 'ADD_FILES', newFiles: File[], newUrls: string[] }
   | { type: 'REMOVE_FILE', index: number }
-  | { type: 'SET_LINK_INPUT', value: string }
-  | { type: 'ADD_LINK', link: string }
-  | { type: 'REMOVE_LINK', index: number }
   | { type: 'SET_SUBMITTING', isSubmitting: boolean }
   | { type: 'SET_SUCCESS', success: boolean }
-  | { type: 'TOGGLE_ADVANCED' }
   | { type: 'SET_UPLOAD_PROGRESS', progress: number }
   | { type: 'RESET_FORM', sectionId?: string };
 
@@ -69,11 +57,8 @@ const createInitialState = (sectionId?: string): FormState => ({
   errors: {},
   files: [],
   fileUrls: [],
-  linkInput: '',
-  links: [],
   isSubmitting: false,
   success: false,
-  showAdvanced: false,
   uploadProgress: 0
 });
 
@@ -111,22 +96,6 @@ function formReducer(state: FormState, action: FormAction): FormState {
         files: state.files.filter((_, i) => i !== action.index),
         fileUrls: state.fileUrls.filter((_, i) => i !== action.index)
       };
-    case 'SET_LINK_INPUT':
-      return {
-        ...state,
-        linkInput: action.value
-      };
-    case 'ADD_LINK':
-      return {
-        ...state,
-        links: [...state.links, action.link],
-        linkInput: ''
-      };
-    case 'REMOVE_LINK':
-      return {
-        ...state,
-        links: state.links.filter((_, i) => i !== action.index)
-      };
     case 'SET_SUBMITTING':
       return {
         ...state,
@@ -136,11 +105,6 @@ function formReducer(state: FormState, action: FormAction): FormState {
       return {
         ...state,
         success: action.success
-      };
-    case 'TOGGLE_ADVANCED':
-      return {
-        ...state,
-        showAdvanced: !state.showAdvanced
       };
     case 'SET_UPLOAD_PROGRESS':
       return {
@@ -238,11 +202,8 @@ export function TaskForm({ onSubmit, sectionId, isSectionAdmin = false }: TaskFo
     errors,
     files,
     fileUrls,
-    linkInput,
-    links,
     isSubmitting,
     success,
-    showAdvanced,
     uploadProgress
   } = state;
   
@@ -272,12 +233,12 @@ export function TaskForm({ onSubmit, sectionId, isSectionAdmin = false }: TaskFo
       });
     };
   }, [fileUrls]);
-
+  
   // Check if device is mobile - memoized
   const isMobile = useCallback(() => {
     return /iPhone|iPad|iPod|Android|webOS|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) || window.innerWidth < 768;
   }, []);
-  
+
   // Validation function - memoized for performance
   const validate = useCallback((): boolean => {
     const newErrors: TaskFormErrors = {};
@@ -369,23 +330,6 @@ export function TaskForm({ onSubmit, sectionId, isSectionAdmin = false }: TaskFo
     dispatch({ type: 'REMOVE_FILE', index });
   }, [fileUrls]);
   
-  // Add link - memoized
-  const addLink = useCallback(() => {
-    if (linkInput.trim() && !links.includes(linkInput)) {
-      dispatch({ type: 'ADD_LINK', link: linkInput });
-    }
-  }, [linkInput, links]);
-  
-  // Remove link - memoized
-  const removeLink = useCallback((index: number) => {
-    dispatch({ type: 'REMOVE_LINK', index });
-  }, []);
-  
-  // Toggle advanced section - memoized
-  const toggleAdvanced = useCallback(() => {
-    dispatch({ type: 'TOGGLE_ADVANCED' });
-  }, []);
-  
   // Get minimum date for date input
   const getMinDate = useCallback(() => {
     const today = new Date();
@@ -429,14 +373,6 @@ export function TaskForm({ onSubmit, sectionId, isSectionAdmin = false }: TaskFo
       // Clone task details to avoid modifying state during preparation
       const taskDescription = taskDetails.description;
       let enhancedDescription = taskDescription;
-      
-      // Add links to description
-      if (links.length > 0) {
-        enhancedDescription += '\n\n**Links:**\n';
-        links.forEach(link => {
-          enhancedDescription += `- [${link}](${link})\n`;
-        });
-      }
       
       // Check if device is mobile
       const isDeviceMobile = isMobile();
@@ -535,11 +471,11 @@ export function TaskForm({ onSubmit, sectionId, isSectionAdmin = false }: TaskFo
         dispatch({ type: 'SET_UPLOAD_PROGRESS', progress: 0 });
       }
     }
-  }, [validate, taskDetails, links, files, isMobile, isSectionAdmin, sectionId, onSubmit]);
+  }, [validate, taskDetails, files, isMobile, isSectionAdmin, sectionId, onSubmit]);
 
   return (
     <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-md overflow-hidden border border-gray-100 dark:border-gray-700">
-      <div className="px-4 sm:px-6 py-4 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between bg-gradient-to-r from-blue-50 to-white dark:from-gray-800 dark:to-gray-750">
+      <div className="px-4 sm:px-6 py-4 border-b border-gray-200 dark:border-gray-700 flex items-center bg-gradient-to-r from-blue-50 to-white dark:from-gray-800 dark:to-gray-750">
         <h3 className="text-lg sm:text-xl font-semibold text-gray-800 dark:text-white flex items-center">
           <ListTodo className="w-5 h-5 mr-2 text-blue-600 dark:text-blue-400" />
           Create New Task
@@ -549,28 +485,6 @@ export function TaskForm({ onSubmit, sectionId, isSectionAdmin = false }: TaskFo
             </span>
           )}
         </h3>
-        
-        <button
-          onClick={toggleAdvanced}
-          className="text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 text-xs sm:text-sm flex items-center gap-1 py-1 px-2 rounded-lg hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors duration-150"
-          type="button"
-          aria-expanded={showAdvanced}
-          aria-controls="advanced-options"
-        >
-          {showAdvanced ? (
-            <>
-              <ChevronUp className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
-              <span className="hidden sm:inline">Hide Advanced</span>
-              <span className="sm:hidden">Simple</span>
-            </>
-          ) : (
-            <>
-              <ChevronDown className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
-              <span className="hidden sm:inline">Show Advanced</span>
-              <span className="sm:hidden">Advanced</span>
-            </>
-          )}
-        </button>
       </div>
       
       <form onSubmit={handleSubmit} className="p-4 sm:p-6 space-y-5 sm:space-y-6">
@@ -633,9 +547,6 @@ export function TaskForm({ onSubmit, sectionId, isSectionAdmin = false }: TaskFo
                   <option value="groups">Groups</option>
                   <option value="others">Others</option>
                 </select>
-                <div className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 pointer-events-none">
-                  <ChevronDown className="w-4 h-4" />
-                </div>
               </div>
             </FormField>
           </div>
@@ -664,32 +575,6 @@ export function TaskForm({ onSubmit, sectionId, isSectionAdmin = false }: TaskFo
             </FormField>
           </div>
 
-          {showAdvanced && (
-            <div id="advanced-options">
-              <FormField id="status" label="Status" error={errors.status}>
-                <div className="relative">
-                  <div className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 pointer-events-none">
-                    <Clock className="w-5 h-5" />
-                  </div>
-                  <select
-                    id="status"
-                    name="status"
-                    value={taskDetails.status}
-                    onChange={handleChange}
-                    className="w-full pl-10 pr-4 py-3 border border-gray-300 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white appearance-none text-sm sm:text-base"
-                  >
-                    <option value="my-tasks">To Do</option>
-                    <option value="in-progress">In Progress</option>
-                    <option value="completed">Completed</option>
-                  </select>
-                  <div className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 pointer-events-none">
-                    <ChevronDown className="w-4 h-4" />
-                  </div>
-                </div>
-              </FormField>
-            </div>
-          )}
-
           <div className="col-span-1 sm:col-span-2">
             <FormField id="description" label="Description" required error={errors.description}>
               <div className="relative">
@@ -714,50 +599,48 @@ export function TaskForm({ onSubmit, sectionId, isSectionAdmin = false }: TaskFo
             </FormField>
           </div>
 
-          {showAdvanced && (
-              <div className="col-span-1 sm:col-span-2">
-                <FormField id="files" label="Attachments" error={errors.files}>
-                  <div className="flex items-center justify-center w-full">
-                    <label 
-                      htmlFor="file-upload" 
-                      className="w-full flex flex-col items-center justify-center px-4 py-6 bg-white dark:bg-gray-800 text-gray-500 rounded-xl border-2 border-dashed border-gray-300 dark:border-gray-600 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors duration-150"
-                      aria-label="Upload files - tap to select files"
-                    >
-                      <Upload className="w-8 h-8 text-blue-500 dark:text-blue-400 mb-2" />
-                      <p className="text-sm text-center">
-                        {isMobile() ? 
-                          'Tap to select files' : 
-                          'Drag & drop files here, or click to select files'}
-                      </p>
-                      <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                        Maximum file size: 50MB
-                      </p>
-                      <input 
-                        id="file-upload" 
-                        type="file" 
-                        className="hidden" 
-                        onChange={handleFileUpload} 
-                        multiple 
-                        accept="image/*,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/plain,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-                        aria-label="File upload"
-                      />
-                    </label>
-                  </div>
-
-                  {fileUrls.length > 0 && (
-                    <div className="mt-3 space-y-2 max-h-48 overflow-y-auto pr-1">
-                      {files.map((file, index) => (
-                        <FileItem 
-                          key={index} 
-                          file={file} 
-                          onRemove={() => removeFile(index)} 
-                        />
-                      ))}
-                    </div>
-                  )}
-                </FormField>
+          <div className="col-span-1 sm:col-span-2">
+            <FormField id="files" label="Attachments" error={errors.files}>
+              <div className="flex items-center justify-center w-full">
+                <label 
+                  htmlFor="file-upload" 
+                  className="w-full flex flex-col items-center justify-center px-4 py-5 bg-white dark:bg-gray-800 text-gray-500 rounded-xl border-2 border-dashed border-gray-300 dark:border-gray-600 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors duration-150"
+                  aria-label="Upload files - tap to select files"
+                >
+                  <Upload className="w-7 h-7 text-blue-500 dark:text-blue-400 mb-2" />
+                  <p className="text-sm text-center">
+                    {isMobile() ? 
+                      'Tap to select files' : 
+                      'Drag & drop files here, or click to select files'}
+                  </p>
+                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                    Maximum file size: 50MB
+                  </p>
+                  <input 
+                    id="file-upload" 
+                    type="file" 
+                    className="hidden" 
+                    onChange={handleFileUpload} 
+                    multiple 
+                    accept="image/*,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/plain,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                    aria-label="File upload"
+                  />
+                </label>
               </div>
-          )}
+
+              {fileUrls.length > 0 && (
+                <div className="mt-3 space-y-2 max-h-40 overflow-y-auto pr-1">
+                  {files.map((file, index) => (
+                    <FileItem 
+                      key={index} 
+                      file={file} 
+                      onRemove={() => removeFile(index)} 
+                    />
+                  ))}
+                </div>
+              )}
+            </FormField>
+          </div>
         </div>
 
         <div className="flex justify-end pt-2">

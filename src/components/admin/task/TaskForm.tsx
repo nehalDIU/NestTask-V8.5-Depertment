@@ -11,7 +11,9 @@ import {
   ChevronDown,
   ChevronUp,
   AlertCircle,
-  CheckCircle
+  CheckCircle,
+  Clock,
+  Paperclip
 } from 'lucide-react';
 import type { NewTask } from '../../../types/task';
 
@@ -152,6 +154,80 @@ function formReducer(state: FormState, action: FormAction): FormState {
   }
 }
 
+// Input Field Component
+const FormField = ({ 
+  id, 
+  label, 
+  required = false, 
+  error,
+  children,
+}: { 
+  id: string; 
+  label: string; 
+  required?: boolean; 
+  error?: string;
+  children: React.ReactNode;
+}) => (
+  <div>
+    <label htmlFor={id} className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+      {label} {required && <span className="text-red-500">*</span>}
+    </label>
+    {children}
+    {error && (
+      <p id={`${id}-error`} className="mt-1 text-xs text-red-500 flex items-center gap-1">
+        <AlertCircle className="w-3 h-3" />
+        {error}
+      </p>
+    )}
+  </div>
+);
+
+// Success Message Component
+const SuccessMessage = () => (
+  <div className="p-3 bg-green-50 dark:bg-green-900/20 rounded-lg mb-4 flex items-start gap-2 shadow-sm" role="alert">
+    <CheckCircle className="w-5 h-5 text-green-600 dark:text-green-400 flex-shrink-0 mt-0.5" />
+    <span className="text-green-700 dark:text-green-300">Task created successfully!</span>
+  </div>
+);
+
+// Progress Bar Component
+const ProgressBar = ({ progress }: { progress: number }) => (
+  <div className="mb-4" aria-live="polite">
+    <div className="w-full bg-gray-200 rounded-full h-2.5 dark:bg-gray-700">
+      <div 
+        className="bg-blue-600 h-2.5 rounded-full transition-all duration-300"
+        style={{ width: `${progress}%` }}
+        role="progressbar"
+        aria-valuenow={progress}
+        aria-valuemin={0}
+        aria-valuemax={100}
+      ></div>
+    </div>
+    <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
+      Uploading files... {progress}%
+    </p>
+  </div>
+);
+
+// File Item Component
+const FileItem = ({ file, onRemove }: { file: File; onRemove: () => void }) => (
+  <div className="flex items-center justify-between py-2 px-3 bg-gray-50 dark:bg-gray-700 rounded-lg">
+    <div className="flex items-center gap-2 truncate max-w-[85%]">
+      <Paperclip className="w-4 h-4 text-gray-500 dark:text-gray-400 flex-shrink-0" />
+      <span className="text-sm text-gray-700 dark:text-gray-300 truncate">{file.name}</span>
+      <span className="text-xs text-gray-500">({(file.size / 1024).toFixed(1)} KB)</span>
+    </div>
+    <button
+      type="button"
+      onClick={onRemove}
+      className="text-gray-500 hover:text-red-500 dark:text-gray-400 dark:hover:text-red-400 ml-2 p-1 rounded-full hover:bg-gray-200 dark:hover:bg-gray-600"
+      aria-label={`Remove ${file.name}`}
+    >
+      <X className="w-4 h-4" />
+    </button>
+  </div>
+);
+
 export function TaskForm({ onSubmit, sectionId, isSectionAdmin = false }: TaskFormProps) {
   // Use reducer for form state management
   const [state, dispatch] = useReducer(formReducer, createInitialState(sectionId));
@@ -274,8 +350,7 @@ export function TaskForm({ onSubmit, sectionId, isSectionAdmin = false }: TaskFo
     const isDeviceMobile = isMobile();
     
     if (isDeviceMobile) {
-      // On mobile, create a dedicated file handler that works with the files directly
-      // Create simple placeholder URLs for display only
+      // On mobile, create placeholder URLs for display only
       const displayUrls = newFiles.map(file => `placeholder-${file.name}`);
       dispatch({ type: 'ADD_FILES', newFiles, newUrls: displayUrls });
     } else {
@@ -463,20 +538,21 @@ export function TaskForm({ onSubmit, sectionId, isSectionAdmin = false }: TaskFo
   }, [validate, taskDetails, links, files, isMobile, isSectionAdmin, sectionId, onSubmit]);
 
   return (
-    <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm overflow-hidden">
-      <div className="px-3 sm:px-6 py-3 sm:py-4 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
-        <h3 className="text-base sm:text-lg font-semibold text-gray-800 dark:text-white">
+    <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-md overflow-hidden border border-gray-100 dark:border-gray-700">
+      <div className="px-4 sm:px-6 py-4 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between bg-gradient-to-r from-blue-50 to-white dark:from-gray-800 dark:to-gray-750">
+        <h3 className="text-lg sm:text-xl font-semibold text-gray-800 dark:text-white flex items-center">
+          <ListTodo className="w-5 h-5 mr-2 text-blue-600 dark:text-blue-400" />
           Create New Task
           {isSectionAdmin && sectionId && (
-            <span className="ml-2 text-xs sm:text-sm text-green-600 dark:text-green-400 font-normal">
-              (Section Task)
+            <span className="ml-2 text-xs sm:text-sm text-green-600 dark:text-green-400 font-normal px-2 py-0.5 bg-green-100 dark:bg-green-900/30 rounded-full">
+              Section Task
             </span>
           )}
         </h3>
         
         <button
           onClick={toggleAdvanced}
-          className="text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 text-xs sm:text-sm flex items-center gap-1 py-1 px-2 rounded-lg hover:bg-blue-50 dark:hover:bg-blue-900/20"
+          className="text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 text-xs sm:text-sm flex items-center gap-1 py-1 px-2 rounded-lg hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors duration-150"
           type="button"
           aria-expanded={showAdvanced}
           aria-controls="advanced-options"
@@ -497,323 +573,203 @@ export function TaskForm({ onSubmit, sectionId, isSectionAdmin = false }: TaskFo
         </button>
       </div>
       
-      <form onSubmit={handleSubmit} className="p-3 sm:p-6 space-y-4 sm:space-y-6">
-        {success && (
-          <div className="p-2 sm:p-3 bg-green-50 dark:bg-green-900/20 rounded-lg mb-4 flex items-start gap-2" role="alert">
-            <CheckCircle className="w-4 h-4 sm:w-5 sm:h-5 text-green-600 dark:text-green-400 flex-shrink-0 mt-0.5" />
-            <span className="text-green-700 dark:text-green-300 text-sm">Task created successfully!</span>
-          </div>
-        )}
+      <form onSubmit={handleSubmit} className="p-4 sm:p-6 space-y-5 sm:space-y-6">
+        {success && <SuccessMessage />}
 
         {isSubmitting && uploadProgress > 0 && uploadProgress < 100 && (
-          <div className="mb-4" aria-live="polite">
-            <div className="w-full bg-gray-200 rounded-full h-2.5 dark:bg-gray-700">
-              <div 
-                className="bg-blue-600 h-2.5 rounded-full transition-all duration-300"
-                style={{ width: `${uploadProgress}%` }}
-                role="progressbar"
-                aria-valuenow={uploadProgress}
-                aria-valuemin={0}
-                aria-valuemax={100}
-              ></div>
-            </div>
-            <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
-              Uploading files... {uploadProgress}%
-            </p>
-          </div>
+          <ProgressBar progress={uploadProgress} />
         )}
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-5">
           <div className="col-span-1 sm:col-span-2">
-            <label htmlFor="name" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-              Task Name <span className="text-red-500">*</span>
-            </label>
-            <div className="relative">
-              <div className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 pointer-events-none">
-                <ListTodo className="w-4 h-4 sm:w-5 sm:h-5" />
-              </div>
-              <input
-                type="text"
-                id="name"
-                name="name"
-                value={taskDetails.name}
-                onChange={handleChange}
-                className={`w-full pl-10 pr-4 py-2.5 border ${
-                  errors.name ? 'border-red-500 dark:border-red-500' : 'border-gray-300 dark:border-gray-600'
-                } rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white text-sm sm:text-base`}
-                placeholder="Enter task name"
-                aria-required="true"
-                aria-invalid={!!errors.name}
-                aria-describedby={errors.name ? "name-error" : undefined}
-              />
-            </div>
-            {errors.name && (
-              <p id="name-error" className="mt-1 text-xs text-red-500 flex items-center gap-1">
-                <AlertCircle className="w-3 h-3" />
-                {errors.name}
-              </p>
-            )}
-          </div>
-
-          <div>
-            <label htmlFor="category" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-              Category
-            </label>
-            <div className="relative">
-              <div className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 pointer-events-none">
-                <Tag className="w-4 h-4 sm:w-5 sm:h-5" />
-              </div>
-              <select
-                id="category"
-                name="category"
-                value={taskDetails.category}
-                onChange={handleChange}
-                className="w-full pl-10 pr-4 py-2.5 border border-gray-300 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white appearance-none text-sm sm:text-base"
-              >
-                <option value="assignment">Assignment</option>
-                <option value="blc">BLC</option>
-                <option value="documents">Documents</option>
-                <option value="final-exam">Final Exam</option>
-                <option value="groups">Groups</option>
-                <option value="lab-final">Lab Final</option>
-                <option value="lab-performance">Lab Performance</option>
-                <option value="lab-report">Lab Report</option>
-                <option value="midterm">Midterm</option>
-                <option value="presentation">Presentation</option>
-                <option value="project">Project</option>
-                <option value="quiz">Quiz</option>
-                <option value="task">Task</option>
-                <option value="others">Others</option>
-              </select>
-              <div className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 pointer-events-none">
-                <ChevronDown className="w-4 h-4" />
-              </div>
-            </div>
-          </div>
-
-          <div>
-            <label htmlFor="dueDate" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-              Due Date <span className="text-red-500">*</span>
-            </label>
-            <div className="relative">
-              <div className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 pointer-events-none">
-                <Calendar className="w-4 h-4 sm:w-5 sm:h-5" />
-              </div>
-              <input
-                type="date"
-                id="dueDate"
-                name="dueDate"
-                value={taskDetails.dueDate}
-                onChange={handleChange}
-                min={getMinDate()}
-                className={`w-full pl-10 pr-4 py-2.5 border ${
-                  errors.dueDate ? 'border-red-500 dark:border-red-500' : 'border-gray-300 dark:border-gray-600'
-                } rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white text-sm sm:text-base`}
-                aria-required="true"
-                aria-invalid={!!errors.dueDate}
-                aria-describedby={errors.dueDate ? "dueDate-error" : undefined}
-              />
-            </div>
-            {errors.dueDate && (
-              <p id="dueDate-error" className="mt-1 text-xs text-red-500 flex items-center gap-1">
-                <AlertCircle className="w-3 h-3" />
-                {errors.dueDate}
-              </p>
-            )}
-          </div>
-
-          {showAdvanced && (
-            <div id="advanced-options">
-              <label htmlFor="status" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                Status
-              </label>
+            <FormField id="name" label="Task Name" required error={errors.name}>
               <div className="relative">
                 <div className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 pointer-events-none">
-                  <ListTodo className="w-4 h-4 sm:w-5 sm:h-5" />
+                  <ListTodo className="w-5 h-5" />
+                </div>
+                <input
+                  type="text"
+                  id="name"
+                  name="name"
+                  value={taskDetails.name}
+                  onChange={handleChange}
+                  className={`w-full pl-10 pr-4 py-3 border ${
+                    errors.name ? 'border-red-500 dark:border-red-500' : 'border-gray-300 dark:border-gray-600'
+                  } rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white text-sm sm:text-base`}
+                  placeholder="Enter task name"
+                  aria-required="true"
+                  aria-invalid={!!errors.name}
+                  aria-describedby={errors.name ? "name-error" : undefined}
+                />
+              </div>
+            </FormField>
+          </div>
+
+          <div>
+            <FormField id="category" label="Category" error={errors.category}>
+              <div className="relative">
+                <div className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 pointer-events-none">
+                  <Tag className="w-5 h-5" />
                 </div>
                 <select
-                  id="status"
-                  name="status"
-                  value={taskDetails.status}
+                  id="category"
+                  name="category"
+                  value={taskDetails.category}
                   onChange={handleChange}
-                  className="w-full pl-10 pr-4 py-2.5 border border-gray-300 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white appearance-none text-sm sm:text-base"
+                  className="w-full pl-10 pr-4 py-3 border border-gray-300 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white appearance-none text-sm sm:text-base"
                 >
-                  <option value="my-tasks">To Do</option>
-                  <option value="in-progress">In Progress</option>
-                  <option value="completed">Completed</option>
+                  <option value="task">Task</option>
+                  <option value="assignment">Assignment</option>
+                  <option value="project">Project</option>
+                  <option value="quiz">Quiz</option>
+                  <option value="midterm">Midterm</option>
+                  <option value="final-exam">Final Exam</option>
+                  <option value="lab-report">Lab Report</option>
+                  <option value="lab-performance">Lab Performance</option>
+                  <option value="lab-final">Lab Final</option>
+                  <option value="presentation">Presentation</option>
+                  <option value="blc">BLC</option>
+                  <option value="documents">Documents</option>
+                  <option value="groups">Groups</option>
+                  <option value="others">Others</option>
                 </select>
                 <div className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 pointer-events-none">
                   <ChevronDown className="w-4 h-4" />
                 </div>
               </div>
+            </FormField>
+          </div>
+
+          <div>
+            <FormField id="dueDate" label="Due Date" required error={errors.dueDate}>
+              <div className="relative">
+                <div className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 pointer-events-none">
+                  <Calendar className="w-5 h-5" />
+                </div>
+                <input
+                  type="date"
+                  id="dueDate"
+                  name="dueDate"
+                  value={taskDetails.dueDate}
+                  onChange={handleChange}
+                  min={getMinDate()}
+                  className={`w-full pl-10 pr-4 py-3 border ${
+                    errors.dueDate ? 'border-red-500 dark:border-red-500' : 'border-gray-300 dark:border-gray-600'
+                  } rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white text-sm sm:text-base`}
+                  aria-required="true"
+                  aria-invalid={!!errors.dueDate}
+                  aria-describedby={errors.dueDate ? "dueDate-error" : undefined}
+                />
+              </div>
+            </FormField>
+          </div>
+
+          {showAdvanced && (
+            <div id="advanced-options">
+              <FormField id="status" label="Status" error={errors.status}>
+                <div className="relative">
+                  <div className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 pointer-events-none">
+                    <Clock className="w-5 h-5" />
+                  </div>
+                  <select
+                    id="status"
+                    name="status"
+                    value={taskDetails.status}
+                    onChange={handleChange}
+                    className="w-full pl-10 pr-4 py-3 border border-gray-300 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white appearance-none text-sm sm:text-base"
+                  >
+                    <option value="my-tasks">To Do</option>
+                    <option value="in-progress">In Progress</option>
+                    <option value="completed">Completed</option>
+                  </select>
+                  <div className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 pointer-events-none">
+                    <ChevronDown className="w-4 h-4" />
+                  </div>
+                </div>
+              </FormField>
             </div>
           )}
 
           <div className="col-span-1 sm:col-span-2">
-            <label htmlFor="description" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-              Description <span className="text-red-500">*</span>
-            </label>
-            <div className="relative">
-              <div className="absolute left-3 top-3 text-gray-400 pointer-events-none">
-                <AlignLeft className="w-4 h-4 sm:w-5 sm:h-5" />
+            <FormField id="description" label="Description" required error={errors.description}>
+              <div className="relative">
+                <div className="absolute left-3 top-3 text-gray-400 pointer-events-none">
+                  <AlignLeft className="w-5 h-5" />
+                </div>
+                <textarea
+                  id="description"
+                  name="description"
+                  value={taskDetails.description}
+                  onChange={handleChange}
+                  rows={4}
+                  className={`w-full pl-10 pr-4 py-2 border ${
+                    errors.description ? 'border-red-500 dark:border-red-500' : 'border-gray-300 dark:border-gray-600'
+                  } rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white text-sm sm:text-base`}
+                  placeholder="Enter task description"
+                  aria-required="true"
+                  aria-invalid={!!errors.description}
+                  aria-describedby={errors.description ? "description-error" : undefined}
+                ></textarea>
               </div>
-              <textarea
-                id="description"
-                name="description"
-                value={taskDetails.description}
-                onChange={handleChange}
-                rows={4}
-                className={`w-full pl-10 pr-4 py-2 border ${
-                  errors.description ? 'border-red-500 dark:border-red-500' : 'border-gray-300 dark:border-gray-600'
-                } rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white text-sm sm:text-base`}
-                placeholder="Enter task description"
-                aria-required="true"
-                aria-invalid={!!errors.description}
-                aria-describedby={errors.description ? "description-error" : undefined}
-              ></textarea>
-            </div>
-            {errors.description && (
-              <p id="description-error" className="mt-1 text-xs text-red-500 flex items-center gap-1">
-                <AlertCircle className="w-3 h-3" />
-                {errors.description}
-              </p>
-            )}
+            </FormField>
           </div>
 
           {showAdvanced && (
-            <>
               <div className="col-span-1 sm:col-span-2">
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                  Add Links
-                </label>
-                <div className="flex">
-                  <div className="relative flex-1">
-                    <div className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 pointer-events-none">
-                      <Link2 className="w-4 h-4 sm:w-5 sm:h-5" />
+                <FormField id="files" label="Attachments" error={errors.files}>
+                  <div className="flex items-center justify-center w-full">
+                    <label 
+                      htmlFor="file-upload" 
+                      className="w-full flex flex-col items-center justify-center px-4 py-6 bg-white dark:bg-gray-800 text-gray-500 rounded-xl border-2 border-dashed border-gray-300 dark:border-gray-600 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors duration-150"
+                      aria-label="Upload files - tap to select files"
+                    >
+                      <Upload className="w-8 h-8 text-blue-500 dark:text-blue-400 mb-2" />
+                      <p className="text-sm text-center">
+                        {isMobile() ? 
+                          'Tap to select files' : 
+                          'Drag & drop files here, or click to select files'}
+                      </p>
+                      <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                        Maximum file size: 50MB
+                      </p>
+                      <input 
+                        id="file-upload" 
+                        type="file" 
+                        className="hidden" 
+                        onChange={handleFileUpload} 
+                        multiple 
+                        accept="image/*,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/plain,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                        aria-label="File upload"
+                      />
+                    </label>
+                  </div>
+
+                  {fileUrls.length > 0 && (
+                    <div className="mt-3 space-y-2 max-h-48 overflow-y-auto pr-1">
+                      {files.map((file, index) => (
+                        <FileItem 
+                          key={index} 
+                          file={file} 
+                          onRemove={() => removeFile(index)} 
+                        />
+                      ))}
                     </div>
-                    <input
-                      type="text"
-                      value={linkInput}
-                      onChange={(e) => dispatch({ type: 'SET_LINK_INPUT', value: e.target.value })}
-                      className="w-full pl-10 pr-4 py-2.5 border border-gray-300 dark:border-gray-600 rounded-l-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white text-sm sm:text-base"
-                      placeholder="Enter URL"
-                      aria-label="Enter URL"
-                    />
-                  </div>
-                  <button
-                    type="button"
-                    onClick={addLink}
-                    disabled={!linkInput.trim()}
-                    className="px-3 py-2.5 bg-blue-600 text-white rounded-r-xl hover:bg-blue-700 disabled:bg-blue-300 disabled:cursor-not-allowed flex items-center justify-center"
-                    aria-label="Add link"
-                  >
-                    <Plus className="w-4 h-4 sm:w-5 sm:h-5" />
-                    <span className="sr-only">Add link</span>
-                  </button>
-                </div>
-
-                {links.length > 0 && (
-                  <div className="mt-2 space-y-2">
-                    {links.map((link, index) => (
-                      <div 
-                        key={index} 
-                        className="flex items-center justify-between py-1 px-3 bg-gray-50 dark:bg-gray-700 rounded-lg"
-                      >
-                        <a
-                          href={link}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="text-blue-600 dark:text-blue-400 text-sm truncate max-w-[85%]"
-                        >
-                          {link}
-                        </a>
-                        <button
-                          type="button"
-                          onClick={() => removeLink(index)}
-                          className="text-gray-500 hover:text-red-500 dark:text-gray-400 dark:hover:text-red-400 ml-2"
-                          aria-label={`Remove link to ${link}`}
-                        >
-                          <X className="w-4 h-4" />
-                        </button>
-                      </div>
-                    ))}
-                  </div>
-                )}
+                  )}
+                </FormField>
               </div>
-
-              <div className="col-span-1 sm:col-span-2">
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                  Attachments
-                </label>
-                <div className="flex items-center justify-center w-full">
-                  <label 
-                    htmlFor="file-upload" 
-                    className="w-full flex flex-col items-center justify-center px-4 py-4 bg-white dark:bg-gray-800 text-gray-500 rounded-xl border-2 border-dashed border-gray-300 dark:border-gray-600 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700/50"
-                    aria-label="Upload files - tap to select files"
-                  >
-                    <Upload className="w-6 h-6 text-gray-400 dark:text-gray-500" />
-                    <p className="mt-1 text-sm text-center">
-                      {isMobile() ? 
-                        'Tap to select files' : 
-                        'Drag & drop files here, or click to select files'}
-                    </p>
-                    <input 
-                      id="file-upload" 
-                      type="file" 
-                      className="hidden" 
-                      onChange={handleFileUpload} 
-                      multiple 
-                      accept="image/*,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/plain,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-                      aria-label="File upload"
-                    />
-                  </label>
-                </div>
-
-                {errors.files && (
-                  <p className="mt-1 text-xs text-red-500 flex items-center gap-1">
-                    <AlertCircle className="w-3 h-3" />
-                    {errors.files}
-                  </p>
-                )}
-
-                {fileUrls.length > 0 && (
-                  <div className="mt-2 space-y-2">
-                    {files.map((file, index) => (
-                      <div 
-                        key={index} 
-                        className="flex items-center justify-between py-2 px-3 bg-gray-50 dark:bg-gray-700 rounded-lg"
-                      >
-                        <div className="flex items-center gap-2 truncate max-w-[85%]">
-                          <span className="text-sm text-gray-700 dark:text-gray-300 truncate">{file.name}</span>
-                          <span className="text-xs text-gray-500">({(file.size / 1024).toFixed(1)} KB)</span>
-                        </div>
-                        <button
-                          type="button"
-                          onClick={() => removeFile(index)}
-                          className="text-gray-500 hover:text-red-500 dark:text-gray-400 dark:hover:text-red-400 ml-2"
-                          aria-label={`Remove ${file.name}`}
-                        >
-                          <X className="w-4 h-4" />
-                        </button>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            </>
           )}
         </div>
 
-        <div className="flex justify-end mt-4 sm:mt-6">
+        <div className="flex justify-end pt-2">
           <button
             type="submit"
             disabled={isSubmitting}
-            className={`px-5 py-2.5 bg-blue-600 text-white rounded-xl hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 shadow-sm text-sm sm:text-base font-medium ${
+            className={`px-6 py-3 bg-blue-600 text-white rounded-xl hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 shadow-sm text-sm sm:text-base font-medium transition-colors duration-150 ${
               isSubmitting ? 'opacity-70 cursor-not-allowed' : ''
             }`}
             aria-busy={isSubmitting}
           >
-            {isSubmitting ? 'Creating...' : 'Create Task'}
+            {isSubmitting ? 'Creating Task...' : 'Create Task'}
           </button>
         </div>
       </form>

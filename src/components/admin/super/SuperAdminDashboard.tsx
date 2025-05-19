@@ -247,12 +247,16 @@ export function SuperAdminDashboard() {
         const mockStats: AdminStats = {
           totalAdmins: admins.length,
           activeAdmins: admins.filter((a: AdminUser) => a.isActive).length,
+          disabledAdmins: admins.filter((a: AdminUser) => !a.isActive).length,
+          permissionChanges: Math.floor(Math.random() * 15) + 5, // Random number between 5-20
           departmentDistribution: generateDepartmentDistribution(admins),
           roleDistribution: generateRoleDistribution(admins),
           monthlyActivity: generateMonthlyActivity(),
           permissionUsage: generatePermissionUsage(admins),
           recentLogins: generateRecentLogins(admins),
-          mostActiveAdmins: generateMostActiveAdmins(admins)
+          mostActiveAdmins: generateMostActiveAdmins(admins),
+          // Create a record for AdminAnalytics department chart
+          adminsByDepartment: generateAdminsByDepartment(admins)
         };
         
         // Simulate network delay
@@ -330,51 +334,173 @@ export function SuperAdminDashboard() {
   }
 
   function generateMonthlyActivity() {
-    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun'];
-    return months.map(month => ({
-      month,
-      logins: Math.floor(Math.random() * 100) + 10,
-      actions: Math.floor(Math.random() * 200) + 50
-    }));
-  }
-
-  function generatePermissionUsage(admins: AdminUser[]) {
-    const permissions = ['viewUsers', 'editUsers', 'deleteUsers', 'viewSettings', 'editSettings', 'viewReports', 'exportData'];
+    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    const currentMonth = new Date().getMonth();
     
-    const permissionCounts = permissions.reduce((acc, permission) => {
-      acc[permission] = admins.filter(admin => 
-        admin.permissions && admin.permissions.includes(permission)
-      ).length;
-      return acc;
-    }, {} as Record<string, number>);
-    
-    return Object.entries(permissionCounts).map(([permission, count]) => ({
-      permission,
-      count
-    }));
-  }
-
-  function generateRecentLogins(admins: AdminUser[]) {
-    return admins.slice(0, 5).map((admin, index) => {
-      const daysAgo = index;
-      const date = new Date();
-      date.setDate(date.getDate() - daysAgo);
+    // Create a trend-based pattern (increasing activity over time with small variations)
+    return months.map((month, index) => {
+      // Create a base value that tends to grow over months
+      const baseLogins = 10 + Math.floor(index * 3.5);
+      const baseActions = 40 + Math.floor(index * 7);
+      
+      // Add randomness (±20%)
+      const randomFactorLogins = 0.8 + (Math.random() * 0.4); // 0.8 to 1.2
+      const randomFactorActions = 0.8 + (Math.random() * 0.4); // 0.8 to 1.2
+      
+      // Current month has more activity, past months have actual values
+      const monthIndex = months.indexOf(month);
+      const isCurrentMonth = monthIndex === currentMonth;
+      const isPastMonth = monthIndex < currentMonth;
+      
+      let logins = Math.floor(baseLogins * randomFactorLogins);
+      let actions = Math.floor(baseActions * randomFactorActions);
+      
+      // Current month has approximately 2/3 of expected activity (since month isn't over)
+      if (isCurrentMonth) {
+        logins = Math.floor(logins * 0.7);
+        actions = Math.floor(actions * 0.7);
+      }
+      
+      // Future months have no data yet
+      if (!isPastMonth && !isCurrentMonth) {
+        logins = 0;
+        actions = 0;
+      }
       
       return {
-        adminId: admin.id,
-        adminName: admin.username,
-        timestamp: date.toISOString(),
-        ipAddress: `192.168.1.${Math.floor(Math.random() * 255)}`
+        month,
+        logins,
+        actions
       };
     });
   }
 
+  function generatePermissionUsage(admins: AdminUser[]) {
+    // Define common permissions to track
+    const permissions = [
+      'User Management', 
+      'Course Management', 
+      'Announcement Management', 
+      'Teacher Management', 
+      'Routine Management', 
+      'Task Management', 
+      'Report Viewing', 
+      'Settings Management'
+    ];
+    
+    // Map the permissions to actual database permissions structure
+    const permissionMapping: Record<string, string[]> = {
+      'User Management': ['viewUsers', 'createUsers', 'editUsers', 'deleteUsers'],
+      'Course Management': ['viewCourses', 'createCourses', 'editCourses', 'deleteCourses'],
+      'Announcement Management': ['viewAnnouncements', 'createAnnouncements', 'editAnnouncements'],
+      'Teacher Management': ['viewTeachers', 'assignTeachers', 'editTeachers'],
+      'Routine Management': ['viewRoutine', 'createRoutine', 'editRoutine'],
+      'Task Management': ['viewTasks', 'createTasks', 'editTasks', 'deleteTasks', 'assignTasks'],
+      'Report Viewing': ['viewReports', 'exportData', 'analyzeData'],
+      'Settings Management': ['viewSettings', 'editSettings', 'manageSecuritySettings']
+    };
+    
+    // Calculate usage for each permission category
+    return permissions.map(permission => {
+      // Get the actual permission keys for this category
+      const permissionKeys = permissionMapping[permission] || [];
+      
+      // Count how many admins have at least one of the permissions in this category
+      let count = 0;
+      if (permissionKeys.length > 0) {
+        count = admins.filter(admin => {
+          if (!admin.permissions) return false;
+          return permissionKeys.some(key => admin.permissions?.includes(key));
+        }).length;
+      } else {
+        // Fallback for custom permissions - assign a weighted random value based on admin count
+        count = Math.floor((Math.random() * 0.7 + 0.3) * admins.length);
+      }
+      
+      return {
+        permission,
+        count
+      };
+    });
+  }
+
+  function generateRecentLogins(admins: AdminUser[]) {
+    // Get only active admins for login simulation
+    const activeAdmins = admins.filter(admin => admin.isActive);
+    if (activeAdmins.length === 0) return [];
+    
+    // Create login entries with realistic timestamps
+    const loginEntries = [];
+    const now = new Date();
+    
+    // Generate 10 recent login entries
+    for (let i = 0; i < Math.min(10, activeAdmins.length * 2); i++) {
+      // Select a random admin from active admins
+      const admin = activeAdmins[Math.floor(Math.random() * activeAdmins.length)];
+      
+      // Create a random timestamp within the last 48 hours
+      const minutesAgo = Math.floor(Math.random() * 48 * 60); // Up to 48 hours ago
+      const loginTime = new Date(now.getTime() - minutesAgo * 60 * 1000);
+      
+      // Generate realistic IP address
+      const ip1 = Math.floor(Math.random() * 255);
+      const ip2 = Math.floor(Math.random() * 255);
+      const ip3 = Math.floor(Math.random() * 255);
+      const ip4 = Math.floor(Math.random() * 255);
+      const ipAddress = `${ip1}.${ip2}.${ip3}.${ip4}`;
+      
+      loginEntries.push({
+        id: `login_${i}_${admin.id.substring(0, 5)}`,
+        adminId: admin.id,
+        adminName: admin.username,
+        timestamp: loginTime.toISOString(),
+        ipAddress
+      });
+    }
+    
+    // Sort by timestamp (most recent first) and return top 5
+    return loginEntries
+      .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
+      .slice(0, 5);
+  }
+
   function generateMostActiveAdmins(admins: AdminUser[]) {
-    return admins.slice(0, 5).map(admin => ({
-      adminId: admin.id,
-      adminName: admin.username,
-      actionsCount: Math.floor(Math.random() * 100) + 10
-    }));
+    // Create a weighted activity score for each admin
+    // Factors: active status (active admins have more actions), time since last login
+    const activeAdmins = admins.map(admin => {
+      // Base activity count - random value between 10-50
+      let baseActivityCount = Math.floor(Math.random() * 40) + 10;
+      
+      // Increase count for active admins
+      if (admin.isActive) {
+        baseActivityCount *= 1.5;
+      }
+      
+      // Adjust based on last login (more recent = more activity)
+      if (admin.lastLogin) {
+        const lastLoginDate = new Date(admin.lastLogin);
+        const now = new Date();
+        const daysSinceLogin = Math.floor((now.getTime() - lastLoginDate.getTime()) / (1000 * 60 * 60 * 24));
+        
+        // More recent logins mean more activity
+        if (daysSinceLogin < 7) {
+          baseActivityCount *= 1.3;
+        } else if (daysSinceLogin > 30) {
+          baseActivityCount *= 0.7;
+        }
+      }
+      
+      return {
+        adminId: admin.id,
+        adminName: admin.username,
+        actionsCount: Math.floor(baseActivityCount)
+      };
+    });
+    
+    // Sort by activity count (highest first) and return top 5
+    return activeAdmins
+      .sort((a, b) => b.actionsCount - a.actionsCount)
+      .slice(0, 5);
   }
 
   function generateAdminLogs(admins: AdminUser[]): AdminLog[] {
@@ -431,6 +557,17 @@ export function SuperAdminDashboard() {
     return logs.sort((a, b) => 
       new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
     );
+  }
+
+  // Generate a record of departments for AdminAnalytics 
+  function generateAdminsByDepartment(admins: AdminUser[]) {
+    const deptMap = admins.reduce((acc, admin) => {
+      const dept = admin.department || 'Unassigned';
+      acc[dept] = (acc[dept] || 0) + 1;
+      return acc;
+    }, {} as Record<string, number>);
+    
+    return deptMap;
   }
 
   const toggleSidebar = () => {

@@ -790,7 +790,7 @@ const MonthlyCalendarBase = ({ isOpen, onClose, selectedDate, onSelectDate, task
           animate="visible"
           exit="exit"
           transition={transitionProps}
-          className="fixed inset-0 z-50 flex items-center justify-center p-0 sm:p-4 bg-black/30"
+          className="fixed inset-0 z-50 flex items-center justify-center p-0 sm:p-4 bg-black/30 backdrop-blur-sm"
           style={{ 
             willChange: 'opacity',
             backfaceVisibility: 'hidden'

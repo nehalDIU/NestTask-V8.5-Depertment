@@ -446,8 +446,12 @@ export function TaskForm({ onSubmit, sectionId, isSectionAdmin = false }: TaskFo
         
         // Add additional flag for section admin mobile uploads
         if (isSectionAdmin && sectionId) {
+          console.log('[Debug] Setting section admin mobile flags:', { isSectionAdmin, sectionId });
           (finalTask as any)._isSectionAdminMobile = true;
           (finalTask as any)._sectionId = sectionId;
+          
+          // Also set the sectionId in the standard location to ensure it's used
+          finalTask.sectionId = sectionId;
         }
         
         // Add timestamp to prevent caching issues on mobile

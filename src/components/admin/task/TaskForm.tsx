@@ -138,7 +138,7 @@ const FormField = ({
     </label>
     {children}
     {error && (
-      <p id={`${id}-error`} className="mt-1 text-xs text-red-500 flex items-center gap-1">
+      <p id={`${id}-error`} className="mt-1 text-xs text-red-500 flex items-center gap-1" role="alert">
         <AlertCircle className="w-3 h-3" />
         {error}
       </p>
@@ -184,7 +184,7 @@ const FileItem = ({ file, onRemove }: { file: File; onRemove: () => void }) => (
     <button
       type="button"
       onClick={onRemove}
-      className="text-gray-500 hover:text-red-500 dark:text-gray-400 dark:hover:text-red-400 ml-2 p-1 rounded-full hover:bg-gray-200 dark:hover:bg-gray-600"
+      className="text-gray-500 hover:text-red-500 dark:text-gray-400 dark:hover:text-red-400 ml-2 p-1 rounded-full hover:bg-gray-200 dark:hover:bg-gray-600 touch-manipulation"
       aria-label={`Remove ${file.name}`}
     >
       <X className="w-4 h-4" />
@@ -211,6 +211,7 @@ export function TaskForm({ onSubmit, sectionId, isSectionAdmin = false }: TaskFo
   const submissionTimeoutRef = useRef<NodeJS.Timeout>();
   const isMounted = useRef(true);
   const abortControllerRef = useRef<AbortController>();
+  const dateInputRef = useRef<HTMLInputElement>(null);
   
   useEffect(() => {
     // Set mounted flag
@@ -238,6 +239,20 @@ export function TaskForm({ onSubmit, sectionId, isSectionAdmin = false }: TaskFo
   const isMobile = useCallback(() => {
     return /iPhone|iPad|iPod|Android|webOS|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) || window.innerWidth < 768;
   }, []);
+
+  // Fix date input display for better mobile compatibility
+  useEffect(() => {
+    if (isMobile() && dateInputRef.current) {
+      // Add specific behavior for iOS date inputs
+      const dateInput = dateInputRef.current;
+      dateInput.addEventListener('focus', () => {
+        dateInput.classList.add('mobile-date-focused');
+      });
+      dateInput.addEventListener('blur', () => {
+        dateInput.classList.remove('mobile-date-focused');
+      });
+    }
+  }, [isMobile]);
 
   // Validation function - memoized for performance
   const validate = useCallback((): boolean => {
@@ -312,12 +327,17 @@ export function TaskForm({ onSubmit, sectionId, isSectionAdmin = false }: TaskFo
     
     if (isDeviceMobile) {
       // On mobile, create placeholder URLs for display only
-      const displayUrls = newFiles.map(file => `placeholder-${file.name}`);
+      const displayUrls = newFiles.map(file => `placeholder-${file.name}-${Date.now()}`);
       dispatch({ type: 'ADD_FILES', newFiles, newUrls: displayUrls });
     } else {
       // Desktop flow - use object URLs
       const newUrls = newFiles.map(file => URL.createObjectURL(file));
       dispatch({ type: 'ADD_FILES', newFiles, newUrls });
+    }
+    
+    // Clear any previous errors
+    if (errors.files) {
+      dispatch({ type: 'CLEAR_ERROR', field: 'files' });
     }
   }, [errors, isMobile]);
   
@@ -429,6 +449,9 @@ export function TaskForm({ onSubmit, sectionId, isSectionAdmin = false }: TaskFo
           (finalTask as any)._isSectionAdminMobile = true;
           (finalTask as any)._sectionId = sectionId;
         }
+        
+        // Add timestamp to prevent caching issues on mobile
+        (finalTask as any)._mobileTimestamp = Date.now();
       }
       
       // Submit the task
@@ -509,11 +532,12 @@ export function TaskForm({ onSubmit, sectionId, isSectionAdmin = false }: TaskFo
                   onChange={handleChange}
                   className={`w-full pl-10 pr-4 py-3 border ${
                     errors.name ? 'border-red-500 dark:border-red-500' : 'border-gray-300 dark:border-gray-600'
-                  } rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white text-sm sm:text-base`}
+                  } rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white text-sm sm:text-base touch-manipulation`}
                   placeholder="Enter task name"
                   aria-required="true"
                   aria-invalid={!!errors.name}
                   aria-describedby={errors.name ? "name-error" : undefined}
+                  autoComplete="off"
                 />
               </div>
             </FormField>
@@ -530,7 +554,7 @@ export function TaskForm({ onSubmit, sectionId, isSectionAdmin = false }: TaskFo
                   name="category"
                   value={taskDetails.category}
                   onChange={handleChange}
-                  className="w-full pl-10 pr-4 py-3 border border-gray-300 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white appearance-none text-sm sm:text-base"
+                  className="w-full pl-10 pr-4 py-3 border border-gray-300 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white appearance-none text-sm sm:text-base touch-manipulation"
                 >
                   <option value="task">Task</option>
                   <option value="assignment">Assignment</option>
@@ -561,12 +585,13 @@ export function TaskForm({ onSubmit, sectionId, isSectionAdmin = false }: TaskFo
                   type="date"
                   id="dueDate"
                   name="dueDate"
+                  ref={dateInputRef}
                   value={taskDetails.dueDate}
                   onChange={handleChange}
                   min={getMinDate()}
                   className={`w-full pl-10 pr-4 py-3 border ${
                     errors.dueDate ? 'border-red-500 dark:border-red-500' : 'border-gray-300 dark:border-gray-600'
-                  } rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white text-sm sm:text-base`}
+                  } rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white text-sm sm:text-base touch-manipulation mobile-date-input`}
                   aria-required="true"
                   aria-invalid={!!errors.dueDate}
                   aria-describedby={errors.dueDate ? "dueDate-error" : undefined}
@@ -589,7 +614,7 @@ export function TaskForm({ onSubmit, sectionId, isSectionAdmin = false }: TaskFo
                   rows={4}
                   className={`w-full pl-10 pr-4 py-2 border ${
                     errors.description ? 'border-red-500 dark:border-red-500' : 'border-gray-300 dark:border-gray-600'
-                  } rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white text-sm sm:text-base`}
+                  } rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white text-sm sm:text-base touch-manipulation`}
                   placeholder="Enter task description"
                   aria-required="true"
                   aria-invalid={!!errors.description}
@@ -604,7 +629,7 @@ export function TaskForm({ onSubmit, sectionId, isSectionAdmin = false }: TaskFo
               <div className="flex items-center justify-center w-full">
                 <label 
                   htmlFor="file-upload" 
-                  className="w-full flex flex-col items-center justify-center px-4 py-5 bg-white dark:bg-gray-800 text-gray-500 rounded-xl border-2 border-dashed border-gray-300 dark:border-gray-600 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors duration-150"
+                  className="w-full flex flex-col items-center justify-center px-4 py-5 bg-white dark:bg-gray-800 text-gray-500 rounded-xl border-2 border-dashed border-gray-300 dark:border-gray-600 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors duration-150 touch-manipulation"
                   aria-label="Upload files - tap to select files"
                 >
                   <Upload className="w-7 h-7 text-blue-500 dark:text-blue-400 mb-2" />
@@ -632,7 +657,7 @@ export function TaskForm({ onSubmit, sectionId, isSectionAdmin = false }: TaskFo
                 <div className="mt-3 space-y-2 max-h-40 overflow-y-auto pr-1">
                   {files.map((file, index) => (
                     <FileItem 
-                      key={index} 
+                      key={`${file.name}-${index}`}
                       file={file} 
                       onRemove={() => removeFile(index)} 
                     />
@@ -647,7 +672,7 @@ export function TaskForm({ onSubmit, sectionId, isSectionAdmin = false }: TaskFo
           <button
             type="submit"
             disabled={isSubmitting}
-            className={`px-6 py-3 bg-blue-600 text-white rounded-xl hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 shadow-sm text-sm sm:text-base font-medium transition-colors duration-150 ${
+            className={`w-full sm:w-auto px-6 py-3 bg-blue-600 text-white rounded-xl hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 shadow-sm text-sm sm:text-base font-medium transition-colors duration-150 touch-manipulation ${
               isSubmitting ? 'opacity-70 cursor-not-allowed' : ''
             }`}
             aria-busy={isSubmitting}

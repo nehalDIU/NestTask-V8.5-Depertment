@@ -28,8 +28,10 @@ export const SideNavLink = React.memo(function SideNavLink({
             ? 'bg-blue-50 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400' 
             : 'text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800'
           }
+          focus:outline-none focus:ring-1 focus:ring-blue-500 dark:focus:ring-blue-400 focus:ring-opacity-50
         `}
         title={label}
+        aria-label={label}
       >
         <Icon className={`w-5 h-5 ${isActive ? 'text-blue-600 dark:text-blue-400' : ''}`} />
         
@@ -40,6 +42,7 @@ export const SideNavLink = React.memo(function SideNavLink({
               ? 'bg-blue-600 text-white' 
               : 'bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300'
             }
+            transform -translate-y-1 translate-x-1
           `}>
             {badge > 99 ? '99+' : badge}
           </span>
@@ -52,12 +55,14 @@ export const SideNavLink = React.memo(function SideNavLink({
     <button
       onClick={onClick}
       className={`
-        w-full flex items-center justify-between rounded-lg py-2 px-3 transition-all duration-200 will-change-transform
+        w-full flex items-center justify-between rounded-lg py-2.5 px-3 transition-all duration-200 will-change-transform
         ${isActive 
           ? 'bg-blue-50 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400' 
           : 'text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800'
         }
+        focus:outline-none focus:ring-1 focus:ring-blue-500 dark:focus:ring-blue-400 focus:ring-opacity-50
       `}
+      aria-label={label}
     >
       <div className="flex items-center gap-3">
         <Icon className={`w-5 h-5 ${isActive ? 'text-blue-600 dark:text-blue-400' : ''}`} />

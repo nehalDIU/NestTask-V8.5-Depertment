@@ -151,6 +151,10 @@ export const createTask = async (
     const explicitSectionId = (task as any)._sectionId || sectionId;
     
     if (isMobileUpload) {
+<<<<<<< HEAD
+=======
+<<<<<<< HEAD
+>>>>>>> 23c6c904e3b798d21a2c2861f9979a7777bbe59e
       console.log('[Debug] Uploading mobile files', mobileFiles.map(f => ({name: f.name, size: f.size})));
       console.log('[Debug] Mobile upload details:', {
         isSectionAdminMobile,
@@ -159,6 +163,15 @@ export const createTask = async (
         userSectionId,
         mobileFileCount: mobileFiles.length
       });
+<<<<<<< HEAD
+=======
+=======
+      console.log('[Debug] Processing mobile file upload with', mobileFiles.length, 'files');
+      if (isSectionAdminMobile) {
+        console.log('[Debug] This is a section admin mobile upload with section ID:', explicitSectionId);
+      }
+>>>>>>> 3ed3bbd5c0c01ccf7d5b7060b9a9562d943d6cf2
+>>>>>>> 23c6c904e3b798d21a2c2861f9979a7777bbe59e
     }
     
     let description = task.description;
@@ -167,6 +180,10 @@ export const createTask = async (
     if (isMobileUpload) {
       try {
         console.log('[Debug] Uploading mobile files', mobileFiles.map(f => ({name: f.name, size: f.size})));
+<<<<<<< HEAD
+=======
+<<<<<<< HEAD
+>>>>>>> 23c6c904e3b798d21a2c2861f9979a7777bbe59e
         console.log('[Debug] Mobile upload details:', {
           isSectionAdminMobile,
           explicitSectionId,
@@ -174,6 +191,11 @@ export const createTask = async (
           userSectionId,
           mobileFileCount: mobileFiles.length
         });
+<<<<<<< HEAD
+=======
+=======
+>>>>>>> 3ed3bbd5c0c01ccf7d5b7060b9a9562d943d6cf2
+>>>>>>> 23c6c904e3b798d21a2c2861f9979a7777bbe59e
         
         // Wrap file upload in a promise with timeout
         const uploadFileWithTimeout = async (file: File, timeoutMs = 15000): Promise<string> => {
@@ -223,9 +245,19 @@ export const createTask = async (
             }
             
             if (!permanentUrl) {
+<<<<<<< HEAD
               console.error(`[Error] All attempts to upload file ${file.name} failed`);
               // Don't throw here, continue with other files
               continue;
+=======
+<<<<<<< HEAD
+              console.error(`[Error] All attempts to upload file ${file.name} failed`);
+              // Don't throw here, continue with other files
+              continue;
+=======
+              throw lastError || new Error(`Failed to upload file after 3 attempts: ${file.name}`);
+>>>>>>> 3ed3bbd5c0c01ccf7d5b7060b9a9562d943d6cf2
+>>>>>>> 23c6c904e3b798d21a2c2861f9979a7777bbe59e
             }
             
             // Update description to replace attachment references with permanent URLs
@@ -259,7 +291,14 @@ export const createTask = async (
             console.log('[Debug] Replaced attachment reference with permanent URL');
           } catch (fileError) {
             console.error('[Error] Failed to upload mobile file:', file.name, fileError);
+<<<<<<< HEAD
             // Don't throw here, continue with other files
+=======
+<<<<<<< HEAD
+            // Don't throw here, continue with other files
+=======
+>>>>>>> 3ed3bbd5c0c01ccf7d5b7060b9a9562d943d6cf2
+>>>>>>> 23c6c904e3b798d21a2c2861f9979a7777bbe59e
           }
         }
         
@@ -267,11 +306,20 @@ export const createTask = async (
         description = description.replace(/\n<!-- mobile-uploads -->\n/g, '');
       } catch (mobileUploadError) {
         console.error('[Error] Mobile file upload process failed:', mobileUploadError);
+<<<<<<< HEAD
+=======
+<<<<<<< HEAD
+>>>>>>> 23c6c904e3b798d21a2c2861f9979a7777bbe59e
         // Add a note to the description that file uploads failed
         description += '\n\n**Note: Some file uploads failed. Please try again or contact support.**';
         
         // Continue with task creation despite file upload errors
         console.log('[Debug] Continuing with task creation despite file upload errors');
+<<<<<<< HEAD
+=======
+=======
+>>>>>>> 3ed3bbd5c0c01ccf7d5b7060b9a9562d943d6cf2
+>>>>>>> 23c6c904e3b798d21a2c2861f9979a7777bbe59e
       }
     } else {
       // Standard desktop file processing
@@ -351,6 +399,10 @@ export const createTask = async (
     };
 
     // Determine correct section_id based on role and available data
+<<<<<<< HEAD
+=======
+<<<<<<< HEAD
+>>>>>>> 23c6c904e3b798d21a2c2861f9979a7777bbe59e
     // First check for explicit section ID from mobile section admin
     if (isSectionAdminMobile && explicitSectionId) {
       taskInsertData.section_id = explicitSectionId;
@@ -363,6 +415,13 @@ export const createTask = async (
     }
     // Section admin: Always set section_id to their section
     else if ((userRole === 'section_admin' || userRole === 'section-admin') && userSectionId) {
+<<<<<<< HEAD
+=======
+=======
+    // Section admin: Always set section_id to their section
+    if ((userRole === 'section_admin' || userRole === 'section-admin') && userSectionId) {
+>>>>>>> 3ed3bbd5c0c01ccf7d5b7060b9a9562d943d6cf2
+>>>>>>> 23c6c904e3b798d21a2c2861f9979a7777bbe59e
       taskInsertData.section_id = userSectionId;
       console.log('[Debug] Section admin creating task for section:', userSectionId);
       
@@ -382,6 +441,10 @@ export const createTask = async (
       console.log('[Debug] Regular user creating task for their section:', userSectionId);
     }
 
+<<<<<<< HEAD
+=======
+<<<<<<< HEAD
+>>>>>>> 23c6c904e3b798d21a2c2861f9979a7777bbe59e
     // Special handling for section admin task creation on mobile
     // This is a fallback in case the section ID wasn't properly set above
     if (isSectionAdminMobile && !taskInsertData.section_id && (task as any)._sectionId) {
@@ -389,6 +452,11 @@ export const createTask = async (
       console.log('[Debug] Using fallback section ID for mobile section admin task:', taskInsertData.section_id);
     }
 
+<<<<<<< HEAD
+=======
+=======
+>>>>>>> 3ed3bbd5c0c01ccf7d5b7060b9a9562d943d6cf2
+>>>>>>> 23c6c904e3b798d21a2c2861f9979a7777bbe59e
     console.log('[Debug] Final task insert data:', taskInsertData);
 
     const { data, error } = await supabase
@@ -544,3 +612,5 @@ export async function deleteTask(taskId: string) {
     throw new Error(error.message || 'Failed to delete task');
   }
 }
+
+// just com

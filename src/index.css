@@ -350,6 +350,50 @@
   }
 }
 
+/* Mobile task form improvements */
+.mobile-date-input {
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  appearance: none;
+}
+
+.mobile-date-focused {
+  font-size: 16px !important; /* Prevents iOS zoom on focus */
+}
+
+/* Fix for iOS to prevent zoom */
+@media screen and (max-width: 767px) {
+  input[type="text"],
+  input[type="date"],
+  input[type="email"],
+  input[type="password"],
+  input[type="number"],
+  select,
+  textarea {
+    font-size: 16px !important; /* Prevents iOS zoom on focus */
+  }
+  
+  /* Improve tap target sizes on mobile */
+  button, 
+  .touch-manipulation,
+  [role="button"],
+  input[type="submit"] {
+    min-height: 44px;
+    min-width: 44px;
+  }
+  
+  /* Make file upload area easier to tap */
+  label[for="file-upload"] {
+    min-height: 100px;
+  }
+
+  /* Improve file list scrolling on mobile */
+  .max-h-40.overflow-y-auto {
+    -webkit-overflow-scrolling: touch;
+    padding-bottom: 8px;
+  }
+}
+
 /* Custom animations for modals and mobile interactions */
 @layer utilities {
   /* Fade In animation */
@@ -383,6 +427,7 @@
   /* Touch manipulation for better mobile touch response */
   .touch-manipulation {
     touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
   }
 }
 

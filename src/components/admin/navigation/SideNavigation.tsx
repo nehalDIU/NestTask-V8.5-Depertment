@@ -31,6 +31,7 @@ export const SideNavigation = React.memo(function SideNavigation({
   const [isCollapsed, setIsCollapsed] = useState(false);
   const { isDark, toggle } = useTheme();
   const [currentTime, setCurrentTime] = useState('');
+  const [showProfileMenu, setShowProfileMenu] = useState(false);
 
   useEffect(() => {
     // Update time
@@ -43,6 +44,21 @@ export const SideNavigation = React.memo(function SideNavigation({
     const interval = setInterval(updateTime, 60000);
     return () => clearInterval(interval);
   }, []);
+
+  // Close profile menu when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      const target = event.target as HTMLElement;
+      if (showProfileMenu && !target.closest('.profile-menu-container')) {
+        setShowProfileMenu(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [showProfileMenu]);
 
   // Memoize navigation items to prevent rerenders
   const mainNavItems = useMemo(() => [
@@ -72,6 +88,8 @@ export const SideNavigation = React.memo(function SideNavigation({
 
   const toggleMobileMenu = useCallback(() => {
     setIsMobileMenuOpen(prev => !prev);
+    // Close profile menu when mobile menu is toggled
+    setShowProfileMenu(false);
   }, []);
 
   const closeMobileMenu = useCallback(() => {
@@ -81,6 +99,7 @@ export const SideNavigation = React.memo(function SideNavigation({
   const handleNavigation = useCallback((tab: AdminTab) => {
     onTabChange(tab);
     setIsMobileMenuOpen(false);
+    setShowProfileMenu(false);
   }, [onTabChange]);
 
   const toggleCollapse = useCallback(() => {
@@ -92,6 +111,8 @@ export const SideNavigation = React.memo(function SideNavigation({
       }
       return newState;
     });
+    // Close profile menu when sidebar is collapsed/expanded
+    setShowProfileMenu(false);
   }, [onCollapse]);
 
   const handleThemeToggle = useCallback(() => {
@@ -101,11 +122,21 @@ export const SideNavigation = React.memo(function SideNavigation({
   const handleRefreshRole = useCallback(async () => {
     try {
       await refreshUserRole();
+      showSuccessToast('Role refreshed successfully');
     } catch (error) {
       console.error('Error refreshing role:', error);
       showErrorToast('Failed to refresh role');
     }
   }, []);
+
+  const toggleProfileMenu = useCallback(() => {
+    setShowProfileMenu(prev => !prev);
+  }, []);
+
+  const handleLogout = useCallback(() => {
+    setShowProfileMenu(false);
+    onLogout();
+  }, [onLogout]);
 
   return (
     <>
@@ -120,7 +151,7 @@ export const SideNavigation = React.memo(function SideNavigation({
 
       <aside className={`
         fixed left-0 top-0 h-full bg-white dark:bg-gray-900 border-r border-gray-100 dark:border-gray-800
-        transform transition-all duration-300 ease-in-out z-40 shadow-sm will-change-transform
+        transform transition-all duration-300 ease-in-out z-40 shadow-md will-change-transform
         ${isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full'}
         ${isCollapsed ? 'w-20' : 'w-64'}
         lg:translate-x-0
@@ -130,27 +161,28 @@ export const SideNavigation = React.memo(function SideNavigation({
           <div className={`p-4 border-b border-gray-100 dark:border-gray-800 flex ${isCollapsed ? 'justify-center' : 'justify-between'} items-center`}>
             {!isCollapsed && (
               <div className="flex items-center gap-2.5">
-                <div className="w-8 h-8 rounded-lg bg-blue-600 flex items-center justify-center">
-                  <Settings className="w-4 h-4 text-white" />
+                <div className="w-9 h-9 rounded-lg bg-gradient-to-br from-blue-600 to-indigo-700 flex items-center justify-center shadow-sm">
+                  <Settings className="w-4.5 h-4.5 text-white" />
                 </div>
                 <div>
-                  <h1 className="text-base font-bold text-gray-900 dark:text-white">TaskMon</h1>
-                  <p className="text-xs text-gray-500 dark:text-gray-400">Admin Panel</p>
+                  <h1 className="text-base font-bold text-gray-900 dark:text-white">NestTask</h1>
+                  <p className="text-xs text-gray-500 dark:text-gray-400">{isSectionAdmin ? "Section Admin" : "Admin Panel"}</p>
                 </div>
               </div>
             )}
             
             {isCollapsed && (
-              <div className="w-10 h-10 rounded-xl bg-blue-600 flex items-center justify-center">
+              <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-600 to-indigo-700 flex items-center justify-center shadow-sm">
                 <Settings className="w-5 h-5 text-white" />
               </div>
             )}
             
             <button 
               onClick={toggleCollapse} 
-              className={`${isCollapsed ? 'hidden lg:flex' : 'hidden lg:flex'} items-center justify-center w-7 h-7 rounded-full bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors`}
+              className={`hidden lg:flex items-center justify-center w-8 h-8 rounded-full bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors`}
+              aria-label={isCollapsed ? "Expand sidebar" : "Collapse sidebar"}
             >
-              <ChevronLeft className={`w-4 h-4 text-gray-500 dark:text-gray-400 transition-transform ${isCollapsed ? 'rotate-180' : ''}`} />
+              <ChevronLeft className={`w-4 h-4 text-gray-600 dark:text-gray-400 transition-transform ${isCollapsed ? 'rotate-180' : ''}`} />
             </button>
           </div>
 
@@ -200,7 +232,7 @@ export const SideNavigation = React.memo(function SideNavigation({
             {!isCollapsed && (
               <div className="mt-6 mx-2">
                 <button 
-                  className="w-full flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 text-white py-2 px-4 rounded-lg text-sm font-medium transition-colors"
+                  className="w-full flex items-center justify-center gap-2 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white py-2.5 px-4 rounded-lg text-sm font-medium transition-colors shadow-sm"
                   onClick={() => handleNavigation('tasks')}
                 >
                   <Plus className="w-4 h-4" />
@@ -212,8 +244,9 @@ export const SideNavigation = React.memo(function SideNavigation({
             {isCollapsed && (
               <div className="mt-6 flex justify-center">
                 <button 
-                  className="w-10 h-10 flex items-center justify-center bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors"
+                  className="w-10 h-10 flex items-center justify-center bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white rounded-lg transition-colors shadow-sm"
                   onClick={() => handleNavigation('tasks')}
+                  aria-label="Create Task"
                 >
                   <Plus className="w-5 h-5" />
                 </button>
@@ -221,55 +254,75 @@ export const SideNavigation = React.memo(function SideNavigation({
             )}
           </div>
 
-          {/* Footer */}
-          <div className="p-3 border-t border-gray-100 dark:border-gray-800">
-            <div className="flex items-center justify-between">
-              {!isCollapsed && (
-                <div className="flex items-center gap-2">
-                  <div className="w-8 h-8 rounded-full bg-gray-200 dark:bg-gray-700 flex items-center justify-center overflow-hidden">
-                    <User className="w-4 h-4 text-gray-500 dark:text-gray-400" />
+          {/* Footer with improved profile section */}
+          <div className="p-3 border-t border-gray-100 dark:border-gray-800 relative profile-menu-container">
+            {!isCollapsed ? (
+              <div className="flex items-center justify-between">
+                <button 
+                  onClick={toggleProfileMenu}
+                  className="flex items-center gap-2.5 p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors w-full"
+                >
+                  <div className="w-9 h-9 rounded-full bg-gradient-to-br from-gray-200 to-gray-300 dark:from-gray-700 dark:to-gray-800 flex items-center justify-center overflow-hidden shadow-sm">
+                    <User className="w-4.5 h-4.5 text-gray-600 dark:text-gray-400" />
                   </div>
-                  <div className="flex flex-col">
-                    <span className="text-xs font-medium text-gray-900 dark:text-white">Admin User</span>
-                    <span className="text-xs text-gray-500 dark:text-gray-400">admin@example.com</span>
+                  <div className="flex flex-col items-start flex-1 min-w-0">
+                    <span className="text-sm font-medium text-gray-900 dark:text-white truncate w-full">Admin User</span>
+                    <span className="text-xs text-gray-500 dark:text-gray-400 truncate w-full">admin@example.com</span>
                   </div>
+                  <ChevronLeft className={`w-4 h-4 text-gray-500 dark:text-gray-400 transition-transform rotate-90 ${showProfileMenu ? 'rotate-[270deg]' : ''}`} />
+                </button>
+              </div>
+            ) : (
+              <button 
+                onClick={toggleProfileMenu}
+                className="w-full flex justify-center"
+              >
+                <div className="w-10 h-10 rounded-full bg-gradient-to-br from-gray-200 to-gray-300 dark:from-gray-700 dark:to-gray-800 flex items-center justify-center overflow-hidden shadow-sm">
+                  <User className="w-5 h-5 text-gray-600 dark:text-gray-400" />
                 </div>
-              )}
-              
-              {isCollapsed && (
-                <div className="w-10 h-10 mx-auto rounded-full bg-gray-200 dark:bg-gray-700 flex items-center justify-center overflow-hidden">
-                  <User className="w-5 h-5 text-gray-500 dark:text-gray-400" />
+              </button>
+            )}
+
+            {/* Dropdown menu for profile actions */}
+            {showProfileMenu && (
+              <div className={`
+                absolute bottom-full left-0 mb-2 w-64 bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-100 dark:border-gray-700 py-2 z-50
+                ${isCollapsed ? 'left-full ml-2 bottom-auto top-0' : ''}
+              `}>
+                <div className="px-4 py-2 border-b border-gray-100 dark:border-gray-700">
+                  <p className="text-sm font-medium text-gray-900 dark:text-white">Admin User</p>
+                  <p className="text-xs text-gray-500 dark:text-gray-400">admin@example.com</p>
                 </div>
-              )}
-              
-              {!isCollapsed && (
-                <div className="flex items-center gap-1.5">
-                  <button
+                
+                <div className="py-1">
+                  <button 
+                    className="w-full flex items-center gap-3 px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"
                     onClick={handleThemeToggle}
-                    className="p-1.5 rounded-lg text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
-                    title="Toggle Theme"
                   >
                     {isDark ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
+                    <span>{isDark ? 'Light Mode' : 'Dark Mode'}</span>
                   </button>
                   
-                  <button
+                  <button 
+                    className="w-full flex items-center gap-3 px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"
                     onClick={handleRefreshRole}
-                    className="p-1.5 rounded-lg text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
-                    title="Refresh Role"
                   >
                     <RefreshCcw className="w-4 h-4" />
+                    <span>Refresh Role</span>
                   </button>
                   
-                  <button
-                    onClick={onLogout}
-                    className="p-1.5 rounded-lg text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
-                    title="Logout"
+                  <div className="border-t border-gray-100 dark:border-gray-700 my-1"></div>
+                  
+                  <button 
+                    className="w-full flex items-center gap-3 px-4 py-2 text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20"
+                    onClick={handleLogout}
                   >
                     <LogOut className="w-4 h-4" />
+                    <span>Logout</span>
                   </button>
                 </div>
-              )}
-            </div>
+              </div>
+            )}
           </div>
         </div>
       </aside>

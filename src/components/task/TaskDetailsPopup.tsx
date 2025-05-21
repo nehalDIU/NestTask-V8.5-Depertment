@@ -118,11 +118,9 @@ export function TaskDetailsPopup({
     // Format the task information
     const formattedDate = new Date(task.dueDate).toLocaleDateString('en-US', {
       year: 'numeric',
-      month: 'long',
+      month: 'short',
       day: 'numeric'
     });
-    
-    const taskUrl = `${window.location.origin}/task/${task.id}`;
     
     const formattedTask = `
 📋 TASK: ${task.name}
@@ -132,7 +130,7 @@ ${task.isAdminTask ? '👑 Admin Task\n' : ''}
 📝 Description:
 ${regularDescription}
 
-🔗 View Task: ${taskUrl}
+🌐 View: https://nesttask.vercel.app/
 `;
 
     // Copy to clipboard
@@ -255,14 +253,14 @@ ${regularDescription}
             </div>
             
             {/* Close Button */}
-            <button
-              onClick={onClose}
-              disabled={isUpdating}
+          <button
+            onClick={onClose}
+            disabled={isUpdating}
               className="p-1.5 sm:p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-opacity-50 active:bg-gray-200 dark:active:bg-gray-600 touch-manipulation"
               aria-label="Close task details"
-            >
+          >
               <X className="w-[18px] h-[18px] sm:w-5 sm:h-5 text-gray-500 dark:text-gray-400" />
-            </button>
+          </button>
           </div>
         </div>
 

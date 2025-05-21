@@ -20,8 +20,7 @@ import {
   LayoutGrid,
   ChevronLeft,
   ChevronRight,
-  RefreshCw,
-  ListTodo
+  RefreshCw
 } from 'lucide-react';
 import type { Task } from '../../types';
 import type { NewTask, TaskStatus } from '../../types/task';
@@ -48,13 +47,8 @@ export function TaskManager({
   isSectionAdmin = false,
   isLoading = false
 }: TaskManagerProps) {
-  // Check if device is mobile
-  const isMobile = useCallback(() => {
-    return /iPhone|iPad|iPod|Android|webOS|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) || window.innerWidth < 768;
-  }, []);
-
   // Main UI state
-  const [showTaskForm, setShowTaskForm] = useState(initialShowTaskForm);
+  const [showTaskForm, setShowTaskForm] = useState(true); // Always show task form
   const [categoryFilter, setCategoryFilter] = useState<string>('all');
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [searchTerm, setSearchTerm] = useState('');
@@ -64,7 +58,7 @@ export function TaskManager({
   // Force showTaskForm state to match prop when it changes
   useEffect(() => {
     console.log('[Debug] TaskManager: initialShowTaskForm prop changed to', initialShowTaskForm);
-    setShowTaskForm(initialShowTaskForm);
+    setShowTaskForm(true); // Always keep form visible
   }, [initialShowTaskForm]);
 
   // Debug logging on mount
@@ -76,16 +70,6 @@ export function TaskManager({
       isSectionAdmin
     });
   }, []);
-  
-  // Optimize UI for mobile
-  useEffect(() => {
-    if (isMobile()) {
-      // On mobile, automatically collapse task form when there are tasks
-      if (tasks.length > 0 && showTaskForm) {
-        setShowTaskForm(false);
-      }
-    }
-  }, [isMobile, tasks.length]);
   
   // Sorting
   const [sortBy, setSortBy] = useState<'createdAt' | 'dueDate' | 'name' | 'category' | 'priority'>('dueDate');
@@ -496,103 +480,86 @@ export function TaskManager({
   }, []);
 
   return (
-    <div className="space-y-4 sm:space-y-6">
-      {/* Task management controls */}
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center justify-between bg-white dark:bg-gray-800 p-3 sm:p-4 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700">
-        <div className="flex items-center gap-2">
-          <h2 className="text-base sm:text-lg font-semibold text-gray-800 dark:text-white flex items-center gap-1.5">
-            <ListTodo className="w-4 h-4 sm:w-5 sm:h-5 text-blue-600 dark:text-blue-400" />
-            Task Management
-          </h2>
-          {isLoading && (
-            <div className="flex items-center gap-1 text-gray-500 dark:text-gray-400">
-              <Loader2 className="w-3.5 h-3.5 animate-spin" />
-              <span className="text-xs">Loading</span>
-            </div>
-          )}
-        </div>
-        
-        <div className="flex flex-wrap gap-2 items-center">
-          <div className="relative flex-1 sm:flex-none sm:min-w-[180px]">
-            <div className="absolute inset-y-0 left-0 pl-2.5 flex items-center pointer-events-none">
-              <Search className="h-4 w-4 text-gray-500 dark:text-gray-400" />
-            </div>
-            <input
-              type="text"
-              placeholder="Search tasks..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="pl-8 pr-3 py-1.5 sm:py-2 w-full border border-gray-300 dark:border-gray-600 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white"
-            />
-            {searchTerm && (
-              <button
-                onClick={() => setSearchTerm('')}
-                className="absolute inset-y-0 right-0 pr-2 flex items-center text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300"
-                aria-label="Clear search"
-              >
-                <X className="h-4 w-4" />
-              </button>
-            )}
-          </div>
-          
+    <div className="space-y-4 sm:space-y-6 px-1 sm:px-0">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4">
+        <div className="flex flex-wrap items-center justify-start gap-2">
           <button
-            onClick={() => setShowFilters(!showFilters)}
-            className={`px-2.5 py-1.5 text-xs rounded-lg flex items-center gap-1
-              ${showFilters 
-                ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/50 dark:text-blue-400' 
-                : 'bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-300'}`}
-          >
-            <Filter className="w-3.5 h-3.5" />
-            Filters
-          </button>
-          
-          <button
-            onClick={() => setViewMode(viewMode === 'table' ? 'grid' : 'table')}
-            className="px-2.5 py-1.5 text-xs bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-300 rounded-lg flex items-center gap-1"
-          >
-            {viewMode === 'table' ? (
-              <>
-                <LayoutGrid className="w-3.5 h-3.5" />
-                <span className="sr-only sm:not-sr-only">Grid</span>
-              </>
-            ) : (
-              <>
-                <List className="w-3.5 h-3.5" />
-                <span className="sr-only sm:not-sr-only">List</span>
-              </>
-            )}
-          </button>
-          
-          <button
+            className="flex-1 sm:flex-none px-3 py-2 sm:py-2 sm:px-4 bg-blue-600 text-white rounded-xl hover:bg-blue-700 transition-colors flex items-center justify-center gap-1 sm:gap-2 text-xs sm:text-sm font-medium shadow-sm whitespace-nowrap"
             onClick={() => setShowTaskForm(!showTaskForm)}
-            className={`px-3 py-1.5 text-xs rounded-lg flex items-center gap-1.5
-              ${showTaskForm 
-                ? 'bg-blue-600 text-white hover:bg-blue-700' 
-                : 'bg-blue-600 text-white hover:bg-blue-700'}`}
-            aria-expanded={showTaskForm}
-            aria-controls="task-form-section"
+            disabled={isLoading}
           >
             {showTaskForm ? <ChevronUp className="w-3.5 h-3.5 sm:w-4 sm:h-4 flex-shrink-0" /> : <Plus className="w-3.5 h-3.5 sm:w-4 sm:h-4 flex-shrink-0" />}
             {showTaskForm ? 'Hide Form' : 'Create Task'}
           </button>
+          
+          <button
+            className={`
+              flex-1 sm:flex-none px-3 sm:px-4 py-2 rounded-xl flex items-center justify-center gap-2 transition-colors text-xs sm:text-sm
+              ${isLoading ? 'bg-gray-200 text-gray-500 dark:bg-gray-700 dark:text-gray-400 cursor-not-allowed' :
+                showFilters ? 
+                'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300' : 
+                'bg-gray-100 text-gray-700 hover:bg-gray-200 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700'}
+            `}
+            onClick={() => setShowFilters(!showFilters)}
+            disabled={isLoading}
+          >
+            <Filter className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+            <span>Filters</span>
+          </button>
+          
+          <div className="flex items-center border border-gray-200 dark:border-gray-700 rounded-xl overflow-hidden">
+            <button
+              className={`px-3 py-2 flex items-center justify-center ${viewMode === 'table' ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300' : 'bg-white dark:bg-gray-800'}`}
+              onClick={() => setViewMode('table')}
+              title="Table view"
+            >
+              <List className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+            </button>
+            <button
+              className={`px-3 py-2 flex items-center justify-center ${viewMode === 'grid' ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300' : 'bg-white dark:bg-gray-800'}`}
+              onClick={() => setViewMode('grid')}
+              title="Grid view"
+            >
+              <LayoutGrid className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+            </button>
+          </div>
+          
+          <div className="flex-1 sm:flex-none">
+            <button
+              className="w-full px-3 sm:px-4 py-2 rounded-xl flex items-center justify-center gap-2 bg-gray-100 text-gray-700 hover:bg-gray-200 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700 transition-colors text-xs sm:text-sm"
+              onClick={exportToCSV}
+              disabled={isLoading || sortedTasks.length === 0}
+              title="Export to CSV"
+            >
+              <Download className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+              <span>Export</span>
+            </button>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-2">
+          <div className="relative">
+            <div className="flex items-center px-3 sm:px-4 py-2 bg-gray-100 border border-gray-200 dark:bg-gray-800 dark:border-gray-700 rounded-xl">
+              <Search className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-gray-500 dark:text-gray-400 mr-2" />
+          <input
+            type="text"
+                placeholder="Search tasks..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+                className="bg-transparent border-none outline-none focus:ring-0 text-xs sm:text-sm w-full text-gray-700 dark:text-gray-300 placeholder-gray-500 dark:placeholder-gray-400"
+          />
+          {searchTerm && (
+            <button
+              onClick={() => setSearchTerm('')}
+                  className="ml-1 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300"
+            >
+                  <X className="w-3.5 h-3.5" />
+            </button>
+          )}
+            </div>
+          </div>
         </div>
       </div>
-      
-      {/* Mobile friendly task form container with proper animation */}
-      {showTaskForm && (
-        <div 
-          id="task-form-section"
-          className="animate-fadeIn"
-          role="region" 
-          aria-label="Create task form"
-        >
-          <TaskForm 
-            onSubmit={handleCreateTask} 
-            sectionId={sectionId} 
-            isSectionAdmin={isSectionAdmin}
-          />
-        </div>
-      )}
       
       {showFilters && (
         <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-3 sm:p-4">
@@ -736,7 +703,15 @@ export function TaskManager({
         </div>
       ) : (
         <>
-          {/* Only show task table/grid when we have tasks */}
+          {/* Always show task form, even when there are no tasks */}
+          {showTaskForm && (
+            <TaskForm 
+              onSubmit={handleCreateTask} 
+              sectionId={sectionId} 
+              isSectionAdmin={isSectionAdmin}
+            />
+          )}
+          
           {sortedTasks.length === 0 ? (
             <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6 sm:p-12 text-center">
               <p className="text-gray-500 dark:text-gray-400 mb-4 text-sm sm:text-base">
@@ -747,7 +722,7 @@ export function TaskManager({
               {tasks.length > 0 && (
                 <button
                   onClick={resetFilters}
-                  className="px-3 sm:px-4 py-1.5 sm:py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-xs sm:text-sm inline-flex items-center gap-2 touch-manipulation"
+                  className="px-3 sm:px-4 py-1.5 sm:py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-xs sm:text-sm inline-flex items-center gap-2"
                 >
                   <RotateCcw className="w-3 h-3 sm:w-4 sm:h-4" />
                   Reset Filters
@@ -756,32 +731,32 @@ export function TaskManager({
             </div>
           ) : (
             <>
-              {/* Task Analytics */}
+              {/* Task Analytics - moved to appear after the task form */}
               <div className="mb-4 sm:mb-6">
                 <TaskStats tasks={sortedTasks} />
               </div>
 
               {/* Task Table with bulk selection */}
-              <TaskTable 
-                tasks={sortedTasks} 
-                onDeleteTask={handleDeleteTask} 
-                onUpdateTask={handleUpdateTask}
-                isSectionAdmin={isSectionAdmin}
-                viewMode={viewMode}
-                selectedTaskIds={selectedTaskIds}
-                onToggleSelection={toggleTaskSelection}
-                onSelectAll={selectAllTasks}
-                sortBy={sortBy}
-                sortOrder={sortOrder}
-                onSort={(field) => {
-                  if (sortBy === field) {
-                    setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc');
-                  } else {
-                    setSortBy(field as any);
-                    setSortOrder('asc');
-                  }
-                }}
-              />
+                <TaskTable 
+                  tasks={sortedTasks} 
+                  onDeleteTask={handleDeleteTask} 
+                  onUpdateTask={handleUpdateTask}
+                  isSectionAdmin={isSectionAdmin}
+                  viewMode={viewMode}
+                  selectedTaskIds={selectedTaskIds}
+                  onToggleSelection={toggleTaskSelection}
+                  onSelectAll={selectAllTasks}
+                  sortBy={sortBy}
+                  sortOrder={sortOrder}
+                  onSort={(field) => {
+                    if (sortBy === field) {
+                      setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc');
+                    } else {
+                      setSortBy(field as any);
+                      setSortOrder('asc');
+                    }
+                  }}
+                />
             </>
           )}
         </>

@@ -13,6 +13,9 @@ const tasksCache = new Map<string, {
 // Cache TTL in milliseconds (5 minutes)
 const CACHE_TTL = 5 * 60 * 1000;
 
+// Task fetch timeout in milliseconds (increased from 10 seconds to 20 seconds)
+const TASK_FETCH_TIMEOUT = 20000;
+
 export function useTasks(userId: string | undefined) {
   const [tasks, setTasks] = useState<Task[]>([]);
   const [loading, setLoading] = useState(true);
@@ -142,9 +145,9 @@ export function useTasks(userId: string | undefined) {
         return data;
       };
       
-      // Use Promise.race to implement timeout
+      // Use Promise.race to implement timeout with increased timeout value
       const timeoutPromise = new Promise<Task[]>((_, reject) => {
-        setTimeout(() => reject(new Error('Task fetch timeout')), 10000);
+        setTimeout(() => reject(new Error('Task fetch timeout')), TASK_FETCH_TIMEOUT);
       });
       
       const data = await Promise.race([processTasks(), timeoutPromise]);
@@ -171,12 +174,21 @@ export function useTasks(userId: string | undefined) {
         if (tasksCache.has(userId)) {
           const cachedData = tasksCache.get(userId)!;
           setTasks(cachedData.tasks);
-          setError(`Using cached data. Failed to refresh: ${err.message || 'Unknown error'}`);
+          
+          // Provide a more informative error message for timeouts
+          if (err.message === 'Task fetch timeout') {
+            setError(`Using cached data. Failed to refresh: Task fetch timeout. Network may be slow or server overloaded.`);
+          } else {
+            setError(`Using cached data. Failed to refresh: ${err.message || 'Unknown error'}`);
+          }
         } else {
           setError(err.message || 'Failed to load tasks');
           
-          if (!isOffline && retryCount < 3) {
-            const timeout = Math.min(1000 * Math.pow(2, retryCount), 10000);
+          // Increase retry limit for timeouts
+          const maxRetries = err.message === 'Task fetch timeout' ? 5 : 3;
+          
+          if (!isOffline && retryCount < maxRetries) {
+            const timeout = Math.min(1000 * Math.pow(2, retryCount), 15000);
             setTimeout(() => {
               if (isMountedRef.current) {
                 setRetryCount(prev => prev + 1);
@@ -259,9 +271,9 @@ export function useTasks(userId: string | undefined) {
         }
       };
 
-      // Set up regular polling to check for stuck state
+      // Set up regular polling to check for stuck state with increased timeout value
       const pollInterval = setInterval(() => {
-        if (loadingRef.current && Date.now() - lastLoadTimeRef.current > 15000) {
+        if (loadingRef.current && Date.now() - lastLoadTimeRef.current > TASK_FETCH_TIMEOUT + 5000) {
           console.warn('Task loading stuck in polling check, resetting state');
           loadingRef.current = false;
           if (isMountedRef.current) {
@@ -291,8 +303,8 @@ export function useTasks(userId: string | undefined) {
   useEffect(() => {
     const handleVisibilityChange = () => {
       if (document.visibilityState === 'visible') {
-        // Reset any stuck loading state
-        if (loadingRef.current && Date.now() - lastLoadTimeRef.current > 5000) {
+        // Reset any stuck loading state with increased timeout value
+        if (loadingRef.current && Date.now() - lastLoadTimeRef.current > TASK_FETCH_TIMEOUT / 2) {
           console.log('Resetting stuck loading state on visibility change');
           loadingRef.current = false;
           if (isMountedRef.current) {

@@ -218,250 +218,311 @@ ${cleanDescription}
     );
   }
 
-  return viewMode === 'table' ? (
-    <div className="overflow-x-auto" ref={tableRef}>
-      <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
-        <thead className="bg-gray-50 dark:bg-gray-800/50">
-          <tr>
-            <th className="p-4 w-8">
-              <div className="flex items-center justify-center">
-              <button 
-                onClick={onSelectAll}
-                  className="p-1 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-700"
-                aria-label="Select all tasks"
-              >
-                  {selectedTaskIds.length > 0 && selectedTaskIds.length === tasks.length ? (
-                    <CheckSquare className="w-5 h-5 text-blue-500 dark:text-blue-400" />
-                ) : (
-                    <Square className="w-5 h-5 text-gray-400 dark:text-gray-500" />
-                )}
-              </button>
-              </div>
-            </th>
-            <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-              <button 
-                onClick={() => onSort('name')}
-                className="flex items-center focus:outline-none hover:text-gray-700 dark:hover:text-gray-200"
-              >
-                Task Name
-                {renderSortIndicator('name')}
-              </button>
-            </th>
-            <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-              <button 
-                onClick={() => onSort('category')}
-                className="flex items-center focus:outline-none hover:text-gray-700 dark:hover:text-gray-200"
-              >
-                Category
-                {renderSortIndicator('category')}
-              </button>
-            </th>
-            <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-              <button 
-                onClick={() => onSort('dueDate')}
-                className="flex items-center focus:outline-none hover:text-gray-700 dark:hover:text-gray-200"
-              >
-                Due Date
-                {renderSortIndicator('dueDate')}
-              </button>
-            </th>
-            <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-              <button
-                onClick={() => onSort('status')}
-                className="flex items-center focus:outline-none hover:text-gray-700 dark:hover:text-gray-200"
-              >
-              Status
-                {renderSortIndicator('status')}
-              </button>
-            </th>
-            <th scope="col" className="px-4 py-3 text-right">
-              <span className="sr-only">Actions</span>
-            </th>
-          </tr>
-        </thead>
-        <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
-          {tasks.map((task) => (
-            <tr 
-              key={task.id}
-              className={`group hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors ${
-                selectedTaskIds.includes(task.id) ? 'bg-blue-50 dark:bg-blue-900/20' : ''
-              }`}
-            >
-              <td className="p-4">
-                <div className="flex items-center justify-center">
-                <button 
-                  onClick={() => onToggleSelection(task.id)}
-                    className="p-1 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-700"
-                >
-                  {selectedTaskIds.includes(task.id) ? (
-                      <CheckSquare className="w-5 h-5 text-blue-500 dark:text-blue-400" />
-                  ) : (
-                      <Square className="w-5 h-5 text-gray-400 dark:text-gray-500" />
-                  )}
-                </button>
-                </div>
-              </td>
-              <td className="px-4 py-2.5">
-                <div className="text-sm font-medium text-gray-900 dark:text-white">
-                {task.name}
-                </div>
-                <div className="text-xs text-gray-500 dark:text-gray-400 line-clamp-1">
-                  {truncateText(task.description, 50)}
-                </div>
-              </td>
-              <td className="px-4 py-2.5">
-                <div className="text-sm capitalize text-gray-900 dark:text-white">
-                {task.category.replace(/-/g, ' ')}
-                </div>
-                {task.priority && (
-                  <div className="mt-1">{getPriorityBadge(task.priority)}</div>
-                )}
-              </td>
-              <td className="px-4 py-2.5">
-                <span className={`text-sm flex items-center gap-1 ${
-                  isOverdue(task.dueDate, task.status) 
-                    ? 'text-red-600 dark:text-red-400' 
-                    : 'text-gray-600 dark:text-gray-400'
-                }`}>
-                  {isOverdue(task.dueDate, task.status) && (
-                    <AlertTriangle className="w-3.5 h-3.5" />
-                  )}
-                  {formatDate(task.dueDate)}
-                </span>
-              </td>
-              <td className="px-4 py-2.5">
-                <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium ${getStatusColor(task.status)}`}>
-                  {getStatusIcon(task.status)}
-                  {getStatusLabel(task.status)}
-                </span>
-              </td>
-              <td className="px-4 py-2 text-sm whitespace-nowrap">
-                <div className="flex items-center justify-end gap-2">
-                  {/* Copy button */}
-                  <button
-                    onClick={() => handleCopyTask(task)}
-                    className={`p-1.5 rounded-lg transition-all duration-200 ${
-                      copiedTaskId === task.id
-                        ? 'bg-green-100 text-green-600 dark:bg-green-900/30 dark:text-green-400'
-                        : 'opacity-0 group-hover:opacity-100 hover:bg-gray-100 text-gray-600 dark:hover:bg-gray-700 dark:text-gray-400'
-                    }`}
-                    title="Copy task details"
-                  >
-                    {copiedTaskId === task.id ? (
-                      <CheckCheck className="w-4 h-4" />
-                    ) : (
-                      <Copy className="w-4 h-4" />
-                    )}
-                  </button>
+  return (
+    <>
+      {viewMode === 'table' ? (
+        <div className="relative overflow-hidden rounded-lg">
+          <div className="overflow-x-auto -mx-4 sm:mx-0">
+            <div className="inline-block min-w-full align-middle">
+              <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+                <thead className="bg-gray-50 dark:bg-gray-800/50">
+                  <tr>
+                    {/* Checkbox column - always visible */}
+                    <th className="w-12 sm:w-8 px-2 sm:px-4 py-3">
+                      <div className="flex items-center justify-center">
+                        <button 
+                          onClick={onSelectAll}
+                          className="p-1 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-700"
+                          aria-label="Select all tasks"
+                        >
+                          {selectedTaskIds.length > 0 && selectedTaskIds.length === tasks.length ? (
+                            <CheckSquare className="w-4 h-4 sm:w-5 sm:h-5 text-blue-500 dark:text-blue-400" />
+                          ) : (
+                            <Square className="w-4 h-4 sm:w-5 sm:h-5 text-gray-400 dark:text-gray-500" />
+                          )}
+                        </button>
+                      </div>
+                    </th>
+                    
+                    {/* Task name column - always visible */}
+                    <th className="px-2 sm:px-4 py-3 text-left">
+                      <button 
+                        onClick={() => onSort('name')}
+                        className="flex items-center text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider hover:text-gray-700 dark:hover:text-gray-200"
+                      >
+                        <span className="hidden sm:inline">Task </span>Name
+                        {renderSortIndicator('name')}
+                      </button>
+                    </th>
+                    
+                    {/* Category column - hidden on mobile */}
+                    <th className="hidden sm:table-cell px-4 py-3 text-left">
+                      <button 
+                        onClick={() => onSort('category')}
+                        className="flex items-center text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider hover:text-gray-700 dark:hover:text-gray-200"
+                      >
+                        Category
+                        {renderSortIndicator('category')}
+                      </button>
+                    </th>
+                    
+                    {/* Due date column - condensed on mobile */}
+                    <th className="px-2 sm:px-4 py-3 text-left">
+                      <button 
+                        onClick={() => onSort('dueDate')}
+                        className="flex items-center text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider hover:text-gray-700 dark:hover:text-gray-200"
+                      >
+                        <span className="hidden sm:inline">Due </span>Date
+                        {renderSortIndicator('dueDate')}
+                      </button>
+                    </th>
+                    
+                    {/* Status column - condensed on mobile */}
+                    <th className="px-2 sm:px-4 py-3 text-left">
+                      <button
+                        onClick={() => onSort('status')}
+                        className="flex items-center text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider hover:text-gray-700 dark:hover:text-gray-200"
+                      >
+                        Status
+                        {renderSortIndicator('status')}
+                      </button>
+                    </th>
+                    
+                    {/* Actions column - always visible */}
+                    <th className="px-2 sm:px-4 py-3 text-right">
+                      <span className="sr-only">Actions</span>
+                    </th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
+                  {tasks.map((task) => (
+                    <tr 
+                      key={task.id}
+                      className={`group hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors ${
+                        selectedTaskIds.includes(task.id) ? 'bg-blue-50 dark:bg-blue-900/20' : ''
+                      }`}
+                    >
+                      {/* Checkbox cell */}
+                      <td className="w-12 sm:w-8 px-2 sm:px-4 py-2">
+                        <div className="flex items-center justify-center">
+                          <button 
+                            onClick={() => onToggleSelection(task.id)}
+                            className="p-1 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-700"
+                          >
+                            {selectedTaskIds.includes(task.id) ? (
+                              <CheckSquare className="w-4 h-4 sm:w-5 sm:h-5 text-blue-500 dark:text-blue-400" />
+                            ) : (
+                              <Square className="w-4 h-4 sm:w-5 sm:h-5 text-gray-400 dark:text-gray-500" />
+                            )}
+                          </button>
+                        </div>
+                      </td>
+                      
+                      {/* Task name cell */}
+                      <td className="px-2 sm:px-4 py-2">
+                        <div className="max-w-xs sm:max-w-sm">
+                          <div className="text-sm font-medium text-gray-900 dark:text-white truncate">
+                            {task.name}
+                          </div>
+                          <div className="text-xs text-gray-500 dark:text-gray-400 line-clamp-1 sm:hidden">
+                            {task.category.replace(/-/g, ' ')}
+                          </div>
+                        </div>
+                      </td>
+                      
+                      {/* Category cell - hidden on mobile */}
+                      <td className="hidden sm:table-cell px-4 py-2">
+                        <div className="text-sm capitalize text-gray-900 dark:text-white">
+                          {task.category.replace(/-/g, ' ')}
+                        </div>
+                        {task.priority && (
+                          <div className="mt-1">{getPriorityBadge(task.priority)}</div>
+                        )}
+                      </td>
+                      
+                      {/* Due date cell */}
+                      <td className="px-2 sm:px-4 py-2">
+                        <span className={`text-xs sm:text-sm flex items-center gap-1 ${
+                          isOverdue(task.dueDate, task.status) 
+                            ? 'text-red-600 dark:text-red-400' 
+                            : 'text-gray-600 dark:text-gray-400'
+                        }`}>
+                          {isOverdue(task.dueDate, task.status) && (
+                            <AlertTriangle className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
+                          )}
+                          <span className="whitespace-nowrap">{formatDate(task.dueDate)}</span>
+                        </span>
+                      </td>
+                      
+                      {/* Status cell */}
+                      <td className="px-2 sm:px-4 py-2">
+                        <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${getStatusColor(task.status)}`}>
+                          {getStatusIcon(task.status)}
+                          <span className="hidden xs:inline">{getStatusLabel(task.status)}</span>
+                        </span>
+                      </td>
+                      
+                      {/* Actions cell */}
+                      <td className="px-2 sm:px-4 py-2 text-right">
+                        <div className="flex items-center justify-end gap-1 sm:gap-2">
+                          {/* Copy button */}
+                          <button
+                            onClick={() => handleCopyTask(task)}
+                            className={`p-1 sm:p-1.5 rounded-lg transition-colors duration-200 ${
+                              copiedTaskId === task.id
+                                ? 'bg-green-100 text-green-600 dark:bg-green-900/30 dark:text-green-400'
+                                : 'hover:bg-gray-100 text-gray-500 dark:text-gray-400 dark:hover:bg-gray-700'
+                            }`}
+                            title="Copy task details"
+                          >
+                            {copiedTaskId === task.id ? (
+                              <CheckCheck className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                            ) : (
+                              <Copy className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                            )}
+                          </button>
 
-                  {/* Existing action buttons */}
-                  <button
-                    onClick={() => onUpdateTask(task.id, { 
-                      status: task.status === 'completed' ? 'my-tasks' : 'completed'
-                    })}
-                    className={`p-1.5 rounded-lg transition-colors duration-200 ${
-                      task.status === 'completed'
-                        ? 'bg-green-100 text-green-600 dark:bg-green-900/30 dark:text-green-400'
-                        : 'hover:bg-gray-100 text-gray-600 dark:hover:bg-gray-700 dark:text-gray-400'
-                    }`}
-                    title={task.status === 'completed' ? 'Mark as incomplete' : 'Mark as complete'}
-                  >
-                    <CheckCircle className="w-4 h-4" />
-                  </button>
-                  
-                  <button
-                    onClick={() => onDeleteTask(task.id)}
-                    className="p-1.5 hover:bg-red-100 text-red-600 dark:hover:bg-red-900/30 dark:text-red-400 rounded-lg transition-colors duration-200"
-                    title="Delete task"
-                  >
-                    <Trash2 className="w-4 h-4" />
-                  </button>
-                </div>
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
-  ) : (
-    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 p-4">
-      {tasks.map((task) => (
-        <div 
-          key={task.id}
-          className={`group bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-4 hover:shadow-md transition-all ${
-            selectedTaskIds.includes(task.id) ? 'ring-2 ring-blue-500 dark:ring-blue-400' : ''
-          }`}
-        >
-          {/* Task content */}
-          <div className="flex items-start justify-between">
-            <div className="flex-1">
-              <h3 className="text-sm font-medium text-gray-900 dark:text-white line-clamp-2">
-                {task.name}
-              </h3>
-              <p className="mt-1 text-xs text-gray-500 dark:text-gray-400 line-clamp-2">
-                {task.description}
-              </p>
+                          {/* Edit button */}
+                          <button
+                            onClick={() => setEditingTask(task)}
+                            className="p-1 sm:p-1.5 rounded-lg transition-colors duration-200 hover:bg-blue-100 text-blue-600 dark:text-blue-400 dark:hover:bg-blue-900/30"
+                            title="Edit task"
+                          >
+                            <Edit2 className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                          </button>
+
+                          {/* Complete/Incomplete button */}
+                          <button
+                            onClick={() => onUpdateTask(task.id, { 
+                              status: task.status === 'completed' ? 'my-tasks' : 'completed'
+                            })}
+                            className={`p-1 sm:p-1.5 rounded-lg transition-colors duration-200 ${
+                              task.status === 'completed'
+                                ? 'bg-green-100 text-green-600 dark:bg-green-900/30 dark:text-green-400'
+                                : 'hover:bg-gray-100 text-gray-500 dark:text-gray-400 dark:hover:bg-gray-700'
+                            }`}
+                            title={task.status === 'completed' ? 'Mark as incomplete' : 'Mark as complete'}
+                          >
+                            <CheckCircle className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                          </button>
+                          
+                          {/* Delete button */}
+                          <button
+                            onClick={() => onDeleteTask(task.id)}
+                            className="p-1 sm:p-1.5 hover:bg-red-100 text-red-600 dark:hover:bg-red-900/30 dark:text-red-400 rounded-lg transition-colors duration-200"
+                            title="Delete task"
+                          >
+                            <Trash2 className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </div>
           </div>
-
-          {/* Task metadata */}
-          <div className="mt-4 flex flex-wrap items-center gap-2 text-xs">
-            <span className="px-2 py-1 rounded-md bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300">
-              {task.category}
-            </span>
-            <span className={`px-2 py-1 rounded-md ${
-              isOverdue(task.dueDate) && task.status !== 'completed'
-                ? 'bg-red-100 text-red-600 dark:bg-red-900/30 dark:text-red-400'
-                : 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-300'
-            }`}>
-              {formatDate(task.dueDate)}
-            </span>
-          </div>
-
-          {/* Actions */}
-          <div className="mt-4 flex items-center justify-end gap-2">
-            {/* Copy button */}
-            <button
-              onClick={() => handleCopyTask(task)}
-              className={`p-1.5 rounded-lg transition-all duration-200 ${
-                copiedTaskId === task.id
-                  ? 'bg-green-100 text-green-600 dark:bg-green-900/30 dark:text-green-400'
-                  : 'opacity-0 group-hover:opacity-100 hover:bg-gray-100 text-gray-600 dark:hover:bg-gray-700 dark:text-gray-400'
-              }`}
-              title="Copy task details"
-            >
-              {copiedTaskId === task.id ? (
-                <CheckCheck className="w-4 h-4" />
-              ) : (
-                <Copy className="w-4 h-4" />
-              )}
-            </button>
-
-            {/* Existing action buttons */}
-            <button
-              onClick={() => onUpdateTask(task.id, { 
-                status: task.status === 'completed' ? 'my-tasks' : 'completed'
-              })}
-              className={`p-1.5 rounded-lg transition-colors duration-200 ${
-                task.status === 'completed'
-                  ? 'bg-green-100 text-green-600 dark:bg-green-900/30 dark:text-green-400'
-                  : 'hover:bg-gray-100 text-gray-600 dark:hover:bg-gray-700 dark:text-gray-400'
-              }`}
-              title={task.status === 'completed' ? 'Mark as incomplete' : 'Mark as complete'}
-            >
-              <CheckCircle className="w-4 h-4" />
-            </button>
-            
-            <button
-              onClick={() => onDeleteTask(task.id)}
-              className="p-1.5 hover:bg-red-100 text-red-600 dark:hover:bg-red-900/30 dark:text-red-400 rounded-lg transition-colors duration-200"
-              title="Delete task"
-            >
-              <Trash2 className="w-4 h-4" />
-            </button>
-          </div>
         </div>
-      ))}
-    </div>
+      ) : (
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 p-4">
+          {tasks.map((task) => (
+            <div 
+              key={task.id}
+              className={`group bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-4 hover:shadow-md transition-all ${
+                selectedTaskIds.includes(task.id) ? 'ring-2 ring-blue-500 dark:ring-blue-400' : ''
+              }`}
+            >
+              {/* Task content */}
+              <div className="flex items-start justify-between">
+                <div className="flex-1">
+                  <h3 className="text-sm font-medium text-gray-900 dark:text-white line-clamp-2">
+                    {task.name}
+                  </h3>
+                  <p className="mt-1 text-xs text-gray-500 dark:text-gray-400 line-clamp-2">
+                    {task.description}
+                  </p>
+                </div>
+              </div>
+
+              {/* Task metadata */}
+              <div className="mt-4 flex flex-wrap items-center gap-2 text-xs">
+                <span className="px-2 py-1 rounded-md bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300">
+                  {task.category}
+                </span>
+                <span className={`px-2 py-1 rounded-md ${
+                  isOverdue(task.dueDate) && task.status !== 'completed'
+                    ? 'bg-red-100 text-red-600 dark:bg-red-900/30 dark:text-red-400'
+                    : 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-300'
+                }`}>
+                  {formatDate(task.dueDate)}
+                </span>
+              </div>
+
+              {/* Actions */}
+              <div className="mt-4 flex items-center justify-end gap-2">
+                {/* Copy button */}
+                <button
+                  onClick={() => handleCopyTask(task)}
+                  className={`p-1 sm:p-1.5 rounded-lg transition-colors duration-200 ${
+                    copiedTaskId === task.id
+                      ? 'bg-green-100 text-green-600 dark:bg-green-900/30 dark:text-green-400'
+                      : 'hover:bg-gray-100 text-gray-500 dark:text-gray-400 dark:hover:bg-gray-700'
+                  }`}
+                  title="Copy task details"
+                >
+                  {copiedTaskId === task.id ? (
+                    <CheckCheck className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                  ) : (
+                    <Copy className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                  )}
+                </button>
+
+                {/* Edit button */}
+                <button
+                  onClick={() => setEditingTask(task)}
+                  className="p-1 sm:p-1.5 rounded-lg transition-colors duration-200 hover:bg-blue-100 text-blue-600 dark:text-blue-400 dark:hover:bg-blue-900/30"
+                  title="Edit task"
+                >
+                  <Edit2 className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                </button>
+
+                {/* Complete/Incomplete button */}
+                <button
+                  onClick={() => onUpdateTask(task.id, { 
+                    status: task.status === 'completed' ? 'my-tasks' : 'completed'
+                  })}
+                  className={`p-1 sm:p-1.5 rounded-lg transition-colors duration-200 ${
+                    task.status === 'completed'
+                      ? 'bg-green-100 text-green-600 dark:bg-green-900/30 dark:text-green-400'
+                      : 'hover:bg-gray-100 text-gray-500 dark:text-gray-400 dark:hover:bg-gray-700'
+                  }`}
+                  title={task.status === 'completed' ? 'Mark as incomplete' : 'Mark as complete'}
+                >
+                  <CheckCircle className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                </button>
+                
+                {/* Delete button */}
+                <button
+                  onClick={() => onDeleteTask(task.id)}
+                  className="p-1 sm:p-1.5 hover:bg-red-100 text-red-600 dark:hover:bg-red-900/30 dark:text-red-400 rounded-lg transition-colors duration-200"
+                  title="Delete task"
+                >
+                  <Trash2 className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Edit Task Modal */}
+      {editingTask && (
+        <TaskEditModal
+          task={editingTask}
+          onClose={() => setEditingTask(null)}
+          onUpdate={handleUpdateTask}
+        />
+      )}
+    </>
   );
 }

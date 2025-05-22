@@ -1,7 +1,7 @@
 import { useState, useCallback } from 'react';
 import { ProfileMenu } from './profile/ProfileMenu';
 import { NotificationBadge } from './notifications/NotificationBadge';
-import { Layout, Moon, Sun, Calendar } from 'lucide-react';
+import { Layout, Moon, Sun, Calendar, Bell } from 'lucide-react';
 import { useTheme } from '../hooks/useTheme';
 import { SlidingNavigation } from './navigation/SlidingNavigation';
 import { MonthlyCalendar } from './MonthlyCalendar';
@@ -92,7 +92,7 @@ export function Navigation({
     <>
       <nav className="fixed top-0 left-0 right-0 z-50">
         <div className="bg-white/98 dark:bg-gray-900/98 backdrop-blur-md border-b border-gray-200/70 dark:border-gray-800/70 shadow-sm">
-          <div className="max-w-7xl mx-auto px-4 sm:px-6">
+          <div className="max-w-7xl mx-auto px-3 sm:px-6">
             <div className="flex justify-between items-center h-14">
               {/* Logo and Brand */}
               <div className="flex-shrink-0 flex items-center">
@@ -111,49 +111,32 @@ export function Navigation({
               </div>
 
               {/* Right Section - Action Icons */}
-              <div className="flex items-center space-x-1.5 sm:space-x-2.5">
-                {/* Theme Toggle Button */}
-                <div className="relative flex items-center">
+              <div className="flex items-center">
+                {/* Mobile-optimized icons with improved alignment and spacing */}
+                <div className="inline-flex items-center justify-center bg-gray-50/30 dark:bg-gray-800/30 rounded-xl px-1.5 py-1 gap-2.5 sm:gap-3 md:gap-4">
+                  {/* Theme Toggle Button */}
                   <button
                     onClick={toggle}
-                    className="p-2 rounded-lg bg-gray-50/80 dark:bg-gray-800/80 hover:bg-gray-100 dark:hover:bg-gray-700 transition-all duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/50 dark:focus-visible:ring-blue-400/50 touch-manipulation hover:shadow-sm"
+                    className="flex items-center justify-center w-8 h-8 sm:w-9 sm:h-9 rounded-lg bg-gray-50/90 dark:bg-gray-800/90 hover:bg-gray-100 dark:hover:bg-gray-700 hover:shadow-md transition-all duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/50 dark:focus-visible:ring-blue-400/50 active:scale-95"
                     aria-label="Toggle theme"
                   >
                     {isDark ? (
-                      <Sun className="w-4 h-4 text-amber-500" strokeWidth={1.75} />
+                      <Sun className="w-4 h-4 sm:w-4.5 sm:h-4.5 text-amber-500" strokeWidth={1.75} />
                     ) : (
-                      <Moon className="w-4 h-4 text-indigo-600" strokeWidth={1.75} />
+                      <Moon className="w-4 h-4 sm:w-4.5 sm:h-4.5 text-indigo-600" strokeWidth={1.75} />
                     )}
                   </button>
-                </div>
 
-                {/* Calendar Button */}
-                <div className="relative flex items-center">
+                  {/* Calendar Button */}
                   <button
                     onClick={handleCalendarToggle}
-                    className="p-2 rounded-lg bg-gray-50/80 dark:bg-gray-800/80 hover:bg-gray-100 dark:hover:bg-gray-700 transition-all duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/50 dark:focus-visible:ring-blue-400/50 touch-manipulation hover:shadow-sm"
+                    className="flex items-center justify-center w-8 h-8 sm:w-9 sm:h-9 rounded-lg bg-gray-50/90 dark:bg-gray-800/90 hover:bg-gray-100 dark:hover:bg-gray-700 hover:shadow-md transition-all duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/50 dark:focus-visible:ring-blue-400/50 active:scale-95"
                     aria-label="Show calendar"
                   >
-                    <Calendar className="w-4 h-4 text-blue-600 dark:text-blue-400" strokeWidth={1.75} />
+                    <Calendar className="w-4 h-4 sm:w-4.5 sm:h-4.5 text-blue-600 dark:text-blue-400" strokeWidth={1.75} />
                   </button>
-                </div>
 
-                {/* Notification Badge */}
-                <div className="relative flex items-center">
-                  <button
-                    onClick={onNotificationsClick}
-                    className="p-2 rounded-lg bg-gray-50/80 dark:bg-gray-800/80 hover:bg-gray-100 dark:hover:bg-gray-700 transition-all duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/50 dark:focus-visible:ring-blue-400/50 relative touch-manipulation hover:shadow-sm"
-                    aria-label="View notifications"
-                  >
-                    <Bell className="w-4 h-4 text-gray-700 dark:text-gray-300" strokeWidth={1.75} />
-                    {hasUnreadNotifications && (
-                      <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-red-500 rounded-full ring-1 ring-white dark:ring-gray-800" />
-                    )}
-                  </button>
-                </div>
-
-                {/* Profile Menu */}
-                <div className="ml-1">
+                  {/* Profile Menu */}
                   <ProfileMenu onLogout={onLogout} />
                 </div>
               </div>
@@ -182,26 +165,5 @@ export function Navigation({
         tasks={tasks}
       />
     </>
-  );
-}
-
-// Bell icon component for notifications
-function Bell(props: React.SVGProps<SVGSVGElement>) {
-  return (
-    <svg
-      xmlns="http://www.w3.org/2000/svg"
-      width="24"
-      height="24"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.75"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      {...props}
-    >
-      <path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9" />
-      <path d="M10.3 21a1.94 1.94 0 0 0 3.4 0" />
-    </svg>
   );
 }

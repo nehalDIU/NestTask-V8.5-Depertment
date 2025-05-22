@@ -6,6 +6,7 @@ import {
 import { UserActivity } from '../UserActivity';
 import { UserGraph } from './UserGraph';
 import { TaskOverview } from './TaskOverview';
+import { TaskStats } from '../task/TaskStats';
 import type { User } from '../../../types/auth';
 import type { Task } from '../../../types';
 import { fetchTasks } from '../../../services/taskService';
@@ -519,6 +520,11 @@ export function Dashboard({ users, tasks: initialTasks }: DashboardProps) {
             )}
           </div>
         </div>
+      </div>
+
+      {/* Task Analytics Section */}
+      <div className="animate-slide-up" style={{animationDelay: '0.4s'}}>
+        <TaskStats tasks={tasks} />
       </div>
     </div>
   );

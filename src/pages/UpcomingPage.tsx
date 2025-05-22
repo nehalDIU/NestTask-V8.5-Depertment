@@ -1,4 +1,8 @@
+<<<<<<< HEAD
 import { useState, useMemo, useEffect, useCallback, Suspense, lazy, useRef, memo } from 'react';
+=======
+import { useState, useMemo, useEffect, useCallback, Suspense, lazy, useRef } from 'react';
+>>>>>>> 7e814a06d899c1ebe5baaa188555e2627a9f21dc
 import { format, addDays, startOfWeek, isSameDay, parseISO, isAfter, isBefore, startOfDay, endOfDay, formatDistanceToNow } from 'date-fns';
 import { Crown, Calendar, Clock, Tag, CheckCircle2, AlertCircle, BookOpen, FileText, PenTool, FlaskConical, GraduationCap, CalendarDays, Folder, Activity, Building, Users, Paperclip } from 'lucide-react';
 import { useTasks } from '../hooks/useTasks';
@@ -307,7 +311,61 @@ export function UpcomingPage() {
   const descriptionCache = useRef<Map<string, string>>(new Map());
   const filteredTasksCache = useRef<Map<string, Task[]>>(new Map());
 
+<<<<<<< HEAD
   // Clear loading state if stuck for too long
+=======
+  // Utility function to clean task description
+  const cleanTaskDescription = useCallback((description: string): string => {
+    // Remove section ID text
+    const withoutSectionId = description.replace(/\*This task is assigned to section ID: [0-9a-f-]+\*/g, '');
+    
+    // Remove attachment references like [file.pdf](attachment:file.pdf)
+    const withoutAttachmentLinks = withoutSectionId.replace(/\[([^\]]+)\]\(attachment:[^)]+\)/g, '');
+    
+    // Remove references like **Attachments:** -.csv)
+    const withoutAttachmentTags = withoutAttachmentLinks.replace(/\*\*Attachments:\*\*.*?\)/g, '');
+    
+    // Remove any "AS **Attachments:**" format
+    const withoutASAttachments = withoutAttachmentTags.replace(/AS \*\*Attachments:\*\*.*?$/gm, '');
+    
+    // Remove any other attachment references with a more general pattern
+    const fullyCleanedText = withoutASAttachments.replace(/Attachments:.*?$/gm, '');
+    
+    // Clean up extra whitespace and return
+    return fullyCleanedText.trim();
+  }, []);
+
+  // Check if a task has attachments
+  const hasAttachments = useCallback((description: string): boolean => {
+    const attachmentPatterns = [
+      /\[([^\]]+)\]\(attachment:[^)]+\)/,
+      /\*\*Attachments:\*\*/,
+      /AS \*\*Attachments:\*\*/,
+      /Attachments:/
+    ];
+    
+    return attachmentPatterns.some(pattern => pattern.test(description));
+  }, []);
+
+  // Memoized and optimized formatDate function
+  const formatDate = useCallback((date: Date): string => {
+    const year = date.getFullYear();
+    const month = (date.getMonth() + 1).toString().padStart(2, '0');
+    const day = date.getDate().toString().padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  }, []);
+
+  // Optimized function to check if two dates represent the same day
+  const isSameDayOptimized = useCallback((date1: Date, date2: Date): boolean => {
+    return (
+      date1.getFullYear() === date2.getFullYear() &&
+      date1.getMonth() === date2.getMonth() &&
+      date1.getDate() === date2.getDate()
+    );
+  }, []);
+
+  // Handle URL params for date selection
+>>>>>>> 7e814a06d899c1ebe5baaa188555e2627a9f21dc
   useEffect(() => {
     if (loading) {
       loadingTimeoutRef.current = setTimeout(() => {
@@ -348,6 +406,7 @@ export function UpcomingPage() {
     };
   }, []);
 
+<<<<<<< HEAD
   // Enhanced error handling for task updates
   useEffect(() => {
     if (taskError) {
@@ -371,12 +430,26 @@ export function UpcomingPage() {
         setOperationError('Error processing tasks data');
       }
     } else if (!loading && !taskError) {
+=======
+  // Update local tasks efficiently when allTasks changes
+  useEffect(() => {
+    if (allTasks) {
+      console.log('Received tasks, updating local state with', allTasks.length, 'tasks');
+      setTasks(allTasks as any);
+      // Set initial load to false once tasks are loaded
+      setIsInitialLoad(false);
+    } else {
+>>>>>>> 7e814a06d899c1ebe5baaa188555e2627a9f21dc
       console.log('No tasks available, clearing local state');
       setTasks([]);
     }
   }, [allTasks, loading, taskError]);
 
+<<<<<<< HEAD
   // Enhanced page visibility and focus handling
+=======
+  // Improved page visibility and focus handling
+>>>>>>> 7e814a06d899c1ebe5baaa188555e2627a9f21dc
   useEffect(() => {
     const handleVisibilityChange = () => {
       const isVisible = document.visibilityState === 'visible';
@@ -387,9 +460,16 @@ export function UpcomingPage() {
         const timeSinceLastFocus = now - lastFocusTimeRef.current;
         console.log('Page became visible after', timeSinceLastFocus / 1000, 'seconds');
         
+<<<<<<< HEAD
         // Refresh if page was hidden for more than 30 seconds
         if (timeSinceLastFocus > 30000) {
           console.log('Refreshing tasks due to long visibility change');
+=======
+        // Only refresh if more than 5 seconds have passed since the last focus
+        // This prevents multiple refreshes when quickly switching tabs
+        if (timeSinceLastFocus > 5000) {
+          console.log('Refreshing tasks due to page visibility change');
+>>>>>>> 7e814a06d899c1ebe5baaa188555e2627a9f21dc
           refreshTasks();
         }
         
@@ -397,6 +477,25 @@ export function UpcomingPage() {
       }
     };
 
+<<<<<<< HEAD
+=======
+    const handleFocus = () => {
+      const now = Date.now();
+      const timeSinceLastFocus = now - lastFocusTimeRef.current;
+      console.log('Window focused after', timeSinceLastFocus / 1000, 'seconds');
+      
+      // Only refresh if more than 5 seconds have passed
+      if (timeSinceLastFocus > 5000) {
+        console.log('Refreshing tasks due to window focus');
+        refreshTasks();
+      }
+      
+      lastFocusTimeRef.current = now;
+      setIsPageActive(true);
+    };
+
+    // Add event listeners
+>>>>>>> 7e814a06d899c1ebe5baaa188555e2627a9f21dc
     document.addEventListener('visibilitychange', handleVisibilityChange);
     
     // Initial load handling
@@ -464,7 +563,11 @@ export function UpcomingPage() {
     );
   }, []);
 
+<<<<<<< HEAD
   // Generate week days with current date in middle
+=======
+  // Generate week days with current date in middle - better memoization
+>>>>>>> 7e814a06d899c1ebe5baaa188555e2627a9f21dc
   const weekDays = useMemo(() => {
     const start = addDays(selectedDate, -3); // Start 3 days before selected date
     const today = new Date();
@@ -473,36 +576,61 @@ export function UpcomingPage() {
       const date = addDays(start, i);
       return {
         date,
+<<<<<<< HEAD
         day: cachedFormat(date, 'dd'),
         weekDay: cachedFormat(date, 'EEE'),
+=======
+        day: format(date, 'dd'),
+        weekDay: format(date, 'EEE'),
+>>>>>>> 7e814a06d899c1ebe5baaa188555e2627a9f21dc
         isSelected: isSameDayOptimized(date, selectedDate),
         isToday: isSameDayOptimized(date, today)
       };
     });
+<<<<<<< HEAD
   }, [selectedDate, isSameDayOptimized, cachedFormat]);
+=======
+  }, [selectedDate, isSameDayOptimized]);
+>>>>>>> 7e814a06d899c1ebe5baaa188555e2627a9f21dc
 
   // Optimize task filtering for selected date with better memoization
   const filteredTasks = useMemo(() => {
     // Early return if no tasks
     if (!tasks || tasks.length === 0) return [];
     
+<<<<<<< HEAD
     // Extract date components once for more efficient comparison
+=======
+>>>>>>> 7e814a06d899c1ebe5baaa188555e2627a9f21dc
     const selectedYear = selectedDate.getFullYear();
     const selectedMonth = selectedDate.getMonth();
     const selectedDay = selectedDate.getDate();
     
+<<<<<<< HEAD
     // Use efficient filtering with date component comparison instead of isSameDay
+=======
+    // Use efficient filtering with early error handling
+>>>>>>> 7e814a06d899c1ebe5baaa188555e2627a9f21dc
     return tasks.filter(task => {
         if (!task.dueDate) return false;
         
       try {
         const taskDate = parseISO(task.dueDate);
+<<<<<<< HEAD
+=======
+        if (isNaN(taskDate.getTime())) return false;
+        
+>>>>>>> 7e814a06d899c1ebe5baaa188555e2627a9f21dc
         return (
           taskDate.getFullYear() === selectedYear &&
           taskDate.getMonth() === selectedMonth &&
           taskDate.getDate() === selectedDay
         );
+<<<<<<< HEAD
       } catch {
+=======
+      } catch (error) {
+>>>>>>> 7e814a06d899c1ebe5baaa188555e2627a9f21dc
         return false;
       }
     });
@@ -856,7 +984,13 @@ export function UpcomingPage() {
             </div>
             <p className="text-lg text-gray-900 dark:text-gray-100 font-medium">No tasks for {format(selectedDate, 'MMMM d')}</p>
             <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+<<<<<<< HEAD
               {isSameDayOptimized(selectedDate, new Date()) ? "You're all caught up for today!" : "Nothing scheduled for this day"}
+=======
+              {isSameDayOptimized(selectedDate, new Date()) 
+                ? "You're all caught up for today!" 
+                : "Nothing scheduled for this day"}
+>>>>>>> 7e814a06d899c1ebe5baaa188555e2627a9f21dc
             </p>
           </div>
         )}

@@ -37,7 +37,7 @@ type FormAction =
   | { type: 'SET_TASK_FIELD', field: keyof NewTask, value: string }
   | { type: 'SET_ERRORS', errors: TaskFormErrors }
   | { type: 'CLEAR_ERROR', field: keyof NewTask | 'files' }
-  | { type: 'ADD_FILES', newFiles: File[], newUrls: string[] }
+  | { type: 'ADD_FILES', files: File[], urls: string[] }
   | { type: 'REMOVE_FILE', index: number }
   | { type: 'SET_SUBMITTING', isSubmitting: boolean }
   | { type: 'SET_SUCCESS', success: boolean }
@@ -87,8 +87,8 @@ function formReducer(state: FormState, action: FormAction): FormState {
     case 'ADD_FILES':
       return {
         ...state,
-        files: [...state.files, ...action.newFiles],
-        fileUrls: [...state.fileUrls, ...action.newUrls]
+        files: [...state.files, ...action.files],
+        fileUrls: [...state.fileUrls, ...action.urls]
       };
     case 'REMOVE_FILE':
       return {
@@ -255,18 +255,15 @@ export function TaskForm({ onSubmit, sectionId, isSectionAdmin = false }: TaskFo
   }, [isMobile]);
 
   // Validation function - memoized for performance
-  const validate = useCallback((): boolean => {
+  const validate = useCallback((): TaskFormErrors => {
     const newErrors: TaskFormErrors = {};
-    let isValid = true;
     
     if (!taskDetails.name.trim()) {
       newErrors.name = 'Task name is required';
-      isValid = false;
     }
     
     if (!taskDetails.dueDate) {
       newErrors.dueDate = 'Due date is required';
-      isValid = false;
     } else {
       const selectedDate = new Date(taskDetails.dueDate);
       const today = new Date();
@@ -274,17 +271,14 @@ export function TaskForm({ onSubmit, sectionId, isSectionAdmin = false }: TaskFo
       
       if (selectedDate < today) {
         newErrors.dueDate = 'Due date cannot be in the past';
-        isValid = false;
       }
     }
     
     if (!taskDetails.description.trim()) {
       newErrors.description = 'Description is required';
-      isValid = false;
     }
     
-    dispatch({ type: 'SET_ERRORS', errors: newErrors });
-    return isValid;
+    return newErrors;
   }, [taskDetails]);
   
   // Handle input changes
@@ -307,39 +301,79 @@ export function TaskForm({ onSubmit, sectionId, isSectionAdmin = false }: TaskFo
     if (!e.target.files?.length) return;
 
     const newFiles = Array.from(e.target.files);
+    const isDeviceMobile = isMobile();
     
     // Validate file sizes before processing
-    const maxFileSize = 50 * 1024 * 1024; // 50MB limit
-    const oversizedFiles = newFiles.filter(file => file.size > maxFileSize);
+    const maxSingleFileSize = isDeviceMobile ? 25 * 1024 * 1024 : 50 * 1024 * 1024; // 25MB on mobile, 50MB on desktop
+    const oversizedFiles = newFiles.filter(file => file.size > maxSingleFileSize);
     
     if (oversizedFiles.length > 0) {
       dispatch({ 
         type: 'SET_ERRORS', 
         errors: { 
           ...errors, 
-          files: `Some files exceed the 50MB size limit: ${oversizedFiles.map(f => f.name).join(', ')}` 
+          files: `Some files exceed the ${isDeviceMobile ? '25MB' : '50MB'} size limit: ${oversizedFiles.map(f => f.name).join(', ')}` 
         } 
       });
       return;
     }
-    
-    const isDeviceMobile = isMobile();
-    
+
+    // Additional validation for mobile uploads
     if (isDeviceMobile) {
-      // On mobile, create placeholder URLs for display only
-      const displayUrls = newFiles.map(file => `placeholder-${file.name}-${Date.now()}`);
-      dispatch({ type: 'ADD_FILES', newFiles, newUrls: displayUrls });
-    } else {
-      // Desktop flow - use object URLs
-      const newUrls = newFiles.map(file => URL.createObjectURL(file));
-      dispatch({ type: 'ADD_FILES', newFiles, newUrls });
+      // Check total size for mobile uploads
+      const existingFilesSize = files.reduce((sum, file) => sum + file.size, 0);
+      const newFilesSize = newFiles.reduce((sum, file) => sum + file.size, 0);
+      const totalSize = existingFilesSize + newFilesSize;
+      const maxTotalSize = 100 * 1024 * 1024; // 100MB total limit for mobile
+      
+      if (totalSize > maxTotalSize) {
+        dispatch({
+          type: 'SET_ERRORS',
+          errors: {
+            ...errors,
+            files: `Total file size (${(totalSize / (1024 * 1024)).toFixed(1)}MB) exceeds the mobile limit of 100MB`
+          }
+        });
+        return;
+      }
+
+      // Validate file types more strictly on mobile
+      const allowedTypes = [
+        'image/jpeg',
+        'image/png',
+        'image/gif',
+        'application/pdf',
+        'application/msword',
+        'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+        'text/plain',
+        'application/vnd.ms-excel',
+        'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+      ];
+
+      const invalidFiles = newFiles.filter(file => !allowedTypes.includes(file.type));
+      if (invalidFiles.length > 0) {
+        dispatch({
+          type: 'SET_ERRORS',
+          errors: {
+            ...errors,
+            files: `Some files have unsupported formats on mobile: ${invalidFiles.map(f => f.name).join(', ')}`
+          }
+        });
+        return;
+      }
     }
+
+    // Create temporary URLs for display
+    const newUrls = newFiles.map(file => URL.createObjectURL(file));
     
-    // Clear any previous errors
+    // Update state
+    dispatch({ type: 'ADD_FILES', files: newFiles, urls: newUrls });
+    
+    // Clear any previous file errors
     if (errors.files) {
       dispatch({ type: 'CLEAR_ERROR', field: 'files' });
     }
-  }, [errors, isMobile]);
+  }, [files, errors, isMobile]);
   
   // Remove file - memoized
   const removeFile = useCallback((index: number) => {
@@ -356,38 +390,19 @@ export function TaskForm({ onSubmit, sectionId, isSectionAdmin = false }: TaskFo
     return today.toISOString().split('T')[0];
   }, []);
   
-  // Handle form submission - memoized
+  // Handle form submission with improved error handling
   const handleSubmit = useCallback(async (e: React.FormEvent) => {
     e.preventDefault();
     
-    // Clear any existing timeout
-    if (submissionTimeoutRef.current) {
-      clearTimeout(submissionTimeoutRef.current);
+    // Validate form
+    const validationErrors = validate();
+    if (Object.keys(validationErrors).length > 0) {
+      dispatch({ type: 'SET_ERRORS', errors: validationErrors });
+      return;
     }
     
-    // Create new abort controller
-    abortControllerRef.current = new AbortController();
-    
-    // Validate form
-    if (!validate()) return;
-    
+    // Set submitting state
     dispatch({ type: 'SET_SUBMITTING', isSubmitting: true });
-    dispatch({ type: 'SET_UPLOAD_PROGRESS', progress: 0 });
-    
-    // Set submission timeout (45 seconds)
-    submissionTimeoutRef.current = setTimeout(() => {
-      if (isMounted.current) {
-        console.error('[Error] Task submission timed out after 45 seconds');
-        dispatch({ type: 'SET_SUBMITTING', isSubmitting: false });
-        dispatch({ 
-          type: 'SET_ERRORS', 
-          errors: { 
-            name: 'Submission timed out. Please try again with smaller files or check your connection.' 
-          } 
-        });
-        abortControllerRef.current?.abort();
-      }
-    }, 45000);
     
     try {
       // Clone task details to avoid modifying state during preparation
@@ -412,9 +427,6 @@ export function TaskForm({ onSubmit, sectionId, isSectionAdmin = false }: TaskFo
             // Mobile - use attachment: protocol
             enhancedDescription += `- [${file.name}](attachment:${file.name})\n`;
           });
-          
-          // Add a special flag for mobile uploads
-          enhancedDescription += '\n<!-- mobile-uploads -->\n';
         } else {
           // For desktop, create blob URLs
           files.forEach(file => {
@@ -438,6 +450,21 @@ export function TaskForm({ onSubmit, sectionId, isSectionAdmin = false }: TaskFo
       
       // Handle mobile file uploads
       if (isDeviceMobile && files.length > 0) {
+        // Set a timeout for the entire submission process
+        const submissionTimeout = setTimeout(() => {
+          if (isMounted.current) {
+            dispatch({ type: 'SET_SUBMITTING', isSubmitting: false });
+            dispatch({ 
+              type: 'SET_ERRORS', 
+              errors: { 
+                name: 'Task submission timed out. Please try again with fewer or smaller files.' 
+              } 
+            });
+          }
+        }, 120000); // 2 minutes timeout
+        
+        submissionTimeoutRef.current = submissionTimeout;
+        
         // Validate files before sending
         const validFiles = files.filter(file => file.name && file.size > 0);
         
@@ -449,9 +476,6 @@ export function TaskForm({ onSubmit, sectionId, isSectionAdmin = false }: TaskFo
           console.log('[Debug] Setting section admin mobile flags:', { isSectionAdmin, sectionId });
           (finalTask as any)._isSectionAdminMobile = true;
           (finalTask as any)._sectionId = sectionId;
-          
-          // Also set the sectionId in the standard location to ensure it's used
-          finalTask.sectionId = sectionId;
         }
         
         // Add timestamp to prevent caching issues on mobile

@@ -190,27 +190,20 @@ export function TaskManager({
     const tempId = `temp-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
     
     try {
-      // Log initial task data for debugging
-      console.log('[Debug] Handling task creation with data:', {
-        ...task,
-        isSectionAdmin,
-        sectionId,
-        hasMobileFiles: !!(task as any)._mobileFiles?.length
-      });
+      // Log initial task data
+      console.log('[Debug] Handling task creation with data:', task);
       
       // Check for mobile files
       const mobileFiles = (task as any)._mobileFiles;
       const isMobileUpload = !!mobileFiles && mobileFiles.length > 0;
+      const isSectionAdminMobile = !!(task as any)._isSectionAdminMobile;
       
       // Add a timeout to prevent infinite "creating" state
       let timeoutId: number | null = null;
       
       if (isMobileUpload) {
-        console.log('[Debug] Mobile upload detected:', {
-          fileCount: mobileFiles.length,
-          isSectionAdmin,
-          sectionId
-        });
+        console.log('[Debug] Detected mobile file upload with', mobileFiles.length, 'files', 
+          isSectionAdminMobile ? '(section admin)' : '');
         
         // Set a timeout to clear the optimistic update if it takes too long
         timeoutId = window.setTimeout(() => {
@@ -226,18 +219,19 @@ export function TaskManager({
       
       // If section admin, automatically associate with section
       if (isSectionAdmin && sectionId) {
-        console.log('[Debug] Processing section admin task:', {
-          sectionId,
-          isMobileUpload
-        });
+        console.log('[Debug] Section admin creating task with sectionId:', sectionId);
         
-        // Create enhanced task with section data
         const enhancedTask = {
           ...taskToProcess,
-          sectionId,
-          _isSectionAdmin: true, // Add explicit flag
-          _mobileFiles: isMobileUpload ? mobileFiles : undefined // Preserve mobile files if present
+          sectionId
         };
+        
+        // For section admin mobile uploads, add extra metadata
+        if (isMobileUpload && isSectionAdminMobile) {
+          console.log('[Debug] Adding section admin mobile metadata to task');
+          (enhancedTask as any)._isSectionAdminMobile = true;
+          (enhancedTask as any)._sectionId = sectionId;
+        }
         
         // Create temporary optimistic task
         const optimisticTask: Task = {
@@ -254,22 +248,16 @@ export function TaskManager({
         // Add to local tasks for optimistic UI update
         setLocalTasks(prev => [optimisticTask, ...prev]);
         
+        // Submit to the server
         try {
-          // Submit to the server with explicit section data
           await onCreateTask(enhancedTask, sectionId);
           if (timeoutId) clearTimeout(timeoutId);
           
-          // Remove temporary task on success
+          // Remove temporary task
           setLocalTasks(prev => prev.filter(t => t.id !== tempId));
           showSuccessToast('Task created successfully');
-          
-          console.log('[Debug] Section admin task created successfully:', {
-            taskId: tempId,
-            sectionId,
-            isMobileUpload
-          });
         } catch (error) {
-          console.error('[Error] Failed to create section admin task:', error);
+          console.error('[Error] Failed to create task:', error);
           
           // Remove temporary task on error
           setLocalTasks(prev => prev.filter(t => t.id !== tempId));
@@ -278,7 +266,6 @@ export function TaskManager({
         }
       } else {
         // Standard task creation flow
-        console.log('[Debug] Processing standard task creation');
         await onCreateTask(taskToProcess);
         if (isMobileUpload && timeoutId) clearTimeout(timeoutId);
       }
@@ -291,10 +278,10 @@ export function TaskManager({
       setSearchTerm('');
       
     } catch (error) {
-      console.error('[Error] Error creating task:', error);
+      console.error('Error creating task:', error);
       showErrorToast('Failed to create task. Please try again.');
     }
-  }, [onCreateTask, isSectionAdmin, sectionId, setLocalTasks]);
+  }, [onCreateTask, isSectionAdmin, sectionId, setLocalTasks, showSuccessToast, showErrorToast]);
   
   // Handle task deletion with optimistic update
   const handleDeleteTask = useCallback(async (taskId: string) => {

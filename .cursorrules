@@ -134,6 +134,48 @@ If needed, you can further use the `web_scraper.py` file to scrape the web page 
 
 # Scratchpad
 
+## Current Task: Fix Section Admin Mobile File Upload Issue
+
+Problem: Section admins are unable to create tasks with file attachments on mobile devices, while the functionality works fine on PC.
+
+Analysis of changes made so far:
+1. Extended upload timeout from 30s to 60s
+2. Added retry logic with 3 attempts for failed uploads
+3. Implemented AbortController for better timeout handling
+4. Added detailed error logging and debugging information
+5. Added mobile-specific file validation and size limits
+6. Enhanced progress tracking and user feedback
+
+Remaining Tasks:
+[X] 1. Update task.service.ts to handle mobile file uploads more efficiently
+[X] 2. Add better error handling for mobile file uploads
+[X] 3. Improve file type validation for mobile uploads
+[X] 4. Add cleanup for failed uploads
+[ ] 5. Test the complete flow
+
+Changes Made:
+1. Added exponential backoff for retry attempts
+2. Enhanced error logging with detailed file information
+3. Implemented file cleanup for failed uploads
+4. Added tracking of uploaded files for cleanup
+5. Improved mobile file validation and handling
+
+# Lessons
+
+## Mobile File Upload Best Practices
+- Set lower file size limits for mobile uploads (25MB per file, 100MB total)
+- Add retry logic with exponential backoff for failed uploads
+- Implement proper cleanup for failed uploads
+- Use AbortController for better timeout handling
+- Add detailed logging for debugging mobile upload issues
+- Validate file types more strictly on mobile devices
+- Show clear progress and error messages to users
+- Track uploaded files for cleanup in case of failures
+- Use sequential uploads on mobile to avoid overwhelming connections
+- Implement exponential backoff for retry attempts
+- Add detailed error logging with file information
+- Handle cleanup gracefully even if some operations fail
+
 ## Current Task: Fix Super Admin Login Redirection Issue
 
 The problem: When logging in with super-admin credentials, the user is briefly redirected to the super admin dashboard but then redirected back to the regular user interface.

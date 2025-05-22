@@ -1,4 +1,4 @@
-import { useState, useEffect, Suspense, lazy, useRef } from 'react';
+import { useState, useMemo, useEffect, useCallback, Suspense, lazy, useRef } from 'react';
 import { format, addDays, startOfWeek, isSameDay, parseISO, isAfter, isBefore, startOfDay, endOfDay, formatDistanceToNow } from 'date-fns';
 import { Crown, Calendar, Clock, Tag, CheckCircle2, AlertCircle, BookOpen, FileText, PenTool, FlaskConical, GraduationCap, CalendarDays, Folder, Activity, Building, Users, Paperclip } from 'lucide-react';
 import { useTasks } from '../hooks/useTasks';
@@ -45,7 +45,7 @@ export function UpcomingPage() {
   const lastFocusTimeRef = useRef(Date.now());
 
   // Utility function to clean task description
-  const cleanTaskDescription = (description: string): string => {
+  const cleanTaskDescription = useCallback((description: string): string => {
     // Remove section ID text
     const withoutSectionId = description.replace(/\*This task is assigned to section ID: [0-9a-f-]+\*/g, '');
     
@@ -63,10 +63,10 @@ export function UpcomingPage() {
     
     // Clean up extra whitespace and return
     return fullyCleanedText.trim();
-  };
+  }, []);
 
   // Check if a task has attachments
-  const hasAttachments = (description: string): boolean => {
+  const hasAttachments = useCallback((description: string): boolean => {
     const attachmentPatterns = [
       /\[([^\]]+)\]\(attachment:[^)]+\)/,
       /\*\*Attachments:\*\*/,
@@ -75,15 +75,24 @@ export function UpcomingPage() {
     ];
     
     return attachmentPatterns.some(pattern => pattern.test(description));
-  };
+  }, []);
 
-  // Simple formatDate function
-  const formatDate = (date: Date): string => {
+  // Memoized and optimized formatDate function
+  const formatDate = useCallback((date: Date): string => {
     const year = date.getFullYear();
     const month = (date.getMonth() + 1).toString().padStart(2, '0');
     const day = date.getDate().toString().padStart(2, '0');
     return `${year}-${month}-${day}`;
-  };
+  }, []);
+
+  // Optimized function to check if two dates represent the same day
+  const isSameDayOptimized = useCallback((date1: Date, date2: Date): boolean => {
+    return (
+      date1.getFullYear() === date2.getFullYear() &&
+      date1.getMonth() === date2.getMonth() &&
+      date1.getDate() === date2.getDate()
+    );
+  }, []);
 
   // Handle URL params for date selection
   useEffect(() => {
@@ -130,18 +139,20 @@ export function UpcomingPage() {
     };
   }, []);
 
-  // Update local tasks when allTasks changes
+  // Update local tasks efficiently when allTasks changes
   useEffect(() => {
     if (allTasks) {
+      console.log('Received tasks, updating local state with', allTasks.length, 'tasks');
       setTasks(allTasks as any);
       // Set initial load to false once tasks are loaded
       setIsInitialLoad(false);
     } else {
+      console.log('No tasks available, clearing local state');
       setTasks([]);
     }
   }, [allTasks]);
 
-  // Page visibility and focus handling
+  // Improved page visibility and focus handling
   useEffect(() => {
     const handleVisibilityChange = () => {
       const isVisible = document.visibilityState === 'visible';
@@ -150,9 +161,12 @@ export function UpcomingPage() {
       if (isVisible) {
         const now = Date.now();
         const timeSinceLastFocus = now - lastFocusTimeRef.current;
+        console.log('Page became visible after', timeSinceLastFocus / 1000, 'seconds');
         
         // Only refresh if more than 5 seconds have passed since the last focus
+        // This prevents multiple refreshes when quickly switching tabs
         if (timeSinceLastFocus > 5000) {
+          console.log('Refreshing tasks due to page visibility change');
           refreshTasks();
         }
         
@@ -163,9 +177,11 @@ export function UpcomingPage() {
     const handleFocus = () => {
       const now = Date.now();
       const timeSinceLastFocus = now - lastFocusTimeRef.current;
+      console.log('Window focused after', timeSinceLastFocus / 1000, 'seconds');
       
       // Only refresh if more than 5 seconds have passed
       if (timeSinceLastFocus > 5000) {
+        console.log('Refreshing tasks due to window focus');
         refreshTasks();
       }
       
@@ -219,8 +235,8 @@ export function UpcomingPage() {
     return () => clearInterval(checkTasksInterval);
   }, [loading, allTasks, refreshTasks, isPageActive]);
 
-  // Generate week days with current date in middle
-  const weekDays = (() => {
+  // Generate week days with current date in middle - better memoization
+  const weekDays = useMemo(() => {
     const start = addDays(selectedDate, -3); // Start 3 days before selected date
     const today = new Date();
     
@@ -230,18 +246,22 @@ export function UpcomingPage() {
         date,
         day: format(date, 'dd'),
         weekDay: format(date, 'EEE'),
-        isSelected: isSameDay(date, selectedDate),
-        isToday: isSameDay(date, today)
+        isSelected: isSameDayOptimized(date, selectedDate),
+        isToday: isSameDayOptimized(date, today)
       };
     });
-  })();
+  }, [selectedDate, isSameDayOptimized]);
 
-  // Filter tasks for selected date
-  const filteredTasks = (() => {
+  // Optimize task filtering for selected date with better memoization
+  const filteredTasks = useMemo(() => {
     // Early return if no tasks
     if (!tasks.length) return [];
     
-    // Use standard date-fns functions for date comparisons
+    const selectedYear = selectedDate.getFullYear();
+    const selectedMonth = selectedDate.getMonth();
+    const selectedDay = selectedDate.getDate();
+    
+    // Use efficient filtering with early error handling
     return tasks.filter(task => {
       try {
         if (!task.dueDate) return false;
@@ -249,15 +269,19 @@ export function UpcomingPage() {
         const taskDate = parseISO(task.dueDate);
         if (isNaN(taskDate.getTime())) return false;
         
-        return isSameDay(taskDate, selectedDate);
+        return (
+          taskDate.getFullYear() === selectedYear &&
+          taskDate.getMonth() === selectedMonth &&
+          taskDate.getDate() === selectedDay
+        );
       } catch (error) {
         return false;
       }
     });
-  })();
+  }, [tasks, selectedDate]);
 
-  // Get task status
-  const getTaskStatus = (task: Task) => {
+  // Get task status - memoized utility function
+  const getTaskStatus = useCallback((task: Task) => {
     const dueDate = parseISO(task.dueDate);
     const currentDate = new Date();
     const isOverdue = isBefore(endOfDay(dueDate), startOfDay(currentDate));
@@ -284,10 +308,10 @@ export function UpcomingPage() {
       color: 'bg-blue-50 text-blue-600 dark:bg-blue-900/20 dark:text-blue-400 ring-blue-500/20',
       icon: <Clock className="w-3.5 h-3.5" />
     };
-  };
+  }, []);
 
-  // Category icons mapping
-  const categoryIcons = {
+  // Cache the category icons and colors with useMemo
+  const categoryIcons = useMemo(() => ({
     task: <BookOpen className="w-3 h-3 md:w-4 md:h-4" />,
     presentation: <PenTool className="w-3 h-3 md:w-4 md:h-4" />,
     project: <Folder className="w-3 h-3 md:w-4 md:h-4" />,
@@ -300,9 +324,9 @@ export function UpcomingPage() {
     blc: <Building className="w-3 h-3 md:w-4 md:h-4" />,
     groups: <Users className="w-3 h-3 md:w-4 md:h-4" />,
     default: <Tag className="w-3 h-3 md:w-4 md:h-4" />
-  };
+  }), []);
 
-  const categoryColors = {
+  const categoryColors = useMemo(() => ({
     task: 'bg-blue-100 text-blue-700 dark:bg-blue-900/20 dark:text-blue-300',
     presentation: 'bg-purple-100 text-purple-700 dark:bg-purple-900/20 dark:text-purple-300',
     project: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/20 dark:text-emerald-300',
@@ -315,16 +339,16 @@ export function UpcomingPage() {
     blc: 'bg-amber-100 text-amber-700 dark:bg-amber-900/20 dark:text-amber-300',
     groups: 'bg-sky-100 text-sky-700 dark:bg-sky-900/20 dark:text-sky-300',
     default: 'bg-gray-100 text-gray-700 dark:bg-gray-900/20 dark:text-gray-300'
-  };
+  }), []);
 
   // Get category info with icon and color
-  const getCategoryInfo = (category: string) => {
+  const getCategoryInfo = useCallback((category: string) => {
     const categoryKey = category as keyof typeof categoryIcons || 'default';
     return {
       icon: categoryIcons[categoryKey] || categoryIcons.default,
       color: categoryColors[categoryKey] || categoryColors.default
     };
-  };
+  }, [categoryIcons, categoryColors]);
 
   // Handle task status update
   const handleStatusUpdate = async (taskId: string, newStatus: Task['status']) => {
@@ -737,7 +761,7 @@ export function UpcomingPage() {
             </div>
             <p className="text-lg text-gray-900 dark:text-gray-100 font-medium">No tasks for {format(selectedDate, 'MMMM d')}</p>
             <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-              {isSameDay(selectedDate, new Date()) 
+              {isSameDayOptimized(selectedDate, new Date()) 
                 ? "You're all caught up for today!" 
                 : "Nothing scheduled for this day"}
             </p>

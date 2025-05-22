@@ -1,7 +1,6 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useLocalStorage } from 'usehooks-ts';
 import { prefetchApiData, prefetchRoute } from '../utils/prefetch';
-import { STORES } from '../utils/offlineStorage';
 
 // Define pattern types
 type PatternType = 'navigation' | 'action' | 'view';
@@ -126,43 +125,37 @@ export function usePredictivePreload(
         prefetchApiData(
           'tasks',
           (query) => query.select('*').order('due_date', { ascending: true }).limit(10),
-          'home_tasks',
-          STORES.TASKS
+          'home_tasks'
         );
       } else if (page === 'upcoming') {
         prefetchApiData(
           'tasks',
           (query) => query.select('*').order('due_date', { ascending: true }).limit(20),
-          'upcoming_tasks',
-          STORES.TASKS
+          'upcoming_tasks'
         );
       } else if (page === 'routine') {
         prefetchApiData(
           'routines',
           (query) => query.select('*').eq('is_active', true).limit(1),
-          'active_routine',
-          STORES.ROUTINES
+          'active_routine'
         );
       } else if (page === 'courses') {
         prefetchApiData(
           'courses',
           (query) => query.select('*').limit(10),
-          'courses',
-          STORES.COURSES
+          'courses'
         );
       } else if (page === 'study-materials') {
         prefetchApiData(
           'materials',
           (query) => query.select('*').limit(10),
-          'materials',
-          STORES.MATERIALS
+          'materials'
         );
       } else if (page === 'notifications') {
         prefetchApiData(
           'notifications',
           (query) => query.select('*').eq('read', false).limit(10),
-          'unread_notifications',
-          STORES.USER_DATA
+          'unread_notifications'
         );
       }
     });

@@ -285,9 +285,13 @@ const TaskCard = memo(({
   );
 });
 
-export function UpcomingPage() {
+interface UpcomingPageProps {
+  tasks?: Task[];
+}
+
+export function UpcomingPage({ tasks: propTasks }: UpcomingPageProps) {
   const { user } = useAuth();
-  const { tasks: allTasks, loading, error: taskError, updateTask, refreshTasks } = useTasks(user?.id);
+  const { tasks: allTasks, loading, error: taskError, updateTask, refreshTasks } = useTasks(propTasks ? undefined : user?.id);
   const [tasks, setTasks] = useState<Task[]>([]);
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
@@ -306,6 +310,11 @@ export function UpcomingPage() {
   // Add caches for performance improvement
   const descriptionCache = useRef<Map<string, string>>(new Map());
   const filteredTasksCache = useRef<Map<string, Task[]>>(new Map());
+
+  // Update tasks when prop or fetched tasks change
+  useEffect(() => {
+    setTasks(propTasks || allTasks || []);
+  }, [propTasks, allTasks]);
 
   // Clear loading state if stuck for too long
   useEffect(() => {
@@ -356,25 +365,6 @@ export function UpcomingPage() {
       retryLoadTasks();
     }
   }, [taskError, retryLoadTasks]);
-
-  // Update local tasks with better error handling
-  useEffect(() => {
-    if (allTasks) {
-      try {
-        console.log('Updating local tasks state with', allTasks.length, 'tasks');
-        setTasks(allTasks);
-      setIsInitialLoad(false);
-        setRetryCount(0); // Reset retry count on successful load
-        setOperationError(null);
-      } catch (error) {
-        console.error('Error updating local tasks:', error);
-        setOperationError('Error processing tasks data');
-      }
-    } else if (!loading && !taskError) {
-      console.log('No tasks available, clearing local state');
-      setTasks([]);
-    }
-  }, [allTasks, loading, taskError]);
 
   // Enhanced page visibility and focus handling
   useEffect(() => {

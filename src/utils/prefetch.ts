@@ -1,5 +1,4 @@
 import { supabase } from '../lib/supabase';
-import { STORES, saveToIndexedDB } from './offlineStorage';
 import { lazyLoad, preloadComponent } from './lazyLoad';
 
 // Type for prefetch options
@@ -12,6 +11,7 @@ export interface PrefetchOptions {
 // Map to track which routes have been prefetched to avoid duplicate work
 const prefetchedRoutes = new Map<string, boolean>();
 const prefetchedQueries = new Map<string, boolean>();
+const memoryCache = new Map<string, { data: any; timestamp: string }>();
 
 /**
  * Prefetch a specific route
@@ -27,18 +27,16 @@ export const prefetchRoute = (importFn: () => Promise<any>, routeKey: string) =>
 };
 
 /**
- * Prefetch API data and store in cache
+ * Prefetch API data and store in memory cache
  * @param tableName Supabase table name
  * @param queryFn Function that returns the Supabase query
  * @param cacheKey Unique key for this query
- * @param storeName IndexedDB store name
  * @param options Prefetch options
  */
 export const prefetchApiData = async (
   tableName: string,
   queryFn: (query: any) => any,
   cacheKey: string,
-  storeName: string = STORES.USER_DATA,
   options: PrefetchOptions = {}
 ) => {
   if (prefetchedQueries.has(cacheKey) || !navigator.onLine) return;
@@ -68,14 +66,10 @@ export const prefetchApiData = async (
     }
     
     if (data) {
-      // Save to IndexedDB for offline access
-      await saveToIndexedDB(storeName, data);
-      
       // Store in memory cache
-      const timestamp = new Date().toISOString();
-      await saveToIndexedDB(STORES.USER_DATA, { 
-        id: `${cacheKey}_timestamp`, 
-        value: timestamp 
+      memoryCache.set(cacheKey, {
+        data,
+        timestamp: new Date().toISOString()
       });
       
       console.debug(`Prefetched and cached ${cacheKey}`);
@@ -90,6 +84,15 @@ export const prefetchApiData = async (
     // Remove from prefetched queries if it failed
     prefetchedQueries.delete(cacheKey);
   }
+};
+
+/**
+ * Get cached data if available
+ * @param cacheKey The key to look up in the cache
+ * @returns The cached data or null if not found
+ */
+export const getCachedData = (cacheKey: string) => {
+  return memoryCache.get(cacheKey)?.data || null;
 };
 
 /**
@@ -118,8 +121,8 @@ export const prefetchResources = async (resources: Array<{
     if (resource.type === 'route') {
       prefetchRoute(resource.loader, resource.key);
     } else if (resource.type === 'api' && resource.loader) {
-      const { tableName, queryFn, storeName } = resource.loader;
-      prefetchApiData(tableName, queryFn, resource.key, storeName, resource.options);
+      const { tableName, queryFn } = resource.loader;
+      prefetchApiData(tableName, queryFn, resource.key, resource.options);
     } else if (resource.type === 'asset' && typeof resource.loader === 'string') {
       prefetchAsset(resource.loader);
     }
@@ -134,8 +137,8 @@ export const prefetchResources = async (resources: Array<{
         if (resource.type === 'route') {
           prefetchRoute(resource.loader, resource.key);
         } else if (resource.type === 'api' && resource.loader) {
-          const { tableName, queryFn, storeName } = resource.loader;
-          prefetchApiData(tableName, queryFn, resource.key, storeName, resource.options);
+          const { tableName, queryFn } = resource.loader;
+          prefetchApiData(tableName, queryFn, resource.key, resource.options);
         } else if (resource.type === 'asset' && typeof resource.loader === 'string') {
           prefetchAsset(resource.loader);
         }
@@ -168,4 +171,5 @@ export const prefetchAsset = (url: string) => {
 export const clearPrefetchCache = () => {
   prefetchedRoutes.clear();
   prefetchedQueries.clear();
+  memoryCache.clear();
 }; 

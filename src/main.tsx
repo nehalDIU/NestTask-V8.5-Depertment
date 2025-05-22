@@ -6,8 +6,6 @@ import './index.css';
 import { LoadingScreen } from '@/components/LoadingScreen';
 import { initPWA } from '@/utils/pwa';
 import { prefetchResources, prefetchAsset, prefetchApiData } from '@/utils/prefetch';
-// Use normal import without extension, the path alias will handle it correctly
-import { STORES } from '@/utils/offlineStorage';
 import { supabase } from './lib/supabase';
 
 // Ultra-light loading indicator to avoid expensive component imports
@@ -221,8 +219,7 @@ function initApp() {
             prefetchApiData(
               'tasks',
               (query: any) => query.select('*').limit(10),
-              'tasks',
-              STORES.TASKS
+              'tasks'
             );
           });
         }

@@ -134,6 +134,47 @@ If needed, you can further use the `web_scraper.py` file to scrape the web page 
 
 # Scratchpad
 
+## Current Task: Optimize Application Performance by Removing Offline Storage
+
+Changes Made:
+[X] Removed offline storage imports and functionality from main.tsx
+[X] Updated prefetch.ts to use memory cache instead of IndexedDB
+[X] Simplified data caching mechanism
+[X] Removed unused imports and dependencies
+[X] Added getCachedData utility function for accessing cached data
+[X] Created new useOperations hook to replace useOfflineOperations
+[X] Created new useData hook to replace useOfflineData
+[X] Updated usePredictivePreload to use memory cache
+[X] Created new useCourseData hook to replace useCourses with memory cache
+
+Next Steps:
+[X] Update components that were using offline storage:
+  [X] usePredictivePreload.ts
+  [X] useOfflineOperations.ts -> replaced with useOperations.ts
+  [X] useOfflineData.ts -> replaced with useData.ts
+  [X] useCourses.ts -> replaced with useCourseData.ts
+  [ ] useRoutines.ts
+  [ ] useTeachers.ts
+[ ] Remove the offlineStorage.ts file once all dependencies are updated
+[ ] Test the application to ensure all functionality works without offline storage
+[ ] Update documentation to reflect the removal of offline storage functionality
+
+# Lessons
+
+## Performance Optimization
+- Remove unused features and dependencies to improve initial load time
+- Use memory cache for temporary data storage instead of IndexedDB when offline storage isn't needed
+- Implement proper cleanup for cached data to prevent memory leaks
+- Add utility functions to make data access consistent across the application
+- Keep the codebase clean by removing unused imports and dependencies
+- When replacing functionality, create new files instead of modifying existing ones to make rollback easier
+- Use memory caching for temporary data that doesn't need to persist across sessions
+- Implement background data fetching to keep cached data fresh while maintaining responsiveness
+- Use separate caches for different data types to avoid conflicts
+- Keep cache updates synchronized with state updates to maintain consistency
+- Add refresh functions to force data reload when needed
+- Implement proper error handling with fallback to cached data
+
 ## Current Task: Fix Section Admin Mobile File Upload Issue
 
 Problem: Section admins are unable to create tasks with file attachments on mobile devices, while the functionality works fine on PC.

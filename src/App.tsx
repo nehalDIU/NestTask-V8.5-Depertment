@@ -3,7 +3,6 @@ import { useAuth } from './hooks/useAuth';
 import { useTasks } from './hooks/useTasks';
 import { useUsers } from './hooks/useUsers';
 import { useNotifications } from './hooks/useNotifications';
-import { useRoutines } from './hooks/useRoutines';
 import { AuthPage } from './pages/AuthPage';
 import { LoadingScreen } from './components/LoadingScreen';
 import { Navigation } from './components/Navigation';
@@ -72,7 +71,6 @@ export default function App() {
     updateTask, 
     deleteTask,
     refreshTasks,
-    syncOfflineChanges
   } = useTasks(user?.id);
   
   // Create handler functions for admin dashboard
@@ -92,11 +90,6 @@ export default function App() {
     return updateTask(taskId, updates);
   }, [updateTask]);
 
-  const {
-    routines,
-    loading: routinesLoading,
-    syncOfflineChanges: syncRoutineChanges
-  } = useRoutines();
   const { 
     notifications, 
     unreadCount,
@@ -260,7 +253,7 @@ export default function App() {
           localStorage.setItem('lastActiveTimestamp', now.toString());
           
           // Check if we've been inactive for a while
-          const wasInactiveLong = lastActivity && (now - parseInt(lastActivity)) > inactiveThreshold;
+          const wasInactiveLong = lastActivity ? (now - parseInt(lastActivity)) > inactiveThreshold : false;
           
           // Use a try-catch to handle any errors during data refresh
           try {
@@ -271,21 +264,7 @@ export default function App() {
                 supabase.auth.getSession().then(({ data }) => {
                   if (data.session) {
                     // Refresh all data sources with proper error handling
-                    Promise.allSettled([
-                      refreshTasks(wasInactiveLong), // Force refresh if inactive for a long time
-                      // Add more data refresh calls here if needed
-                    ]).then((results) => {
-                      const anyFailed = results.some(r => r.status === 'rejected');
-                      
-                      if (anyFailed) {
-                        console.warn('Some refresh operations failed, trying to recover...');
-                        // Try force UI update even on partial failure
-                        setActivePage(prev => prev);
-                      } else {
-                        // All refreshes succeeded, force UI update
-                      setActivePage(prev => prev);
-                      }
-                    });
+                    refreshTasks(wasInactiveLong);
                   } else {
                     // If no session, redirect to login page
                     window.location.href = '/auth';
@@ -293,7 +272,7 @@ export default function App() {
                 }).catch(error => {
                   console.error('Session check failed:', error);
                   // Try to recover by forcing tasks refresh
-                  refreshTasks(true).catch(console.error);
+                  refreshTasks(true);
                 });
               } else {
                 // If connection failed, reload the page to reset everything
@@ -303,7 +282,7 @@ export default function App() {
             }).catch((error: any) => {
               console.error('Error testing connection:', error);
               // Try refreshing data directly as a fallback before reloading
-              refreshTasks(true).catch(() => window.location.reload());
+              refreshTasks(true);
             });
           } catch (error) {
             console.error('Error refreshing data on visibility change:', error);
@@ -335,25 +314,8 @@ export default function App() {
   // Handle syncing all offline changes when coming back online
   const syncAllOfflineChanges = async () => {
     try {
-      let tasksSuccess = true;
-      let routinesSuccess = true;
-      
-      // Sync tasks with error handling
-      try {
-        await syncOfflineChanges();
-      } catch (err) {
-        tasksSuccess = false;
-      }
-      
-      // Sync routines with error handling
-      try {
-        await syncRoutineChanges();
-      } catch (err) {
-        routinesSuccess = false;
-      }
-      
-      // Refresh data regardless of sync outcome to ensure UI is updated
-      refreshTasks();
+      // Refresh data to ensure UI is updated
+      await refreshTasks();
     } catch (error) {
       console.error('Error in sync process:', error);
     }
@@ -401,13 +363,13 @@ export default function App() {
       case 'upcoming':
         return (
           <Suspense fallback={<LoadingScreen minimumLoadTime={300} />}>
-            <UpcomingPage tasks={tasks} />
+            <UpcomingPage tasks={tasks || []} />
           </Suspense>
         );
       case 'search':
         return (
           <Suspense fallback={<LoadingScreen minimumLoadTime={300} />}>
-            <SearchPage tasks={tasks} />
+            <SearchPage tasks={tasks || []} />
           </Suspense>
         );
       case 'notifications':
@@ -582,7 +544,10 @@ export default function App() {
     return (
       <AuthPage
         onLogin={(credentials, rememberMe = false) => login(credentials, rememberMe)}
-        onSignup={signup}
+        onSignup={async (credentials) => {
+          const user = await signup(credentials);
+          return undefined; // Explicitly return undefined to match void type
+        }}
         onForgotPassword={forgotPassword}
         error={authError || undefined}
       />
@@ -618,8 +583,8 @@ export default function App() {
     );
   }
 
-  // Add handling for section_admin role
-  if (user.role === 'section_admin') {
+  // Add handling for section-admin role
+  if (user.role === 'section-admin') {
     return (
       <Suspense fallback={<LoadingScreen minimumLoadTime={300} />}>
         <AdminDashboard

@@ -33,27 +33,29 @@ interface TaskListProps {
   showDeleteButton?: boolean;
 }
 
-export function TaskList({ tasks, onDeleteTask, showDeleteButton = false }: TaskListProps) {
+export const TaskList = ({ tasks = [], onDeleteTask, showDeleteButton = false }: TaskListProps) => {
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
   const [deletingTaskId, setDeletingTaskId] = useState<string | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
   const isOffline = useOfflineStatus();
 
   // Sort tasks to move completed tasks to the bottom and handle overdue tasks
-  const sortedTasks = [...tasks].sort((a, b) => {
-    // First, separate completed tasks from non-completed tasks
-    if (a.status === 'completed' && b.status !== 'completed') return 1;
-    if (a.status !== 'completed' && b.status === 'completed') return -1;
+  const sortedTasks = useMemo(() => {
+    return [...tasks].sort((a, b) => {
+      // First, separate completed tasks from non-completed tasks
+      if (a.status === 'completed' && b.status !== 'completed') return 1;
+      if (a.status !== 'completed' && b.status === 'completed') return -1;
 
-    // For non-completed tasks, prioritize overdue tasks
-    const aIsOverdue = isOverdue(a.dueDate);
-    const bIsOverdue = isOverdue(b.dueDate);
-    if (aIsOverdue && !bIsOverdue) return -1;
-    if (!aIsOverdue && bIsOverdue) return 1;
+      // For non-completed tasks, prioritize overdue tasks
+      const aIsOverdue = isOverdue(a.dueDate);
+      const bIsOverdue = isOverdue(b.dueDate);
+      if (aIsOverdue && !bIsOverdue) return -1;
+      if (!aIsOverdue && bIsOverdue) return 1;
 
-    // Otherwise, sort by due date (earlier dates first)
-    return new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime();
-  });
+      // Otherwise, sort by due date (earlier dates first)
+      return new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime();
+    });
+  }, [tasks]);
 
   const getCategoryIcon = (category: string) => {
     switch (category.toLowerCase()) {

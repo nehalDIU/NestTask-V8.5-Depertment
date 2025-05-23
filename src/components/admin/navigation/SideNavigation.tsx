@@ -3,12 +3,12 @@ import {
   Users, ListTodo, Settings, LogOut, Megaphone, Moon, Sun,
   Book, GraduationCap, FileText, CalendarDays, User, LayoutDashboard,
   BarChart2, Bell, HelpCircle, Globe, AlertCircle, ChevronLeft,
-  MessageCircle, Search, CheckCircle, Clock, Plus, RefreshCcw
+  MessageCircle, Search, CheckCircle, Clock, Plus, UserCog
 } from 'lucide-react';
 import { SideNavLink } from './SideNavLink';
 import { MobileMenuButton } from './MobileMenuButton';
 import { useTheme } from '../../../hooks/useTheme';
-import { refreshUserRole } from '../../../services/auth.service';
+import { useAuth } from '../../../hooks/useAuth';
 import { showSuccessToast, showErrorToast } from '../../../utils/notifications';
 import type { AdminTab } from '../../../types/admin';
 
@@ -30,6 +30,7 @@ export const SideNavigation = React.memo(function SideNavigation({
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isCollapsed, setIsCollapsed] = useState(false);
   const { isDark, toggle } = useTheme();
+  const { user } = useAuth();
   const [currentTime, setCurrentTime] = useState('');
   const [showProfileMenu, setShowProfileMenu] = useState(false);
 
@@ -118,16 +119,6 @@ export const SideNavigation = React.memo(function SideNavigation({
   const handleThemeToggle = useCallback(() => {
     toggle();
   }, [toggle]);
-
-  const handleRefreshRole = useCallback(async () => {
-    try {
-      await refreshUserRole();
-      showSuccessToast('Role refreshed successfully');
-    } catch (error) {
-      console.error('Error refreshing role:', error);
-      showErrorToast('Failed to refresh role');
-    }
-  }, []);
 
   const toggleProfileMenu = useCallback(() => {
     setShowProfileMenu(prev => !prev);
@@ -260,25 +251,45 @@ export const SideNavigation = React.memo(function SideNavigation({
               <div className="flex items-center justify-between">
                 <button 
                   onClick={toggleProfileMenu}
-                  className="flex items-center gap-2.5 p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors w-full"
+                  className="flex items-center gap-2.5 p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors w-full group"
                 >
-                  <div className="w-9 h-9 rounded-full bg-gradient-to-br from-gray-200 to-gray-300 dark:from-gray-700 dark:to-gray-800 flex items-center justify-center overflow-hidden shadow-sm">
-                    <User className="w-4.5 h-4.5 text-gray-600 dark:text-gray-400" />
+                  <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-600 to-indigo-700 flex items-center justify-center overflow-hidden shadow-sm ring-2 ring-white dark:ring-gray-800">
+                    {user?.avatar ? (
+                      <img 
+                        src={user.avatar} 
+                        alt={user.name} 
+                        className="w-full h-full object-cover"
+                      />
+                    ) : (
+                      <User className="w-5 h-5 text-white" />
+                    )}
                   </div>
                   <div className="flex flex-col items-start flex-1 min-w-0">
-                    <span className="text-sm font-medium text-gray-900 dark:text-white truncate w-full">Admin User</span>
-                    <span className="text-xs text-gray-500 dark:text-gray-400 truncate w-full">admin@example.com</span>
+                    <span className="text-sm font-semibold text-gray-900 dark:text-white truncate w-full group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">
+                      {user?.name || 'User'}
+                    </span>
+                    <span className="text-xs text-gray-500 dark:text-gray-400 truncate w-full">
+                      {user?.email || 'Loading...'}
+                    </span>
                   </div>
-                  <ChevronLeft className={`w-4 h-4 text-gray-500 dark:text-gray-400 transition-transform rotate-90 ${showProfileMenu ? 'rotate-[270deg]' : ''}`} />
+                  <ChevronLeft className={`w-4 h-4 text-gray-500 dark:text-gray-400 transition-transform rotate-90 ${showProfileMenu ? 'rotate-[270deg]' : ''} group-hover:text-blue-600 dark:group-hover:text-blue-400`} />
                 </button>
               </div>
             ) : (
               <button 
                 onClick={toggleProfileMenu}
-                className="w-full flex justify-center"
+                className="w-full flex justify-center group"
               >
-                <div className="w-10 h-10 rounded-full bg-gradient-to-br from-gray-200 to-gray-300 dark:from-gray-700 dark:to-gray-800 flex items-center justify-center overflow-hidden shadow-sm">
-                  <User className="w-5 h-5 text-gray-600 dark:text-gray-400" />
+                <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-600 to-indigo-700 flex items-center justify-center overflow-hidden shadow-sm ring-2 ring-white dark:ring-gray-800 group-hover:ring-blue-200 dark:group-hover:ring-blue-900 transition-all">
+                  {user?.avatar ? (
+                    <img 
+                      src={user.avatar} 
+                      alt={user.name} 
+                      className="w-full h-full object-cover"
+                    />
+                  ) : (
+                    <User className="w-5 h-5 text-white" />
+                  )}
                 </div>
               </button>
             )}
@@ -286,35 +297,58 @@ export const SideNavigation = React.memo(function SideNavigation({
             {/* Dropdown menu for profile actions */}
             {showProfileMenu && (
               <div className={`
-                absolute bottom-full left-0 mb-2 w-64 bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-100 dark:border-gray-700 py-2 z-50
+                absolute bottom-full left-0 mb-2 w-72 bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-100 dark:border-gray-700 py-2 z-50
                 ${isCollapsed ? 'left-full ml-2 bottom-auto top-0' : ''}
               `}>
-                <div className="px-4 py-2 border-b border-gray-100 dark:border-gray-700">
-                  <p className="text-sm font-medium text-gray-900 dark:text-white">Admin User</p>
-                  <p className="text-xs text-gray-500 dark:text-gray-400">admin@example.com</p>
+                <div className="px-4 py-3 border-b border-gray-100 dark:border-gray-700">
+                  <div className="flex items-center gap-3">
+                    <div className="w-12 h-12 rounded-full bg-gradient-to-br from-blue-600 to-indigo-700 flex items-center justify-center overflow-hidden shadow-sm ring-2 ring-white dark:ring-gray-800">
+                      {user?.avatar ? (
+                        <img 
+                          src={user.avatar} 
+                          alt={user.name} 
+                          className="w-full h-full object-cover"
+                        />
+                      ) : (
+                        <User className="w-6 h-6 text-white" />
+                      )}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-base font-semibold text-gray-900 dark:text-white">{user?.name || 'User'}</p>
+                      <p className="text-sm text-gray-500 dark:text-gray-400 truncate">{user?.email || 'Loading...'}</p>
+                    </div>
+                  </div>
                 </div>
                 
                 <div className="py-1">
                   <button 
-                    className="w-full flex items-center gap-3 px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"
+                    className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"
+                    onClick={() => handleNavigation('profile' as AdminTab)}
+                  >
+                    <UserCog className="w-4 h-4" />
+                    <span>Profile Settings</span>
+                  </button>
+
+                  <button 
+                    className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"
                     onClick={handleThemeToggle}
                   >
                     {isDark ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
                     <span>{isDark ? 'Light Mode' : 'Dark Mode'}</span>
                   </button>
-                  
+
                   <button 
-                    className="w-full flex items-center gap-3 px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"
-                    onClick={handleRefreshRole}
+                    className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"
+                    onClick={() => window.open('/help', '_blank')}
                   >
-                    <RefreshCcw className="w-4 h-4" />
-                    <span>Refresh Role</span>
+                    <HelpCircle className="w-4 h-4" />
+                    <span>Help Center</span>
                   </button>
                   
                   <div className="border-t border-gray-100 dark:border-gray-700 my-1"></div>
                   
                   <button 
-                    className="w-full flex items-center gap-3 px-4 py-2 text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20"
+                    className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20"
                     onClick={handleLogout}
                   >
                     <LogOut className="w-4 h-4" />

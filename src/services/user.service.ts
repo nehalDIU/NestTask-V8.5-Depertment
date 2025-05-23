@@ -90,14 +90,68 @@ export async function deleteUser(userId: string): Promise<void> {
       throw new Error('Unauthorized: You must be logged in');
     }
 
-    // Call the delete_user RPC function
-    const { error } = await supabase.rpc('delete_user', {
-      user_id: userId
-    });
+    // Get the current user's role and section_id
+    const { data: currentUserData, error: userError } = await supabase
+      .from('users')
+      .select('role, section_id')
+      .eq('id', user.id)
+      .single();
 
-    if (error) {
-      console.error('Error deleting user:', error);
-      throw new Error(error.message || 'Failed to delete user');
+    if (userError || !currentUserData) {
+      console.error('Error fetching user role:', userError);
+      throw new Error('Failed to get user role');
+    }
+
+    // Get the target user's section_id
+    const { data: targetUserData, error: targetError } = await supabase
+      .from('users')
+      .select('section_id')
+      .eq('id', userId)
+      .single();
+
+    if (targetError) {
+      console.error('Error fetching target user:', targetError);
+      throw new Error('Failed to get target user information');
+    }
+
+    // Helper function to check if user is a section admin
+    const isSectionAdmin = (role: string) => role === 'section-admin' || role === 'section_admin';
+
+    // Use different delete functions based on role
+    if (isSectionAdmin(currentUserData.role)) {
+      // Additional check to ensure users can only delete from their own section
+      if (currentUserData.section_id !== targetUserData?.section_id) {
+        throw new Error('You can only delete users from your own section');
+      }
+
+      console.log('Attempting to delete user as section admin:', {
+        userId,
+        adminSection: currentUserData.section_id,
+        targetSection: targetUserData?.section_id
+      });
+
+      // Use section admin delete function
+      const { error } = await supabase.rpc('delete_section_user', {
+        user_id: userId
+      });
+
+      if (error) {
+        console.error('Error deleting user as section admin:', error);
+        throw new Error(error.message || 'Failed to delete user');
+      }
+    } else if (currentUserData.role === 'admin' || currentUserData.role === 'super-admin') {
+      // Use regular admin delete function
+      const { error } = await supabase
+        .from('users')
+        .delete()
+        .eq('id', userId);
+
+      if (error) {
+        console.error('Error deleting user as admin:', error);
+        throw new Error(error.message || 'Failed to delete user');
+      }
+    } else {
+      throw new Error('Unauthorized: Only administrators can delete users');
     }
   } catch (error: any) {
     console.error('Error deleting user:', error);

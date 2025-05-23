@@ -1,3 +1,6 @@
+
+nehalindex002@gmail.com
+
 Here’s a **`requirements.md`** file that outlines everything needed for your university-focused web app upgrade — covering authentication, authorization, database schema, role management, UI requirements, and policies.
 
 ---

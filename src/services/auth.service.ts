@@ -564,28 +564,31 @@ function setupTokenRefresh(refreshToken: string) {
   window.addEventListener('focus', handleFocusRefresh);
 }
 
+// Helper function to normalize role values
+function normalizeRole(role: string): 'user' | 'admin' | 'super-admin' | 'section-admin' {
+  switch (role) {
+    case 'admin':
+      return 'admin';
+    case 'super-admin':
+    case 'super_admin':
+      return 'super-admin';
+    case 'section-admin':
+    case 'section_admin':
+      return 'section-admin';
+    default:
+      return 'user';
+  }
+}
+
 // Helper function to map database user to User type
 export function mapDbUserToUser(dbUser: SupabaseUser): User {
   console.log('Mapping DB user to User:', dbUser);
   
-  // Make sure we correctly handle role values, especially 'super-admin'
-  let userRole: 'user' | 'admin' | 'super-admin' | 'section-admin' = 'user';
-  
-  if (dbUser.role === 'admin') {
-    userRole = 'admin';
-  } else if (dbUser.role === 'super-admin' || dbUser.role === 'super_admin') {
-    userRole = 'super-admin';
-    console.log('Found super-admin user, setting role properly');
-  } else if (dbUser.role === 'section-admin' || dbUser.role === 'section_admin') {
-    userRole = 'section-admin';
-    console.log('Found section-admin user, setting role properly');
-  }
-
   return {
     id: dbUser.id,
     email: dbUser.email,
     name: dbUser.name || (dbUser.username as string) || dbUser.email.split('@')[0],
-    role: userRole,
+    role: normalizeRole(dbUser.role || 'user'),
     avatar: dbUser.avatar,
     phone: dbUser.phone,
     createdAt: dbUser.created_at || new Date().toISOString(),

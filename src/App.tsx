@@ -583,8 +583,8 @@ export default function App() {
     );
   }
 
-  // Add handling for section-admin role
-  if (user.role === 'section-admin') {
+   // Add handling for section_admin role
+   if (user.role === 'section_admin') {
     return (
       <Suspense fallback={<LoadingScreen minimumLoadTime={300} />}>
         <AdminDashboard

@@ -91,156 +91,25 @@ export const fetchTasks = async (userId: string, sectionId?: string | null): Pro
   }
 };
 
-async function uploadFileWithTimeout(file: File, timeoutMs = 60000): Promise<string> {
-  return new Promise(async (resolve, reject) => {
-    // Create AbortController for timeout
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => {
-      controller.abort();
-      reject(new Error(`Upload timed out for file ${file.name}`));
-    }, timeoutMs);
-    
-    try {
-      // Add retry logic with exponential backoff for mobile uploads
-      let attempts = 0;
-      const maxAttempts = 3;
-      let lastError = null;
-      let backoffDelay = 2000; // Start with 2 seconds
-
-      while (attempts < maxAttempts) {
-        try {
-          attempts++;
-          console.log(`[Debug] Attempting file upload (attempt ${attempts}/${maxAttempts}):`, {
-            fileName: file.name,
-            fileSize: file.size,
-            attempt: attempts,
-            backoffDelay
-          });
-
-          const fileExt = file.name.split('.').pop();
-          const fileName = `${crypto.randomUUID()}.${fileExt}`;
-          const filePath = `task-files/${fileName}`;
-
-          const { error: uploadError } = await supabase.storage
-            .from('task-attachments')
-            .upload(filePath, file, {
-              cacheControl: '3600',
-              upsert: false,
-              duplex: 'half'
-            });
-
-          if (uploadError) {
-            console.error(`[Error] Upload attempt ${attempts} failed:`, {
-              error: uploadError,
-              fileName: file.name,
-              fileSize: file.size,
-              attempt: attempts
-            });
-            lastError = uploadError;
-            if (attempts < maxAttempts) {
-              await new Promise(resolve => setTimeout(resolve, backoffDelay));
-              backoffDelay *= 2; // Exponential backoff
-              continue;
-            }
-            throw uploadError;
-          }
-
-          const { data: { publicUrl } } = supabase.storage
-            .from('task-attachments')
-            .getPublicUrl(filePath);
-
-          console.log('[Debug] File upload successful:', {
-            fileName: file.name,
-            fileSize: file.size,
-            attempts,
-            publicUrl
-          });
-          clearTimeout(timeoutId);
-          resolve(publicUrl);
-          return;
-        } catch (error) {
-          console.error(`[Error] Upload attempt ${attempts} failed with error:`, {
-            error,
-            fileName: file.name,
-            fileSize: file.size,
-            attempt: attempts
-          });
-          lastError = error;
-          if (attempts < maxAttempts && !controller.signal.aborted) {
-            await new Promise(resolve => setTimeout(resolve, backoffDelay));
-            backoffDelay *= 2; // Exponential backoff
-            continue;
-          }
-          throw error;
-        }
-      }
-
-      throw lastError || new Error(`Failed to upload file after ${maxAttempts} attempts`);
-    } catch (error) {
-      clearTimeout(timeoutId);
-      console.error('[Error] File upload failed:', {
-        error,
-        fileName: file.name,
-        fileSize: file.size
-      });
-      reject(error);
-    }
-  });
-}
-
 async function uploadFile(file: File): Promise<string> {
   try {
     const fileExt = file.name.split('.').pop();
     const fileName = `${crypto.randomUUID()}.${fileExt}`;
     const filePath = `task-files/${fileName}`;
 
-    // Add retry logic for mobile uploads
-    let attempts = 0;
-    const maxAttempts = 3;
-    let lastError = null;
+    const { error: uploadError } = await supabase.storage
+      .from('task-attachments')
+      .upload(filePath, file);
 
-    while (attempts < maxAttempts) {
-      try {
-        attempts++;
-        console.log(`[Debug] Attempting file upload (attempt ${attempts}/${maxAttempts}):`, file.name);
+    if (uploadError) throw uploadError;
 
-        const { error: uploadError } = await supabase.storage
-          .from('task-attachments')
-          .upload(filePath, file, {
-            cacheControl: '3600',
-            upsert: false
-          });
+    const { data: { publicUrl } } = supabase.storage
+      .from('task-attachments')
+      .getPublicUrl(filePath);
 
-        if (uploadError) {
-          console.error(`[Error] Upload attempt ${attempts} failed:`, uploadError);
-          lastError = uploadError;
-          if (attempts < maxAttempts) {
-            await new Promise(resolve => setTimeout(resolve, 2000)); // Wait 2 seconds before retry
-            continue;
-          }
-          throw uploadError;
-        }
-
-        const { data: { publicUrl } } = supabase.storage
-          .from('task-attachments')
-          .getPublicUrl(filePath);
-
-        console.log('[Debug] File upload successful:', file.name);
-        return publicUrl;
-      } catch (error) {
-        console.error(`[Error] Upload attempt ${attempts} failed with error:`, error);
-        lastError = error;
-        if (attempts < maxAttempts) {
-          await new Promise(resolve => setTimeout(resolve, 2000)); // Wait 2 seconds before retry
-          continue;
-        }
-        throw error;
-      }
-    }
-
-    throw lastError || new Error(`Failed to upload file after ${maxAttempts} attempts`);
+    return publicUrl;
   } catch (error) {
-    console.error('[Error] File upload failed:', error);
+    console.error('Error uploading file:', error);
     throw error;
   }
 }
@@ -256,9 +125,6 @@ export const createTask = async (
   task: NewTask,
   sectionId?: string
 ): Promise<Task> => {
-  // Track uploaded files for cleanup in case of failure
-  const uploadedFiles: { path: string; url: string }[] = [];
-  
   try {
     console.log('[Debug] Creating task with data:', { 
       userId, 
@@ -284,16 +150,40 @@ export const createTask = async (
     const isSectionAdminMobile = !!(task as any)._isSectionAdminMobile;
     const explicitSectionId = (task as any)._sectionId || sectionId;
     
-    // Initialize description from task
+    if (isMobileUpload) {
+      console.log('[Debug] Processing mobile file upload with', mobileFiles.length, 'files');
+      if (isSectionAdminMobile) {
+        console.log('[Debug] This is a section admin mobile upload with section ID:', explicitSectionId);
+      }
+    }
+    
     let description = task.description;
     
-    if (isMobileUpload && mobileFiles) {
-      console.log('[Debug] Processing mobile file upload with', mobileFiles.length, 'files');
-      
+    // Process mobile files first if they exist
+    if (isMobileUpload) {
       try {
         console.log('[Debug] Uploading mobile files', mobileFiles.map(f => ({name: f.name, size: f.size})));
         
-        // Process files sequentially to avoid overwhelming the connection
+        // Wrap file upload in a promise with timeout
+        const uploadFileWithTimeout = async (file: File, timeoutMs = 15000): Promise<string> => {
+          return new Promise(async (resolve, reject) => {
+            // Set a timeout to reject the promise if it takes too long
+            const timeoutId = setTimeout(() => {
+              reject(new Error(`Upload timed out for file ${file.name}`));
+            }, timeoutMs);
+            
+            try {
+              const url = await uploadFile(file);
+              clearTimeout(timeoutId);
+              resolve(url);
+            } catch (error) {
+              clearTimeout(timeoutId);
+              reject(error);
+            }
+          });
+        };
+        
+        // Upload each mobile file with retry logic
         for (const file of mobileFiles) {
           if (!file.name || file.size === 0) {
             console.warn('[Warning] Skipping invalid file', file);
@@ -303,101 +193,200 @@ export const createTask = async (
           try {
             console.log('[Debug] Uploading mobile file:', file.name);
             
-            // Upload with extended timeout and retry
-            const permanentUrl = await uploadFileWithTimeout(file, 60000);
+            // Try up to 3 times
+            let permanentUrl = '';
+            let attempts = 0;
+            let lastError = null;
             
-            // Track uploaded file for potential cleanup
-            const filePath = permanentUrl.split('/').pop();
-            if (filePath) {
-              uploadedFiles.push({ path: `task-files/${filePath}`, url: permanentUrl });
+            while (attempts < 3 && !permanentUrl) {
+              try {
+                attempts++;
+                permanentUrl = await uploadFileWithTimeout(file);
+                break;
+              } catch (uploadError) {
+                console.error(`[Error] Failed to upload mobile file (attempt ${attempts}/3):`, file.name, uploadError);
+                lastError = uploadError;
+                // Wait 1 second before retrying
+                if (attempts < 3) await new Promise(resolve => setTimeout(resolve, 1000));
+              }
             }
             
-            // Update description to replace attachment references
+            if (!permanentUrl) {
+              throw lastError || new Error(`Failed to upload file after 3 attempts: ${file.name}`);
+            }
+            
+            // Update description to replace attachment references with permanent URLs
+            // Enhanced pattern matching with better handling for section admin mobile uploads
             const attachmentPattern = new RegExp(`\\[${file.name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\]\\(attachment:${file.name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\)`, 'g');
             const permanentRef = `[${file.name}](${permanentUrl})`;
             
+            const oldDescription = description;
             description = description.replace(attachmentPattern, permanentRef);
             
-            if (!description.includes(permanentRef)) {
-              // If replacement failed, add the link at the end
-              description += `\n[${file.name}](${permanentUrl})`;
+            if (oldDescription === description) {
+              // If the description didn't change, try a more general approach
+              console.warn('[Warning] Failed to find exact attachment reference, trying general pattern');
+              description = description.replace(/\[(.*?)\]\(attachment:(.*?)\)/g, (match, fileName, ref) => {
+                if (fileName === file.name) {
+                  return `[${fileName}](${permanentUrl})`;
+                }
+                return match;
+              });
+              
+              // Special case for section admin mobile uploads if still not found
+              if (oldDescription === description && isSectionAdminMobile) {
+                console.log('[Debug] Using fallback for section admin mobile file:', file.name);
+                // Add the attachment at the end if we couldn't find a match
+                if (!description.includes(`[${file.name}]`)) {
+                  description += `\n[${file.name}](${permanentUrl})`;
+                }
+              }
             }
             
-            console.log('[Debug] File uploaded and linked successfully:', file.name);
-          } catch (fileError: unknown) {
+            console.log('[Debug] Replaced attachment reference with permanent URL');
+          } catch (fileError) {
             console.error('[Error] Failed to upload mobile file:', file.name, fileError);
-            
-            // Cleanup any files that were successfully uploaded before the error
-            await cleanupUploadedFiles(uploadedFiles);
-            
-            throw new Error(`Failed to upload file ${file.name}: ${fileError instanceof Error ? fileError.message : 'Unknown error'}`);
           }
         }
+        
+        // Remove the mobile upload marker comment
+        description = description.replace(/\n<!-- mobile-uploads -->\n/g, '');
       } catch (mobileUploadError) {
         console.error('[Error] Mobile file upload process failed:', mobileUploadError);
-        throw mobileUploadError;
+      }
+    } else {
+      // Standard desktop file processing
+      // Extract file information from description
+      // Extract file information from description with improved regex
+      const fileMatches = description.match(/\[([^\]]+)\]\((blob:.*?|attachment:.*?)\)/g) || [];
+      console.log('[Debug] Found file matches in description:', fileMatches);
+
+      // Upload each file and update description with permanent URLs
+      for (const match of fileMatches) {
+        try {
+          // Updated regex to handle both blob: URLs (desktop) and attachment: references (mobile)
+          const matchResult = match.match(/\[(.*?)\]\((blob:(.*?)|attachment:(.*?))\)/);
+          if (!matchResult) continue;
+          
+          const [, fileName, urlWithPrefix] = matchResult;
+          const isBlob = urlWithPrefix?.startsWith('blob:');
+          console.log('[Debug] Processing file match:', { match, fileName, isBlob });
+          
+          if (fileName) {
+            try {
+              // If it's already an attachment reference without a blob URL, preserve it
+              if (!isBlob) {
+                console.log('[Debug] Skipping non-blob URL:', urlWithPrefix);
+                continue;
+              }
+              
+              // For blob URLs, process normally with timeout
+              if (isBlob) {
+                const fetchPromise = new Promise<Blob>(async (resolve, reject) => {
+                  try {
+                    console.log('[Debug] Fetching blob URL:', urlWithPrefix);
+                    const response = await fetch(urlWithPrefix);
+                    if (!response.ok) {
+                      reject(new Error(`Failed to fetch blob: ${response.status}`));
+                      return;
+                    }
+                    const blob = await response.blob();
+                    resolve(blob);
+                  } catch (error) {
+                    reject(error);
+                  }
+                });
+                
+                // Set up a timeout
+                const timeoutPromise = new Promise<never>((_, reject) => {
+                  setTimeout(() => reject(new Error('Blob fetch timed out')), 10000);
+                });
+                
+                // Race the fetch against the timeout
+                const blob = await Promise.race([fetchPromise, timeoutPromise]);
+                
+                const file = new File([blob], fileName, { type: blob.type });
+                const permanentUrl = await uploadFile(file);
+                description = description.replace(match, `[${fileName}](${permanentUrl})`);
+                console.log('[Debug] Uploaded file and replaced URL with:', permanentUrl);
+              }
+            } catch (error) {
+              console.error('[Error] Processing file failed:', { fileName, error });
+            }
+          }
+        } catch (matchError) {
+          console.error('[Error] Invalid file match format:', { match, error: matchError });
+        }
       }
     }
 
-    // Create the task with updated description
-    const { data: taskData, error: insertError } = await supabase
+    // Prepare the task data
+    const taskInsertData: any = {
+      name: task.name,
+      category: task.category,
+      due_date: task.dueDate,
+      description: description,
+      status: task.status,
+      user_id: userId,
+      is_admin_task: userRole === 'admin' || userRole === 'section_admin' || userRole === 'section-admin' || false,
+    };
+
+    // Determine correct section_id based on role and available data
+    // Section admin: Always set section_id to their section
+    if ((userRole === 'section_admin' || userRole === 'section-admin') && userSectionId) {
+      taskInsertData.section_id = userSectionId;
+      console.log('[Debug] Section admin creating task for section:', userSectionId);
+      
+      // Ensure this appears in the description for clarity
+      if (!description.includes(`For section:`) && !description.includes(`Section ID:`)) {
+        taskInsertData.description += `\n\nFor section: ${userSectionId}`;
+      }
+    } 
+    // Explicitly provided section_id takes precedence for admins
+    else if (sectionId) {
+      taskInsertData.section_id = sectionId;
+      console.log('[Debug] Using provided section_id:', sectionId);
+    } 
+    // Regular user with section_id - use their section for personal tasks
+    else if (userSectionId && userRole === 'user') {
+      taskInsertData.section_id = userSectionId;
+      console.log('[Debug] Regular user creating task for their section:', userSectionId);
+    }
+
+    console.log('[Debug] Final task insert data:', taskInsertData);
+
+    const { data, error } = await supabase
       .from('tasks')
-      .insert([
-        {
-          name: task.name,
-          category: task.category,
-          due_date: task.dueDate,
-          description: description,
-          status: task.status || 'in-progress',
-          user_id: userId,
-          is_admin_task: true,
-          section_id: explicitSectionId
-        }
-      ])
+      .insert(taskInsertData)
       .select()
       .single();
 
-    if (insertError) {
-      // Cleanup uploaded files if task creation fails
-      await cleanupUploadedFiles(uploadedFiles);
-      throw insertError;
+    if (error) {
+      console.error('Error creating task:', error);
+      throw new Error(`Failed to create task: ${error.message}`);
+    }
+
+    if (!data) {
+      throw new Error('No data returned from task creation');
+    }
+
+    console.log('[Debug] Successfully created task with ID:', data.id);
+
+    // Map database response to Task type
+    const newTask = mapTaskFromDB(data);
+    
+    // Send notifications if it's an admin task
+    if (newTask.isAdminTask) {
+      await sendPushNotifications(newTask);
+      await sendTaskNotification(newTask);
     }
     
-    if (!taskData) {
-      // Cleanup uploaded files if no data returned
-      await cleanupUploadedFiles(uploadedFiles);
-      throw new Error('No data returned from task insert');
-    }
-
-    return taskData;
-  } catch (error) {
-    console.error('[Error] Task creation failed:', error);
-    // Ensure cleanup happens on any error
-    await cleanupUploadedFiles(uploadedFiles);
-    throw error;
+    return newTask;
+  } catch (error: any) {
+    console.error('Error in createTask:', error);
+    throw new Error(`Task creation failed: ${error.message}`);
   }
 };
-
-// Helper function to clean up uploaded files
-async function cleanupUploadedFiles(files: { path: string; url: string }[]) {
-  if (files.length === 0) return;
-  
-  console.log('[Debug] Cleaning up uploaded files:', files.map(f => f.path));
-  
-  try {
-    const { error } = await supabase.storage
-      .from('task-attachments')
-      .remove(files.map(f => f.path));
-      
-    if (error) {
-      console.error('[Error] Failed to cleanup uploaded files:', error);
-    } else {
-      console.log('[Debug] Successfully cleaned up uploaded files');
-    }
-  } catch (error) {
-    console.error('[Error] Error during file cleanup:', error);
-  }
-}
 
 async function sendPushNotifications(task: Task) {
   try {

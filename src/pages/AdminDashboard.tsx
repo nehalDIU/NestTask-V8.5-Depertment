@@ -73,8 +73,8 @@ export function AdminDashboard({
     }
   }, [activeTab]);
   
-  // Filter tasks for section admin
-  const filteredTasks = useMemo(() => {
+   // Filter tasks for section admin
+   const filteredTasks = useMemo(() => {
     if (!isSectionAdmin || !sectionId) {
       return tasks;
     }

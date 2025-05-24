@@ -217,7 +217,7 @@
         });
       }
       
-      // Improved loading screen removal with MutationObserver
+      // Improved loading screen removal with MutationObserver and timeout fallback
       document.addEventListener('DOMContentLoaded', () => {
         // Get the root element where React will mount
         const rootEl = document.getElementById('root');
@@ -225,12 +225,24 @@
         // Keep track of whether the app is mounted
         let appMounted = false;
         
+        // Fallback timeout to remove loading screen
+        const fallbackTimeout = setTimeout(() => {
+          if (!appMounted) {
+            const loadingEl = document.querySelector('.loading');
+            if (loadingEl) {
+              loadingEl.style.opacity = '0';
+              setTimeout(() => loadingEl.remove(), 250);
+            }
+          }
+        }, 5000); // 5 second fallback
+        
         // Observe the root element for changes to detect when React has mounted
         if (rootEl) {
           const observer = new MutationObserver((mutations, observer) => {
             // Check if the app is mounted and has real content
             if (rootEl.childNodes.length > 0 && rootEl.innerHTML.trim().length > 50) {
               appMounted = true;
+              clearTimeout(fallbackTimeout);
               
               // Delay the removal of loading screen slightly to ensure smooth transition
               setTimeout(() => {
@@ -254,21 +266,6 @@
             attributes: true 
           });
         }
-        
-        // Enhanced failsafe: Make sure loading screen is removed if observer fails
-        setTimeout(() => {
-          // Only remove loading if app hasn't mounted yet
-          if (!appMounted) {
-            console.debug('Using failsafe to remove loading screen');
-            const loadingEl = document.querySelector('.loading');
-            if (loadingEl) {
-              loadingEl.style.opacity = '0';
-              setTimeout(() => {
-                loadingEl.remove();
-              }, 250);
-            }
-          }
-        }, 3000); // Longer timeout to give app more time to initialize
       });
     </script>
   </body>

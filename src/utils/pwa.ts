@@ -380,10 +380,10 @@ export async function initPWA() {
       
       if (lastOnline) {
         const timeSinceLastOnline = Date.now() - parseInt(lastOnline, 10);
-        const oneHour = 60 * 60 * 1000;
+        const thirtyMinutes = 30 * 60 * 1000;
         
-        // If offline for more than an hour, do cleanup
-        if (timeSinceLastOnline > oneHour) {
+        // If offline for more than 30 minutes, do cleanup
+        if (timeSinceLastOnline > thirtyMinutes) {
           console.log('[PWA] Returning online after extended offline period, cleaning up...');
           
           // Clear caches to avoid stale data
@@ -401,7 +401,33 @@ export async function initPWA() {
     // Initialize PWA features
     await Promise.allSettled([
       Promise.resolve().then(checkInstallability),
-      Promise.resolve().then(registerServiceWorker)
+      Promise.resolve().then(() => {
+        // Setup keep-alive pings
+        setupKeepAlive();
+        
+        // Setup offline detection
+        window.addEventListener('online', () => {
+          document.body.classList.remove('offline');
+          // Trigger a reload if we've been offline for a while
+          const lastOffline = localStorage.getItem('lastOfflineTimestamp');
+          if (lastOffline) {
+            const timeSinceOffline = Date.now() - parseInt(lastOffline, 10);
+            if (timeSinceOffline > 5 * 60 * 1000) { // 5 minutes
+              window.location.reload();
+            }
+          }
+        });
+        
+        window.addEventListener('offline', () => {
+          document.body.classList.add('offline');
+          localStorage.setItem('lastOfflineTimestamp', Date.now().toString());
+        });
+        
+        // Initial offline check
+        if (!navigator.onLine) {
+          document.body.classList.add('offline');
+        }
+      })
     ]);
     
     return true;

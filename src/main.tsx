@@ -5,7 +5,7 @@ import { createBrowserRouter, RouterProvider } from 'react-router-dom';
 import './index.css';
 import { LoadingScreen } from '@/components/LoadingScreen';
 import { initPWA } from '@/utils/pwa';
-import { prefetchResources, prefetchAsset, prefetchApiData } from '@/utils/prefetch';
+import { prefetchAsset } from '@/utils/prefetch';
 import { supabase } from './lib/supabase';
 
 // Ultra-light loading indicator to avoid expensive component imports
@@ -217,17 +217,6 @@ function initApp() {
       link.rel = 'prefetch';
       link.href = '/icons/icon-192x192.png';
       document.head.appendChild(link);
-      
-      // Load API data in the background
-      if (!navigator.connection?.saveData) {
-        import('./utils/prefetch').then(({ prefetchApiData }) => {
-          prefetchApiData(
-            'tasks',
-            (query: any) => query.select('*').limit(10),
-            'tasks'
-          );
-        });
-      }
     }
     
     // Log performance metrics
@@ -248,14 +237,10 @@ if ('serviceWorker' in navigator) {
   
   // Basic auth state change handler
   supabase.auth.onAuthStateChange((event) => {
-    if (event === 'SIGNED_IN' || event === 'SIGNED_OUT') {
-      if (navigator.serviceWorker.controller) {
-        navigator.serviceWorker.controller.postMessage({
-          type: 'AUTH_STATE_CHANGED',
-          event,
-          timestamp: Date.now()
-        });
-      }
+    if (event === 'SIGNED_IN') {
+      console.debug('User signed in');
+    } else if (event === 'SIGNED_OUT') {
+      console.debug('User signed out');
     }
   });
 }

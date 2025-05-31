@@ -18,11 +18,43 @@ import { getCachedData } from '../utils/prefetch';
 const courseCache = new Map<string, { data: Course[]; timestamp: string }>();
 const materialCache = new Map<string, { data: StudyMaterial[]; timestamp: string }>();
 
-export function useCourseData() {
-  const [courses, setCourses] = useState<Course[]>([]);
+/**
+ * Custom hook for managing course data with memory caching
+ */
+export function useCourseData(userId: string | undefined) {
+  const [courses, setCourses] = useState<any[]>(() => {
+    // Try to get data from memory cache first
+    const cachedData = getCachedData('courses');
+    return cachedData || [];
+  });
   const [materials, setMaterials] = useState<StudyMaterial[]>([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<Error | null>(null);
+
+  // Function to fetch courses from the database
+  const fetchCourses = useCallback(async () => {
+    if (!userId) {
+      setLoading(false);
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const { data, error } = await supabase
+        .from('courses')
+        .select('*')
+        .order('name', { ascending: true });
+
+      if (error) throw error;
+
+      setCourses(data || []);
+    } catch (err) {
+      console.error('Error fetching courses:', err);
+      setError(err instanceof Error ? err : new Error('Unknown error fetching courses'));
+    } finally {
+      setLoading(false);
+    }
+  }, [userId]);
 
   const loadCourses = useCallback(async (forceRefresh = false) => {
     try {
@@ -63,7 +95,7 @@ export function useCourseData() {
       });
     } catch (err: any) {
       console.error('Error loading courses:', err);
-      setError(err.message);
+      setError(err instanceof Error ? err : new Error('Unknown error loading courses'));
       
       // Try to use cached data as fallback
       const cachedCourses = getCachedData('courses');
@@ -115,7 +147,7 @@ export function useCourseData() {
       });
     } catch (err: any) {
       console.error('Error loading materials:', err);
-      setError(err.message);
+      setError(err instanceof Error ? err : new Error('Unknown error loading materials'));
       
       // Try to use cached data as fallback
       const cachedMaterials = getCachedData('materials');
@@ -169,7 +201,7 @@ export function useCourseData() {
       
       return newCourse;
     } catch (err: any) {
-      setError(err.message);
+      setError(err instanceof Error ? err : new Error('Unknown error creating course'));
       throw err;
     }
   };
@@ -190,7 +222,7 @@ export function useCourseData() {
       
       return updatedCourse;
     } catch (err: any) {
-      setError(err.message);
+      setError(err instanceof Error ? err : new Error('Unknown error updating course'));
       throw err;
     }
   };
@@ -209,7 +241,7 @@ export function useCourseData() {
         });
       }
     } catch (err: any) {
-      setError(err.message);
+      setError(err instanceof Error ? err : new Error('Unknown error deleting course'));
       throw err;
     }
   };
@@ -230,7 +262,7 @@ export function useCourseData() {
       
       return newMaterial;
     } catch (err: any) {
-      setError(err.message);
+      setError(err instanceof Error ? err : new Error('Unknown error creating material'));
       throw err;
     }
   };
@@ -251,7 +283,7 @@ export function useCourseData() {
       
       return updatedMaterial;
     } catch (err: any) {
-      setError(err.message);
+      setError(err instanceof Error ? err : new Error('Unknown error updating material'));
       throw err;
     }
   };
@@ -270,7 +302,7 @@ export function useCourseData() {
         });
       }
     } catch (err: any) {
-      setError(err.message);
+      setError(err instanceof Error ? err : new Error('Unknown error deleting material'));
       throw err;
     }
   };
@@ -284,7 +316,7 @@ export function useCourseData() {
       
       return result;
     } catch (err: any) {
-      setError(err.message);
+      setError(err instanceof Error ? err : new Error('Unknown error bulk importing courses'));
       throw err;
     }
   };

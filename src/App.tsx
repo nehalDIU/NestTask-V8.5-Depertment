@@ -10,26 +10,18 @@ import { TaskList } from './components/TaskList';
 import { BottomNavigation } from './components/BottomNavigation';
 import { NotificationPanel } from './components/notifications/NotificationPanel';
 import { InstallPWA } from './components/InstallPWA';
-import { OfflineIndicator } from './components/ui/OfflineIndicator';
-import { OfflineToast } from './components/ui/OfflineToast';
-import { OfflineSyncManager } from './components/ui/OfflineSyncManager';
 import { ListTodo, CheckCircle2, Clock, AlertCircle } from 'lucide-react';
 import { TaskCategories } from './components/task/TaskCategories';
 import { isOverdue, isSameDay } from './utils/dateUtils';
-import { useOfflineStatus } from './hooks/useOfflineStatus';
-import { usePredictivePreload } from './hooks/usePredictivePreload';
 import { InstantTransition } from './components/InstantTransition';
-import { prefetchResources } from './utils/prefetch';
-import { STORES } from './utils/offlineStorage';
 import type { NavPage } from './types/navigation';
 import type { TaskCategory } from './types/task';
 import type { Task } from './types/task';
 import type { User } from './types/user';
 import { ResetPasswordPage } from './pages/ResetPasswordPage';
 import { supabase, testConnection } from './lib/supabase';
-import { preloadPredictedRoutes } from './utils/routePreloader';
 
-// Page import functions for prefetching
+// Page import functions
 const importAdminDashboard = () => import('./pages/AdminDashboard').then(module => ({ default: module.AdminDashboard }));
 const importSuperAdminDashboard = () => import('./components/admin/super/SuperAdminDashboard').then(module => ({ default: module.SuperAdminDashboard }));
 const importUpcomingPage = () => import('./pages/UpcomingPage').then(module => ({ default: module.UpcomingPage }));
@@ -39,7 +31,7 @@ const importCoursePage = () => import('./pages/CoursePage').then(module => ({ de
 const importStudyMaterialsPage = () => import('./pages/StudyMaterialsPage').then(module => ({ default: module.StudyMaterialsPage }));
 const importRoutinePage = () => import('./pages/RoutinePage').then(module => ({ default: module.RoutinePage }));
 
-// Lazy-loaded components with instant loading config
+// Lazy-loaded components
 const AdminDashboard = lazy(importAdminDashboard);
 const SuperAdminDashboard = lazy(importSuperAdminDashboard);
 const UpcomingPage = lazy(importUpcomingPage);
@@ -97,7 +89,6 @@ export default function App() {
     markAllAsRead, 
     clearNotification 
   } = useNotifications(user?.id);
-  const isOffline = useOfflineStatus();
   
   const [activePage, setActivePage] = useState<NavPage>('home');
   const [showNotifications, setShowNotifications] = useState(false);
@@ -105,40 +96,6 @@ export default function App() {
   const [statFilter, setStatFilter] = useState<StatFilter>('all');
   const [isLoading, setIsLoading] = useState(true);
   const [isResetPasswordFlow, setIsResetPasswordFlow] = useState(false);
-
-  // Use predictive preloading based on navigation patterns
-  const { predictedPages, recordAction } = usePredictivePreload(activePage, {
-    enabled: true,
-    threshold: 2
-  });
-
-  // Preload resources for predicted pages
-  useEffect(() => {
-    if (predictedPages.length > 0) {
-      preloadPredictedRoutes(predictedPages);
-    }
-  }, [predictedPages]);
-
-  // Preload critical assets in the background - MOVED HERE to ensure consistent hook ordering
-  useEffect(() => {
-    if (!isLoading && user) {
-      // Preload critical task-related assets after authentication
-      prefetchResources([
-        {
-          type: 'route',
-          key: 'upcoming',
-          loader: importUpcomingPage,
-          options: { priority: 'high' }
-        },
-        {
-          type: 'route',
-          key: 'search',
-          loader: importSearchPage,
-          options: { priority: 'medium' }
-        }
-      ]);
-    }
-  }, [isLoading, user]);
 
   // Calculate today's task count - always compute this value regardless of rendering path
   const todayTaskCount = useMemo(() => {
@@ -196,7 +153,7 @@ export default function App() {
   // Check for unread notifications - moved here from inside render
   const hasUnreadNotifications = useMemo(() => unreadCount > 0, [unreadCount]);
 
-  // Check URL hash for password recovery path
+  // Check URL hash for recovery path
   const checkHashForRecovery = useCallback(() => {
     const hash = window.location.hash;
     
@@ -212,22 +169,6 @@ export default function App() {
     const timer = setTimeout(() => {
       setIsLoading(false);
     }, 800); // Reduced from 2000ms to 800ms
-
-    // Immediately prefetch critical resources for better performance
-    prefetchResources([
-      {
-        type: 'route',
-        key: 'upcoming',
-        loader: importUpcomingPage,
-        options: { priority: 'high' }
-      },
-      {
-        type: 'asset',
-        key: 'logo',
-        loader: '/icons/icon-192x192.png',
-        options: { priority: 'high' }
-      }
-    ]);
 
     // Check hash on initial load
     checkHashForRecovery();
@@ -310,16 +251,6 @@ export default function App() {
       document.removeEventListener('visibilitychange', handleVisibilityChange);
     };
   }, [checkHashForRecovery, refreshTasks, user?.id]);
-
-  // Handle syncing all offline changes when coming back online
-  const syncAllOfflineChanges = async () => {
-    try {
-      // Refresh data to ensure UI is updated
-      await refreshTasks();
-    } catch (error) {
-      console.error('Error in sync process:', error);
-    }
-  };
 
   // Filter tasks based on selected stat
   const getFilteredTasks = () => {
@@ -646,9 +577,6 @@ export default function App() {
       />
 
       <InstallPWA />
-      <OfflineIndicator />
-      <OfflineToast />
-      <OfflineSyncManager onSync={syncAllOfflineChanges} />
     </div>
   );
 }

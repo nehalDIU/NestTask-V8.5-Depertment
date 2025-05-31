@@ -5,45 +5,41 @@ import { parseLinks } from '../../utils/linkParser';
 // Import only the icons we definitely need immediately
 import { Crown, Calendar } from 'lucide-react';
 
-// Lazily load the category icons
+// Lazily load the category icons - shared across all instances
 const iconMap = {
   quiz: lazy(() => import('lucide-react').then(mod => ({ default: mod.BookOpen }))),
   assignment: lazy(() => import('lucide-react').then(mod => ({ default: mod.PenSquare }))),
   presentation: lazy(() => import('lucide-react').then(mod => ({ default: mod.Presentation }))),
   project: lazy(() => import('lucide-react').then(mod => ({ default: mod.Folder }))),
-  'lab-report': lazy(() => import('lucide-react').then(mod => ({ default: mod.Beaker }))),
-  'lab-final': lazy(() => import('lucide-react').then(mod => ({ default: mod.Microscope }))),
-  'lab-performance': lazy(() => import('lucide-react').then(mod => ({ default: mod.Activity }))),
+  labreport: lazy(() => import('lucide-react').then(mod => ({ default: mod.Beaker }))),
+  labfinal: lazy(() => import('lucide-react').then(mod => ({ default: mod.Microscope }))),
+  labperformance: lazy(() => import('lucide-react').then(mod => ({ default: mod.Activity }))),
   documents: lazy(() => import('lucide-react').then(mod => ({ default: mod.FileText }))),
   blc: lazy(() => import('lucide-react').then(mod => ({ default: mod.Building }))),
   groups: lazy(() => import('lucide-react').then(mod => ({ default: mod.Users }))),
   default: lazy(() => import('lucide-react').then(mod => ({ default: mod.GraduationCap })))
 };
 
-// Pre-compile regex patterns for better performance
-const SECTION_ID_REGEX = /\*This task is assigned to section ID: [0-9a-f-]+\*/g;
-const FOR_SECTION_REGEX = /\n\nFor section: [0-9a-f-]+/g;
-const ATTACHMENTS_REGEX = /\n\n\*\*Attachments:\*\*[\s\S]*?((\n\n)|$)/g;
-const ATTACHMENT_LINKS_REGEX = /\[.*?\]\(attachment:.*?\)/g;
-const ATTACHED_FILES_REGEX = /\nAttached Files:[\s\S]*?((\n\n)|$)/g;
-const DATA_REPORT_REGEX = /\s*\[(data_analysis_report.*?)\]\s*/g;
+// Single regex for more efficient text cleaning
+const CLEAN_REGEX = new RegExp(
+  [
+    /\*This task is assigned to section ID: [0-9a-f-]+\*/,
+    /\n\nFor section: [0-9a-f-]+/,
+    /\n\n\*\*Attachments:\*\*[\s\S]*?((\n\n)|$)/,
+    /\[.*?\]\(attachment:.*?\)/,
+    /\nAttached Files:[\s\S]*?((\n\n)|$)/,
+    /\s*\[(data_analysis_report.*?)\]\s*/
+  ].map(r => r.source).join('|'),
+  'g'
+);
 
 // Helper function to clean the task description for display in cards
 const cleanDescription = (description: string) => {
   if (!description) return '';
-  
-  // Process all replacements in a single pass
-  return description
-    .replace(SECTION_ID_REGEX, '')
-    .replace(FOR_SECTION_REGEX, '')
-    .replace(ATTACHMENTS_REGEX, '')
-    .replace(ATTACHMENT_LINKS_REGEX, '')
-    .replace(ATTACHED_FILES_REGEX, '')
-    .replace(DATA_REPORT_REGEX, '')
-    .trim();
+  return description.replace(CLEAN_REGEX, '').trim();
 };
 
-// Map of category colors for better performance
+// Static maps for colors and styles - shared across all instances
 const categoryColorMap: Record<string, string> = {
   'quiz': 'text-blue-600 dark:text-blue-400',
   'assignment': 'text-orange-600 dark:text-orange-400',
@@ -58,14 +54,54 @@ const categoryColorMap: Record<string, string> = {
   'default': 'text-gray-600 dark:text-gray-400'
 };
 
+const statusStyleMap = {
+  completed: {
+    textColor: 'text-green-600 dark:text-green-400',
+    bgColor: 'bg-green-500',
+    cardStyle: 'md:border-green-200 md:dark:border-green-900/80 bg-green-50 dark:bg-gray-800 md:bg-white md:dark:bg-gray-800'
+  },
+  overdue: {
+    textColor: 'text-red-600 dark:text-red-400',
+    bgColor: 'bg-red-500',
+    cardStyle: 'md:border-red-200 md:dark:border-red-900/80 bg-red-50 dark:bg-gray-800 md:bg-white md:dark:bg-gray-800'
+  },
+  default: {
+    textColor: 'text-sky-600 dark:text-sky-400',
+    bgColor: 'bg-sky-500',
+    cardStyle: 'md:border-sky-100 md:dark:border-sky-800/30 md:hover:border-sky-200 md:dark:hover:border-sky-700/50'
+  }
+};
+
 // Helper functions for efficient category handling
 const getCategoryColor = (category: string) => {
   const key = category.toLowerCase();
   return categoryColorMap[key] || categoryColorMap.default;
 };
 
+// Create a lightweight status indicator dot component
+const StatusDot = memo(({ status, overdue }: { status: string; overdue: boolean }) => {
+  // Only use animation for non-completed, important statuses
+  const shouldAnimate = status !== 'completed' && (overdue || status === 'in-progress');
+  
+  const style = status === 'completed' 
+    ? statusStyleMap.completed 
+    : overdue 
+      ? statusStyleMap.overdue 
+      : statusStyleMap.default;
+  
+  return (
+    <span className="relative flex h-2.5 w-2.5 md:h-2 md:w-2">
+      {shouldAnimate && (
+        <span className={`animate-ping absolute inline-flex h-full w-full rounded-full opacity-75 ${style.bgColor}`} />
+      )}
+      <span className={`relative inline-flex rounded-full h-2.5 w-2.5 md:h-2 md:w-2 ${style.bgColor}`} />
+    </span>
+  );
+});
+
 // Create a lightweight icon component
 const CategoryIcon = memo(({ category }: { category: string }) => {
+  // Normalize the key by removing hyphens for better matching
   const key = category.toLowerCase().replace(/-/g, '') as keyof typeof iconMap;
   const IconComponent = iconMap[key] || iconMap.default;
 
@@ -88,9 +124,19 @@ export const TaskCard = memo(({
   index, 
   onSelect 
 }: TaskCardProps) => {
+  // These should be fast calculations, so we can do them directly
   const overdue = isOverdue(task.dueDate);
+  const formattedCategory = task.category.replace(/-/g, ' ');
+  const categoryColor = getCategoryColor(task.category);
   
-  // Only clean and parse description if it exists
+  // Get status styles from our map for consistent rendering
+  const statusStyle = useMemo(() => {
+    if (task.status === 'completed') return statusStyleMap.completed;
+    if (overdue) return statusStyleMap.overdue;
+    return statusStyleMap.default;
+  }, [task.status, overdue]);
+  
+  // These are more expensive, so we memoize them
   const cleanedDescription = useMemo(() => 
     task.description ? cleanDescription(task.description) : '', 
     [task.description]
@@ -101,22 +147,6 @@ export const TaskCard = memo(({
     cleanedDescription ? parseLinks(cleanedDescription) : [],
     [cleanedDescription]
   );
-  
-  // Pre-calculate status styles for reuse
-  const statusStyles = useMemo(() => {
-    let textColor, bgColor;
-    if (task.status === 'completed') {
-      textColor = 'text-green-600 dark:text-green-400';
-      bgColor = 'bg-green-500';
-    } else if (overdue) {
-      textColor = 'text-red-600 dark:text-red-400';
-      bgColor = 'bg-red-500';
-    } else {
-      textColor = 'text-sky-600 dark:text-sky-400';
-      bgColor = 'bg-sky-500';
-    }
-    return { textColor, bgColor };
-  }, [task.status, overdue]);
   
   // Pre-format date once
   const formattedDate = useMemo(() => {
@@ -130,21 +160,10 @@ export const TaskCard = memo(({
     }
   }, [task.dueDate]);
 
-  // Pre-compute card styles based on status
-  const cardStyles = useMemo(() => {
-    if (task.status === 'completed') {
-      return 'md:border-green-200 md:dark:border-green-900/80 bg-green-50 dark:bg-gray-800 md:bg-white md:dark:bg-gray-800';
-    } else if (overdue) {
-      return 'md:border-red-200 md:dark:border-red-900/80 bg-red-50 dark:bg-gray-800 md:bg-white md:dark:bg-gray-800';
-    }
-    return 'md:border-sky-100 md:dark:border-sky-800/30 md:hover:border-sky-200 md:dark:hover:border-sky-700/50';
-  }, [task.status, overdue]);
-  
-  // Simple formatter for category names
-  const formattedCategory = task.category.replace(/-/g, ' ');
-  
-  // Optimized category color
-  const categoryColor = getCategoryColor(task.category);
+  // Add a fade-in transition function to avoid style recalculation
+  const getAnimationStyle = () => ({
+    animationDelay: `${Math.min(index * 50, 300)}ms` // Cap animation delay to improve performance
+  });
 
   return (
     <div
@@ -158,11 +177,9 @@ export const TaskCard = memo(({
         active:scale-[0.98] md:active:scale-100 md:hover:-translate-y-1
         active:bg-gray-50 dark:active:bg-gray-800/90 md:active:bg-white
         touch-manipulation md:touch-auto
-        ${cardStyles}
+        ${statusStyle.cardStyle}
         motion-safe:animate-fade-in motion-safe:animate-duration-500`}
-      style={{ 
-        animationDelay: `${Math.min(index * 50, 500)}ms` // Cap animation delay
-      }}
+      style={getAnimationStyle()}
     >
       {/* Category Tag - Desktop */}
       <div className="hidden md:flex items-start justify-between mb-3.5 md:mb-2">
@@ -185,7 +202,7 @@ export const TaskCard = memo(({
         </span>
 
         {task.isAdminTask && (
-          <Crown className="w-5 h-5 md:w-4 md:h-4 text-amber-500 animate-pulse md:ml-2 hidden md:block" />
+          <Crown className="w-4 h-4 text-amber-500 animate-pulse md:ml-2 hidden md:block" />
         )}
       </div>
 
@@ -256,22 +273,19 @@ export const TaskCard = memo(({
         border-t border-gray-100 dark:border-gray-700/50"
       >
         <div className="flex items-center gap-3">
-          {/* Mobile-optimized status indicator */}
+          {/* Optimized status indicator with memo component */}
           <span className={`inline-flex items-center gap-1.5 
-            text-sm md:text-xs font-medium ${statusStyles.textColor}`}
+            text-sm md:text-xs font-medium ${statusStyle.textColor}`}
           >
-            <span className="relative flex h-2.5 w-2.5 md:h-2 md:w-2">
-              <span className={`animate-ping absolute inline-flex h-full w-full rounded-full opacity-75 ${statusStyles.bgColor}`} />
-              <span className={`relative inline-flex rounded-full h-2.5 w-2.5 md:h-2 md:w-2 ${statusStyles.bgColor}`} />
-            </span>
+            <StatusDot status={task.status} overdue={overdue} />
             {task.status === 'completed' ? 'Complete' : overdue ? 'Overdue' : 'In Progress'}
           </span>
         </div>
 
         {/* Due date display */}
         <div className="flex items-center gap-1.5">
-          <Calendar className={`w-3.5 h-3.5 md:w-3 md:h-3 ${statusStyles.textColor}`} />
-          <span className={`text-sm md:text-xs font-medium ${statusStyles.textColor}`}>
+          <Calendar className={`w-3.5 h-3.5 md:w-3 md:h-3 ${statusStyle.textColor}`} />
+          <span className={`text-sm md:text-xs font-medium ${statusStyle.textColor}`}>
             {formattedDate}
           </span>
         </div>

@@ -145,19 +145,36 @@ ${regularDescription}
 
   return (
     <>
-      {/* Backdrop overlay */}
+      {/* Backdrop overlay - enhanced for full viewport coverage */}
       <div 
-        className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 transition-opacity"
+        className="fixed inset-0 bg-black/50 backdrop-blur-sm z-[9999] transition-opacity overflow-hidden"
         onClick={onClose}
+        style={{ 
+          top: 0, 
+          right: 0, 
+          bottom: 0, 
+          left: 0, 
+          position: 'fixed',
+          margin: 0,
+          padding: 0,
+          width: '100vw',
+          height: '100vh'
+        }}
+        aria-hidden="true"
       />
 
       {/* Popup container - made more responsive for mobile */}
-      <div className="fixed inset-x-4 sm:inset-x-8 top-[5%] sm:top-[10%] md:inset-x-auto md:left-1/2 md:-translate-x-1/2 md:w-full md:max-w-2xl bg-white dark:bg-gray-800 rounded-xl sm:rounded-2xl shadow-2xl z-50 max-h-[90vh] sm:max-h-[80vh] overflow-hidden animate-scale-in">
+      <div 
+        className="fixed inset-x-4 sm:inset-x-8 top-[5%] sm:top-[10%] md:inset-x-auto md:left-1/2 md:-translate-x-1/2 md:w-full md:max-w-2xl bg-white dark:bg-gray-800 rounded-xl sm:rounded-2xl shadow-2xl z-[10000] max-h-[90vh] sm:max-h-[80vh] overflow-hidden animate-scale-in"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="task-details-title"
+      >
         {/* Header */}
         <div className="flex items-start justify-between p-4 sm:p-6 border-b dark:border-gray-700">
           <div className="pr-2 sm:pr-8">
             <div className="flex items-center gap-2 mb-1 sm:mb-2">
-              <h2 className="text-lg sm:text-xl font-semibold text-gray-900 dark:text-white line-clamp-2">
+              <h2 id="task-details-title" className="text-lg sm:text-xl font-semibold text-gray-900 dark:text-white line-clamp-2">
                 {task.name}
               </h2>
               {task.isAdminTask && (

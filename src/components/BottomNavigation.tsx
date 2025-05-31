@@ -9,6 +9,7 @@ interface BottomNavigationProps {
   todayTaskCount?: number;
 }
 
+// Optimized navigation item with minimal rendering
 const BottomNavigationItem = React.memo(({ 
   id, 
   icon: Icon, 
@@ -30,6 +31,7 @@ const BottomNavigationItem = React.memo(({
     <button
       onClick={() => {
         onClick();
+        // Only vibrate on devices that support it
         if ('vibrate' in navigator) {
           navigator.vibrate(5);
         }
@@ -37,29 +39,26 @@ const BottomNavigationItem = React.memo(({
       aria-label={ariaLabel}
       aria-current={isActive ? 'page' : undefined}
       className={`
-        relative flex flex-col items-center justify-center w-full h-full 
-        px-2 py-2 transition-colors duration-200 ease-out
-        focus:outline-none focus-visible:bg-black/5 dark:focus-visible:bg-white/10
+        relative flex flex-col items-center justify-center w-full
+        px-1 py-1 
         ${
           isActive
             ? 'text-blue-600 dark:text-blue-400'
-            : 'text-gray-700 dark:text-gray-300 hover:text-gray-900 dark:hover:text-gray-100'
+            : 'text-gray-700 dark:text-gray-300'
         }`}
     >
-      <div className="relative">
-        <Icon 
-          className="w-5 h-5 transition-all duration-200"
-          strokeWidth={isActive ? 2.5 : 1.8}
-        />
-        
-        {badge !== undefined && badge > 0 && (
-          <span className="absolute -top-1.5 -right-1.5 flex items-center justify-center min-w-[16px] h-4 px-1 text-[10px] font-medium text-white bg-red-500 rounded-full shadow-sm">
-            {badge > 99 ? '99+' : badge}
-          </span>
-        )}
-      </div>
+      <Icon 
+        className="w-5 h-5"
+        strokeWidth={isActive ? 2.5 : 1.8}
+      />
       
-      <span className={`text-xs font-medium mt-1 ${isActive ? 'opacity-100' : 'opacity-70'}`}>
+      {badge !== undefined && badge > 0 && (
+        <span className="absolute -top-1 -right-1 min-w-[14px] h-3.5 px-0.5 text-[9px] font-medium text-white bg-red-500 rounded-full flex items-center justify-center">
+          {badge > 99 ? '99+' : badge}
+        </span>
+      )}
+      
+      <span className={`text-[10px] mt-0.5 ${isActive ? 'font-medium' : 'font-normal opacity-70'}`}>
         {label}
       </span>
     </button>
@@ -69,21 +68,21 @@ const BottomNavigationItem = React.memo(({
 BottomNavigationItem.displayName = 'BottomNavigationItem';
 
 export function BottomNavigation({ activePage, onPageChange, hasUnreadNotifications, todayTaskCount = 0 }: BottomNavigationProps) {
-  const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
+  // Remove isMobile state as we'll use CSS media queries instead
   const [touchStartX, setTouchStartX] = useState<number | null>(null);
   
-  useEffect(() => {
-    const handleResize = () => {
-      setIsMobile(window.innerWidth < 768);
-    };
-    
-    window.addEventListener('resize', handleResize);
-    return () => window.removeEventListener('resize', handleResize);
-  }, []);
+  // Pre-define nav items once to avoid recreating the array on each render
+  const navItems = useMemo(() => [
+    { id: 'home' as NavPage, icon: Home, label: 'Home', ariaLabel: 'Go to home page', badge: undefined },
+    { id: 'upcoming' as NavPage, icon: Calendar, label: 'Upcoming', ariaLabel: 'View upcoming tasks', badge: todayTaskCount > 0 ? todayTaskCount : undefined },
+    { id: 'routine' as NavPage, icon: BookOpen, label: 'Routine', ariaLabel: 'View your routine', badge: undefined },
+    { id: 'search' as NavPage, icon: Search, label: 'Search', ariaLabel: 'Search content', badge: undefined }
+  ], [todayTaskCount]);
 
-  // Handle keyboard navigation
+  // Handle keyboard navigation - simplified
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
+      // Skip if focus is on an input element
       if (document.activeElement?.tagName === 'INPUT' || 
           document.activeElement?.tagName === 'TEXTAREA') {
         return;
@@ -100,9 +99,9 @@ export function BottomNavigation({ activePage, onPageChange, hasUnreadNotificati
     
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [activePage, onPageChange]);
+  }, [activePage, onPageChange, navItems]);
 
-  // Handle swipe navigation for mobile
+  // Optimized touch handlers
   const handleTouchStart = useCallback((e: React.TouchEvent) => {
     setTouchStartX(e.touches[0].clientX);
   }, []);
@@ -113,8 +112,8 @@ export function BottomNavigation({ activePage, onPageChange, hasUnreadNotificati
     const touchEndX = e.changedTouches[0].clientX;
     const diff = touchStartX - touchEndX;
     
-    // Minimum swipe distance (50px)
-    if (Math.abs(diff) < 50) return;
+    // Require more significant swipe (70px)
+    if (Math.abs(diff) < 70) return;
     
     const currentIndex = navItems.findIndex(item => item.id === activePage);
     
@@ -128,27 +127,20 @@ export function BottomNavigation({ activePage, onPageChange, hasUnreadNotificati
     }
     
     setTouchStartX(null);
-  }, [touchStartX, activePage, onPageChange]);
-
-  const navItems = useMemo(() => [
-    { id: 'home' as NavPage, icon: Home, label: 'Home', ariaLabel: 'Go to home page', badge: undefined },
-    { id: 'upcoming' as NavPage, icon: Calendar, label: 'Upcoming', ariaLabel: 'View upcoming tasks', badge: todayTaskCount > 0 ? todayTaskCount : undefined },
-    { id: 'routine' as NavPage, icon: BookOpen, label: 'Routine', ariaLabel: 'View your routine', badge: undefined },
-    { id: 'search' as NavPage, icon: Search, label: 'Search', ariaLabel: 'Search content', badge: undefined }
-  ], [todayTaskCount]);
+  }, [touchStartX, activePage, onPageChange, navItems]);
 
   const activeIndex = navItems.findIndex(item => item.id === activePage);
 
   return (
     <nav 
-      className="fixed bottom-0 left-0 right-0 z-50 bg-white/90 dark:bg-gray-900/95 backdrop-blur-md border-t border-gray-200 dark:border-gray-800 shadow-md"
+      className="fixed bottom-0 left-0 right-0 z-50 bg-white/95 dark:bg-gray-900/95 border-t border-gray-200 dark:border-gray-800"
       onTouchStart={handleTouchStart}
       onTouchEnd={handleTouchEnd}
     >
       <div className="max-w-7xl mx-auto">
-        <div className="grid grid-cols-4 h-16">
-          {/* Active indicator line */}
-          <div className="absolute top-0 h-0.5 bg-blue-500 dark:bg-blue-400 transition-all duration-200" 
+        <div className="grid grid-cols-4 h-14">
+          {/* Active indicator line - simplified styling */}
+          <div className="absolute top-0 h-0.5 bg-blue-500 dark:bg-blue-400 transition-all duration-150" 
             style={{
               width: `${100 / navItems.length}%`,
               left: `${(100 / navItems.length) * activeIndex}%`,

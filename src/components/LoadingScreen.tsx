@@ -7,7 +7,7 @@ interface LoadingScreenProps {
 
 // Using memo for better performance
 export const LoadingScreen = memo(function LoadingScreen({ 
-  minimumLoadTime = 300, 
+  minimumLoadTime = 200,
   showProgress = false 
 }: LoadingScreenProps) {
   const [show, setShow] = useState(true);
@@ -15,43 +15,35 @@ export const LoadingScreen = memo(function LoadingScreen({
   const [fadeOut, setFadeOut] = useState(false);
   const startTimeRef = useRef(Date.now());
   
-  // Single effect for all loading operations
+  // Simplified effect with improved performance
   useEffect(() => {
-    // Calculate how much time has already passed
     const elapsedTime = Date.now() - startTimeRef.current;
     const remainingTime = Math.max(0, minimumLoadTime - elapsedTime);
     
-    // Use a single timeout for everything
+    // Single timer for fade out
     const timer = setTimeout(() => {
       setFadeOut(true);
-      
-      // Remove from DOM after animation completes
-      setTimeout(() => setShow(false), 180);
+      // Faster transition - reduced from 180ms
+      setTimeout(() => setShow(false), 120);
     }, remainingTime);
 
-    // Handle progress updates with fewer state changes
+    // Simplified progress updates
     if (showProgress) {
       let progressTimer: number;
-      let currentProgress = 0;
       
       const updateProgress = () => {
-        // Calculate a larger increment to reduce updates
-        const increment = 100 - currentProgress > 50 ? 18 : (100 - currentProgress > 20 ? 10 : 5);
-        currentProgress += increment;
+        // Use larger increments and fewer updates
+        setProgress(prev => {
+          const newProgress = prev + (prev < 70 ? 20 : prev < 90 ? 10 : 2);
+          return Math.min(96, newProgress);
+        });
         
-        if (currentProgress > 96) currentProgress = 96;
-        
-        // Update state less frequently
-        setProgress(currentProgress);
-        
-        // Schedule next update with larger interval
-        if (currentProgress < 96 && show) {
-          progressTimer = window.setTimeout(updateProgress, 400);
-        }
+        // Decreasing update frequency as progress increases
+        const nextInterval = progress < 70 ? 300 : 500;
+        progressTimer = window.setTimeout(updateProgress, nextInterval);
       };
       
-      // Start progress updates
-      progressTimer = window.setTimeout(updateProgress, 200);
+      progressTimer = window.setTimeout(updateProgress, 100);
       
       return () => {
         clearTimeout(timer);
@@ -60,56 +52,51 @@ export const LoadingScreen = memo(function LoadingScreen({
     }
 
     return () => clearTimeout(timer);
-  }, [minimumLoadTime, showProgress]);
+  }, [minimumLoadTime, showProgress, progress]);
 
   if (!show) return null;
 
   return (
     <div 
-      className={`fixed inset-0 bg-white dark:bg-gray-900 flex items-center justify-center z-50 transition-opacity duration-180 ${fadeOut ? 'opacity-0' : 'opacity-100'}`}
+      className={`fixed inset-0 bg-white dark:bg-gray-900 flex items-center justify-center z-50 transition-opacity duration-120 ${fadeOut ? 'opacity-0' : 'opacity-100'}`}
     >
       <div className="flex flex-col items-center">
-        {/* Inline SVG spinner for better performance */}
-        <svg width="32" height="32" viewBox="0 0 32 32" className="text-blue-600 dark:text-blue-400">
-          <circle cx="16" cy="16" r="14" 
+        {/* Simplified SVG spinner */}
+        <svg width="28" height="28" viewBox="0 0 28 28" className="text-blue-600 dark:text-blue-400">
+          <circle cx="14" cy="14" r="12" 
             fill="none" 
             stroke="currentColor" 
             strokeOpacity="0.2" 
-            strokeWidth="4" 
+            strokeWidth="3" 
           />
           <path
-            d="M16 2 A14 14 0 0 1 30 16"
+            d="M14 2 A12 12 0 0 1 26 14"
             fill="none"
             stroke="currentColor"
-            strokeWidth="4"
+            strokeWidth="3"
             strokeLinecap="round"
           >
             <animateTransform
               attributeName="transform"
               type="rotate"
-              from="0 16 16"
-              to="360 16 16"
-              dur="0.75s"
+              from="0 14 14"
+              to="360 14 14"
+              dur="0.8s"
               repeatCount="indefinite"
             />
           </path>
         </svg>
         
-        <div className="text-base font-medium text-gray-800/90 dark:text-gray-100/90 mt-3 tracking-wide">
+        <div className="text-sm font-medium text-gray-800 dark:text-gray-100 mt-2">
           NestTask
         </div>
         
         {showProgress && (
-          <div className="w-28 mx-auto mt-3">
+          <div className="w-24 mx-auto mt-2">
             <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-0.5 overflow-hidden">
               <div 
-                className="bg-blue-600 dark:bg-blue-400 h-0.5 rounded-full" 
-                style={{ 
-                  width: `${progress}%`, 
-                  transitionProperty: 'width',
-                  transitionDuration: '120ms',
-                  transitionTimingFunction: 'ease-out' 
-                }}
+                className="bg-blue-600 dark:bg-blue-400 h-0.5 rounded-full transition-none" 
+                style={{ width: `${progress}%` }}
               />
             </div>
           </div>

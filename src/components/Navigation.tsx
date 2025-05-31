@@ -1,9 +1,8 @@
 import { useState, useCallback } from 'react';
 import { ProfileMenu } from './profile/ProfileMenu';
 import { NotificationBadge } from './notifications/NotificationBadge';
-import { Layout, Moon, Sun, Calendar, Bell } from 'lucide-react';
+import { Moon, Sun, Calendar } from 'lucide-react';
 import { useTheme } from '../hooks/useTheme';
-import { SlidingNavigation } from './navigation/SlidingNavigation';
 import { MonthlyCalendar } from './MonthlyCalendar';
 import type { NavPage } from '../types/navigation';
 import type { Task } from '../types/task';
@@ -39,7 +38,6 @@ export function Navigation({
   tasks = []
 }: NavigationProps) {
   const { isDark, toggle } = useTheme();
-  const [isSlidingNavOpen, setIsSlidingNavOpen] = useState(false);
   const [isCalendarOpen, setIsCalendarOpen] = useState(false);
   const [selectedDate, setSelectedDate] = useState(new Date());
 
@@ -96,18 +94,11 @@ export function Navigation({
             <div className="flex justify-between items-center h-14">
               {/* Logo and Brand */}
               <div className="flex-shrink-0 flex items-center">
-                <button 
-                  onClick={() => setIsSlidingNavOpen(true)}
-                  className="group flex items-center gap-2 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/60 dark:focus-visible:ring-blue-400/60 rounded-lg p-1.5 hover:bg-gray-50/80 dark:hover:bg-gray-800/80 transition-all duration-200"
-                  aria-label="Open navigation menu"
-                >
-                  <div className="p-1.5 rounded-lg bg-gradient-to-br from-blue-500 to-indigo-600 text-white shadow-sm shadow-blue-500/20 dark:shadow-blue-600/10 group-hover:shadow-blue-500/30 dark:group-hover:shadow-blue-500/20 transition-all duration-300">
-                    <Layout className="w-4 h-4" strokeWidth={1.75} />
-                  </div>
-                  <h1 className="text-lg font-bold bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent group-hover:from-blue-500 group-hover:to-indigo-500 transition-all duration-300">
+                <div className="flex items-center gap-2">
+                  <h1 className="text-lg font-bold bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent transition-all duration-300">
                     NestTask
                   </h1>
-                </button>
+                </div>
               </div>
 
               {/* Right Section - Action Icons */}
@@ -144,17 +135,6 @@ export function Navigation({
           </div>
         </div>
       </nav>
-
-      {/* Sliding Navigation */}
-      <SlidingNavigation
-        isOpen={isSlidingNavOpen}
-        onClose={() => setIsSlidingNavOpen(false)}
-        activePage={activePage}
-        onPageChange={onPageChange}
-        onLogout={onLogout}
-        user={user}
-        taskStats={taskStats}
-      />
 
       {/* Monthly Calendar */}
       <MonthlyCalendar

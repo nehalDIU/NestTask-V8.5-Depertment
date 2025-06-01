@@ -16,6 +16,7 @@ interface TaskFormProps {
   onSubmit: (task: NewTask) => void;
   sectionId?: string;
   isSectionAdmin?: boolean;
+  isSubmitting?: boolean;
 }
 
 // Extended error type to include files property
@@ -192,7 +193,7 @@ const FileItem = ({ file, onRemove }: { file: File; onRemove: () => void }) => (
   </div>
 );
 
-export function TaskForm({ onSubmit, sectionId, isSectionAdmin = false }: TaskFormProps) {
+export function TaskForm({ onSubmit, sectionId, isSectionAdmin = false, isSubmitting = false }: TaskFormProps) {
   // Use reducer for form state management
   const [state, dispatch] = useReducer(formReducer, createInitialState(sectionId));
   
@@ -202,7 +203,7 @@ export function TaskForm({ onSubmit, sectionId, isSectionAdmin = false }: TaskFo
     errors,
     files,
     fileUrls,
-    isSubmitting,
+    isSubmitting: formIsSubmitting,
     success,
     uploadProgress
   } = state;
@@ -517,7 +518,7 @@ export function TaskForm({ onSubmit, sectionId, isSectionAdmin = false }: TaskFo
       <form onSubmit={handleSubmit} className="p-4 sm:p-6 space-y-5 sm:space-y-6">
         {success && <SuccessMessage />}
 
-        {isSubmitting && uploadProgress > 0 && uploadProgress < 100 && (
+        {formIsSubmitting && uploadProgress > 0 && uploadProgress < 100 && (
           <ProgressBar progress={uploadProgress} />
         )}
 
@@ -675,13 +676,15 @@ export function TaskForm({ onSubmit, sectionId, isSectionAdmin = false }: TaskFo
         <div className="flex justify-end pt-2">
           <button
             type="submit"
-            disabled={isSubmitting}
-            className={`w-full sm:w-auto px-6 py-3 bg-blue-600 text-white rounded-xl hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 shadow-sm text-sm sm:text-base font-medium transition-colors duration-150 touch-manipulation ${
-              isSubmitting ? 'opacity-70 cursor-not-allowed' : ''
-            }`}
-            aria-busy={isSubmitting}
+            disabled={formIsSubmitting || isSubmitting}
+            className={`px-4 py-2 rounded-md text-white font-medium shadow-sm 
+              ${(formIsSubmitting || isSubmitting) 
+                ? 'bg-blue-400 dark:bg-blue-600 cursor-not-allowed' 
+                : 'bg-blue-600 hover:bg-blue-700 dark:bg-blue-500 dark:hover:bg-blue-600'
+              }
+              transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 dark:focus:ring-offset-gray-900 w-full sm:w-auto`}
           >
-            {isSubmitting ? 'Creating Task...' : 'Create Task'}
+            {(formIsSubmitting || isSubmitting) ? 'Creating...' : 'Create Task'}
           </button>
         </div>
       </form>

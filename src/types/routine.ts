@@ -27,6 +27,7 @@ export interface Routine {
   createdAt: string;
   createdBy?: string;
   slots?: RoutineSlot[];
+  sectionId?: string;
   
   // Offline tracking properties
   _isOffline?: boolean;

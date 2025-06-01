@@ -7,6 +7,7 @@ export interface Teacher {
   phone: string;
   department?: string;
   officeRoom?: string;
+  sectionId?: string;
   createdAt: string;
   createdBy: string;
   courses?: Course[];

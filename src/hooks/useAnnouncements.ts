@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '../lib/supabase';
 import { 
   fetchAnnouncements, 
@@ -11,6 +11,18 @@ export function useAnnouncements() {
   const [announcements, setAnnouncements] = useState<Announcement[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  const loadAnnouncements = useCallback(async (forceRefresh = false) => {
+    try {
+      setLoading(true);
+      const data = await fetchAnnouncements();
+      setAnnouncements(data);
+    } catch (err: any) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
 
   useEffect(() => {
     loadAnnouncements();
@@ -34,19 +46,7 @@ export function useAnnouncements() {
     return () => {
       subscription.unsubscribe();
     };
-  }, []);
-
-  const loadAnnouncements = async () => {
-    try {
-      setLoading(true);
-      const data = await fetchAnnouncements();
-      setAnnouncements(data);
-    } catch (err: any) {
-      setError(err.message);
-    } finally {
-      setLoading(false);
-    }
-  };
+  }, [loadAnnouncements]);
 
   const handleCreateAnnouncement = async (newAnnouncement: NewAnnouncement) => {
     try {
@@ -70,11 +70,23 @@ export function useAnnouncements() {
     }
   };
 
+  // Function to manually refresh announcements
+  const refreshAnnouncements = useCallback(async () => {
+    try {
+      return await loadAnnouncements(true);
+    } catch (err: any) {
+      console.error('Failed to refresh announcements:', err);
+      setError(err.message);
+      throw err;
+    }
+  }, [loadAnnouncements]);
+
   return {
     announcements,
     loading,
     error,
     createAnnouncement: handleCreateAnnouncement,
     deleteAnnouncement: handleDeleteAnnouncement,
+    refreshAnnouncements
   };
 }

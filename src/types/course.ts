@@ -10,6 +10,7 @@ export interface Course {
   blcEnrollKey?: string;
   credit?: number;
   section?: string;
+  sectionId?: string;
   createdAt: string;
   createdBy: string;
   _isOffline?: boolean;

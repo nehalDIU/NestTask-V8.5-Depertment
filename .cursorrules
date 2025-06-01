@@ -398,3 +398,74 @@ Task completed ✅
 
 ## Previous Tasks
 // ... existing code ...
+
+## Current Task: Fix Task Management Timeout and Tab Switch Issues
+
+Problem: Task management gets stuck when navigating between tabs, and task creation times out for section admins on mobile devices.
+
+[X] Identified multiple issues:
+  [X] Task fetch timeout was too short (20 seconds)
+  [X] Task creation state wasn't being properly reset when switching tabs
+  [X] Mobile file uploads weren't properly handling timeouts
+  [X] No cleanup for failed uploads
+  [X] UI didn't provide proper feedback during task creation
+
+Changes Made:
+[X] Improved task fetching in useTasks.ts:
+  [X] Increased timeout from 20s to 45s
+  [X] Added tab switch recovery mechanism
+  [X] Enhanced retry logic with exponential backoff
+  [X] Added better caching strategy
+  [X] Improved error handling with informative messages
+  [X] Implemented recovery for stuck loading states
+
+[X] Enhanced mobile file uploads in task.service.ts:
+  [X] Extended upload timeout from 15s to 60s with dynamic adjustment based on file size
+  [X] Implemented AbortController for better timeout handling
+  [X] Added file validation with clear size limits (25MB per file, 100MB total)
+  [X] Added exponential backoff for retry attempts
+  [X] Implemented file cleanup for failed uploads
+  [X] Added detailed error logging with file information
+
+[X] Improved UI state management:
+  [X] Updated TaskManager to track task creation state
+  [X] Enhanced TaskForm to disable submit button when task is being created
+  [X] Added callback handlers for task creation start/end events
+  [X] Ensured proper state cleanup when navigating away from tasks tab
+
+Task completed ✅
+
+# Lessons
+
+## Mobile File Upload Best Practices
+- Set lower file size limits for mobile uploads (25MB per file, 100MB total)
+- Add retry logic with exponential backoff for failed uploads
+- Implement proper cleanup for failed uploads
+- Use AbortController for better timeout handling
+- Add detailed logging for debugging mobile upload issues
+- Validate file types more strictly on mobile devices
+- Show clear progress and error messages to users
+- Track uploaded files for cleanup in case of failures
+- Use sequential uploads on mobile to avoid overwhelming connections
+
+## Tab Navigation and State Management
+- Reset form state when navigating away from sensitive forms
+- Use refs to track previous tab for proper cleanup on tab switch
+- Add forced refresh when returning to tabs with stale data
+- Implement recovery mechanisms for stuck loading states
+- Add visual feedback during long-running operations
+- Use callback props for component communication about state changes
+- Set reasonable timeouts based on operation complexity
+- Add polling mechanisms to detect and recover from stuck states
+- Reset error states when navigating to prevent stale errors
+
+## Timeout Handling Best Practices
+- Implement progressive timeouts based on data size/complexity
+- Use AbortController for proper request cancellation
+- Add exponential backoff for retries with randomness to prevent request storms
+- Set higher timeout limits for operations involving file uploads
+- Provide clear UI feedback when operations take longer than expected
+- Cache successful results to provide fallback data on timeout
+- Implement recovery mechanisms that attempt to continue after timeouts
+- Track loading state with refs to detect and reset stuck states
+- Add detailed logging for timeout errors to aid debugging

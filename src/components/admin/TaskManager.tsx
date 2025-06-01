@@ -34,6 +34,9 @@ interface TaskManagerProps {
   sectionId?: string;
   isSectionAdmin?: boolean;
   isLoading?: boolean;
+  isCreatingTask?: boolean;
+  onTaskCreateStart?: () => void;
+  onTaskCreateEnd?: () => void;
 }
 
 export function TaskManager({ 
@@ -44,7 +47,10 @@ export function TaskManager({
   showTaskForm: initialShowTaskForm = false,
   sectionId,
   isSectionAdmin = false,
-  isLoading = false
+  isLoading = false,
+  isCreatingTask = false,
+  onTaskCreateStart,
+  onTaskCreateEnd
 }: TaskManagerProps) {
   // Main UI state
   const [showTaskForm, setShowTaskForm] = useState(true); // Always show task form
@@ -190,6 +196,9 @@ export function TaskManager({
     const tempId = `temp-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
     
     try {
+      // Notify the parent component that task creation is starting
+      onTaskCreateStart?.();
+      
       // Log initial task data
       console.log('[Debug] Handling task creation with data:', task);
       
@@ -211,6 +220,8 @@ export function TaskManager({
           // Remove optimistic task on timeout
           setLocalTasks(prev => prev.filter(t => t.id !== tempId));
           showErrorToast('Task submission is taking longer than expected. Please check tasks list later to confirm if it was created.');
+          // Notify the parent component that task creation has ended
+          onTaskCreateEnd?.();
         }, 30000); // 30 seconds timeout
       }
       
@@ -250,7 +261,7 @@ export function TaskManager({
         
         // Submit to the server
         try {
-          await onCreateTask(enhancedTask, sectionId);
+          await onCreateTask(isSectionAdmin && sectionId ? enhancedTask : taskToProcess, sectionId);
           if (timeoutId) clearTimeout(timeoutId);
           
           // Remove temporary task
@@ -280,8 +291,11 @@ export function TaskManager({
     } catch (error) {
       console.error('Error creating task:', error);
       showErrorToast('Failed to create task. Please try again.');
+    } finally {
+      // Always notify the parent component that task creation has ended
+      onTaskCreateEnd?.();
     }
-  }, [onCreateTask, isSectionAdmin, sectionId, setLocalTasks, showSuccessToast, showErrorToast]);
+  }, [isSectionAdmin, onCreateTask, sectionId, onTaskCreateStart, onTaskCreateEnd]);
   
   // Handle task deletion with optimistic update
   const handleDeleteTask = useCallback(async (taskId: string) => {
@@ -483,8 +497,16 @@ export function TaskManager({
     <div className="space-y-4">
       {/* Task Form Section */}
       {showTaskForm && (
-        <div>
-          <TaskForm onSubmit={handleCreateTask} sectionId={sectionId} />
+        <div className="bg-white dark:bg-gray-800 p-4 sm:p-6 rounded-lg shadow-sm mb-6">
+          <div className="mb-4 flex justify-between items-center">
+            <h2 className="text-lg font-medium text-gray-900 dark:text-white">Create New Task</h2>
+          </div>
+          <TaskForm 
+            onSubmit={handleCreateTask} 
+            sectionId={sectionId}
+            isSectionAdmin={isSectionAdmin}
+            isSubmitting={isCreatingTask}
+          />
         </div>
       )}
 

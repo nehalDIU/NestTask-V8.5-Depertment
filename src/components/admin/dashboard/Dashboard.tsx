@@ -14,6 +14,7 @@ import { fetchTasks } from '../../../services/taskService';
 interface DashboardProps {
   users: User[];
   tasks: Task[];
+  isLoading?: boolean;
 }
 
 export function Dashboard({ users, tasks: initialTasks }: DashboardProps) {

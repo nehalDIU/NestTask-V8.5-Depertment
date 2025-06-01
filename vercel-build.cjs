@@ -124,7 +124,8 @@ try {
   checkFilesForEncodingIssues('./src');
   console.log('Finished checking for encoding issues');
   
-  execSync('npm run build', { stdio: 'inherit' });
+  // Execute build with explicit production mode flag
+  execSync('npm run build -- --mode production', { stdio: 'inherit' });
   console.log('Build completed successfully!');
 } catch (error) {
   console.error('Build failed:', error);

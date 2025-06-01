@@ -7,8 +7,9 @@ import { mapTaskFromDB } from '../utils/taskMapper';
  * Fetches tasks for a user, considering role and section
  * @param userId - The user ID to fetch tasks for
  * @param sectionId - The user's section ID (if applicable)
+ * @param signal - Optional AbortSignal for request cancellation
  */
-export const fetchTasks = async (userId: string, sectionId?: string | null): Promise<Task[]> => {
+export const fetchTasks = async (userId: string, sectionId?: string | null, signal?: AbortSignal): Promise<Task[]> => {
   try {
     // For development environment, return faster with reduced logging
     if (process.env.NODE_ENV === 'development') {
@@ -26,6 +27,9 @@ export const fetchTasks = async (userId: string, sectionId?: string | null): Pro
     // Create abort controller for the timeout
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), QUERY_TIMEOUT);
+    
+    // Use provided signal if available, otherwise use our controller signal
+    const abortSignal = signal || controller.signal;
     
     // Get user metadata to determine role
     const { data: { user } } = await supabase.auth.getUser();

@@ -7,19 +7,25 @@ interface StudyMaterialManagerProps {
   materials: StudyMaterial[];
   onCreateMaterial: (material: NewStudyMaterial) => Promise<void>;
   onDeleteMaterial: (id: string) => Promise<void>;
+  sectionId?: string;
+  isSectionAdmin?: boolean;
 }
 
 export function StudyMaterialManager({
   courses,
   materials,
   onCreateMaterial,
-  onDeleteMaterial
+  onDeleteMaterial,
+  sectionId,
+  isSectionAdmin = false
 }: StudyMaterialManagerProps) {
   return (
     <div>
       <StudyMaterialForm 
         courses={courses}
         onSubmit={onCreateMaterial}
+        sectionId={sectionId}
+        isSectionAdmin={isSectionAdmin}
       />
       <StudyMaterialList 
         materials={materials}

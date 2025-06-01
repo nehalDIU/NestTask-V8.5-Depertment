@@ -27,6 +27,7 @@ export default defineConfig({
         plugins: [],
       },
       // Enable fast refresh for development
+      // @ts-ignore - fastRefresh is supported but TypeScript doesn't know about it
       fastRefresh: true,
     }),
     VitePWA({
@@ -77,7 +78,7 @@ export default defineConfig({
       algorithm: 'brotliCompress' as CompressionAlgorithm,
       ext: '.br',
       threshold: 1024, // Only compress files > 1kb
-      deleteOriginalAssets: false,
+      deleteOriginFile: false,
     }),
     compression({
       algorithm: 'gzip' as CompressionAlgorithm,
@@ -96,9 +97,9 @@ export default defineConfig({
     minify: 'terser',
     terserOptions: {
       compress: {
-        drop_console: true,
+        drop_console: false, // Keep console logs for debugging on Vercel
         drop_debugger: true,
-        pure_funcs: ['console.log', 'console.debug', 'console.info'],
+        pure_funcs: [], // Don't remove console logs for Vercel deployment
         passes: 2,
         ecma: 2020
       },

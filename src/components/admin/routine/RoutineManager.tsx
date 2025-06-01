@@ -23,6 +23,9 @@ interface RoutineManagerProps {
   onActivateRoutine: (routineId: string) => Promise<void>;
   onDeactivateRoutine: (routineId: string) => Promise<void>;
   onBulkImportSlots?: (routineId: string, slots: any[]) => Promise<{ success: number; errors: any[] }>;
+  sectionId?: string;
+  isSectionAdmin?: boolean;
+  isLoading?: boolean;
 }
 
 export function RoutineManager({
@@ -37,7 +40,10 @@ export function RoutineManager({
   onDeleteSlot,
   onActivateRoutine,
   onDeactivateRoutine,
-  onBulkImportSlots
+  onBulkImportSlots,
+  sectionId,
+  isSectionAdmin = false,
+  isLoading = false
 }: RoutineManagerProps) {
   const [selectedRoutine, setSelectedRoutine] = useState<Routine | null>(null);
   const [activeTab, setActiveTab] = useState<RoutineTab>('list');

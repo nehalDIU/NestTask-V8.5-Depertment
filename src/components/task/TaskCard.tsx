@@ -268,32 +268,35 @@ export const TaskCard = memo(({
           </span>
         </div>
 
-        {/* Only render if we have links to show */}
-        {parsedLinks.length > 0 && (
+        {/* Always show description - one line by default */}
+        {cleanedDescription && (
           <p className="text-[15px] md:text-sm 
             text-gray-600 dark:text-gray-300 
             leading-relaxed 
-            line-clamp-2"
+            line-clamp-1"
           >
-            {parsedLinks.map((part, i) => 
-              part.type === 'link' ? (
-                <a
-                  key={i}
-                  href={part.content}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  onClick={(e) => e.stopPropagation()}
-                  className="text-sky-600 dark:text-sky-400 
-                    active:text-sky-800 md:hover:text-sky-700
-                    underline-offset-2 decoration-1
-                    px-0.5 -mx-0.5 rounded"
-                >
-                  {part.content}
-                </a>
-              ) : (
-                <span key={i}>{part.content}</span>
+            {parsedLinks.length > 0 ? 
+              parsedLinks.map((part, i) => 
+                part.type === 'link' ? (
+                  <a
+                    key={i}
+                    href={part.content}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    onClick={(e) => e.stopPropagation()}
+                    className="text-sky-600 dark:text-sky-400 
+                      active:text-sky-800 md:hover:text-sky-700
+                      underline-offset-2 decoration-1
+                      px-0.5 -mx-0.5 rounded"
+                  >
+                    {part.content}
+                  </a>
+                ) : (
+                  <span key={i}>{part.content}</span>
+                )
               )
-            )}
+            : cleanedDescription
+            }
           </p>
         )}
       </div>

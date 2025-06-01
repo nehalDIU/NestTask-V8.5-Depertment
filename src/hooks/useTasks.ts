@@ -158,7 +158,7 @@ export function useTasks(userId: string | undefined) {
       // Batch process tasks in chunks for better performance
       const processTasks = async () => {
         // Add signal to fetch request for timeout control
-        const data = await fetchTasks(userId, undefined, signal);
+        const data = await fetchTasks(userId, signal);
         return data;
       };
       

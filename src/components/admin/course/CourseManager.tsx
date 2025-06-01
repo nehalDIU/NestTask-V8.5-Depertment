@@ -15,7 +15,6 @@ interface CourseManagerProps {
   onBulkImportCourses?: (courses: NewCourse[]) => Promise<{ success: number; errors: any[] }>;
   sectionId?: string;
   isSectionAdmin?: boolean;
-  isLoading?: boolean;
 }
 
 export function CourseManager({
@@ -26,8 +25,7 @@ export function CourseManager({
   onDeleteCourse,
   onBulkImportCourses,
   sectionId,
-  isSectionAdmin = false,
-  isLoading = false
+  isSectionAdmin = false
 }: CourseManagerProps) {
   const [importMode, setImportMode] = useState(false);
   const [showFilters, setShowFilters] = useState(false);

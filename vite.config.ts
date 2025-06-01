@@ -19,17 +19,7 @@ export default defineConfig({
     extensions: ['.mjs', '.js', '.ts', '.jsx', '.tsx', '.json']
   },
   plugins: [
-    react({
-      // Improve build performance by reducing unnecessary operations
-      babel: {
-        babelrc: false,
-        configFile: false,
-        plugins: [],
-      },
-      // Enable fast refresh for development
-      // @ts-ignore - fastRefresh is supported but TypeScript doesn't know about it
-      fastRefresh: true,
-    }),
+    react(),
     VitePWA({
       registerType: 'autoUpdate',
       includeAssets: [
@@ -39,15 +29,33 @@ export default defineConfig({
         'manifest.json',
         'offline.html'
       ],
-      manifest: false, // Use external manifest file for more control
+      manifest: {
+        name: 'NestTask',
+        short_name: 'NestTask',
+        description: 'A modern task management application for teams and individuals',
+        theme_color: '#0284c7',
+        icons: [
+          {
+            src: '/icons/icon-192x192.png',
+            sizes: '192x192',
+            type: 'image/png'
+          },
+          {
+            src: '/icons/icon-512x512.png',
+            sizes: '512x512',
+            type: 'image/png'
+          },
+          {
+            src: '/icons/maskable-icon.png',
+            sizes: '512x512',
+            type: 'image/png',
+            purpose: 'maskable'
+          }
+        ]
+      },
       workbox: {
-        globPatterns: ['**/*.{js,css,html,ico,png,svg}'],
-        navigateFallback: null,
-        cleanupOutdatedCaches: true,
         clientsClaim: true,
         skipWaiting: true,
-        sourcemap: false,
-        // Use minimal runtime caching
         runtimeCaching: [
           {
             urlPattern: /^https:\/\/fonts\.googleapis\.com\/.*/i,
@@ -55,8 +63,11 @@ export default defineConfig({
             options: {
               cacheName: 'google-fonts-cache',
               expiration: {
-                maxEntries: 5,
+                maxEntries: 10,
                 maxAgeSeconds: 60 * 60 * 24 * 365 // 1 year
+              },
+              cacheableResponse: {
+                statuses: [0, 200]
               }
             }
           },
@@ -66,8 +77,11 @@ export default defineConfig({
             options: {
               cacheName: 'gstatic-fonts-cache',
               expiration: {
-                maxEntries: 5,
+                maxEntries: 10,
                 maxAgeSeconds: 60 * 60 * 24 * 365 // 1 year
+              },
+              cacheableResponse: {
+                statuses: [0, 200]
               }
             }
           }
@@ -76,112 +90,124 @@ export default defineConfig({
     }),
     compression({
       algorithm: 'brotliCompress' as CompressionAlgorithm,
-      ext: '.br',
-      threshold: 1024, // Only compress files > 1kb
-      deleteOriginFile: false,
+      ext: '.br'
     }),
     compression({
       algorithm: 'gzip' as CompressionAlgorithm,
-      ext: '.gz',
-      threshold: 1024, // Only compress files > 1kb
+      ext: '.gz'
     }),
     visualizer({
       open: false,
       gzipSize: true,
-      brotliSize: true,
-      filename: 'dist/stats.html',
+      brotliSize: true
     })
   ],
   build: {
-    // Enable aggressive optimization
+    // Enable minification and tree shaking
     minify: 'terser',
     terserOptions: {
       compress: {
-        drop_console: false, // Keep console logs for debugging on Vercel
+        drop_console: true,
         drop_debugger: true,
-        pure_funcs: [], // Don't remove console logs for Vercel deployment
-        passes: 2,
-        ecma: 2020
+        pure_funcs: ['console.log', 'console.debug', 'console.info'],
+        passes: 2
       },
       mangle: {
         safari10: true
       },
       format: {
-        comments: false,
-        ecma: 2020
+        comments: false
       }
     },
     cssMinify: true,
-    target: 'es2020',
-    reportCompressedSize: false, // Improves build speed
+    target: 'es2018',
+    reportCompressedSize: true,
     rollupOptions: {
       output: {
-        manualChunks: {
-          'react-vendor': [
-            'react', 
-            'react-dom',
-            'react-router-dom',
-            'scheduler'
-          ],
-          'ui-components': [
-            '@radix-ui/react-dialog',
-            '@radix-ui/react-dropdown-menu',
-            '@radix-ui/react-toast',
-            'framer-motion'
-          ],
-          'supabase': [
-            '@supabase/supabase-js'
-          ],
-          'icons': [
-            'lucide-react'
-          ],
-          'utils': [
-            'date-fns'
-          ]
+        manualChunks: (id) => {
+          // Core React dependencies
+          if (id.includes('node_modules/react/') || 
+              id.includes('node_modules/react-dom/') || 
+              id.includes('node_modules/scheduler/')) {
+            return 'react-vendor';
+          }
+          
+          // Date handling
+          if (id.includes('node_modules/date-fns/')) {
+            return 'date-utils';
+          }
+          
+          // UI component libraries
+          if (id.includes('node_modules/@radix-ui/') || 
+              id.includes('node_modules/framer-motion/')) {
+            return 'ui-components';
+          }
+          
+          // Supabase
+          if (id.includes('node_modules/@supabase/')) {
+            return 'supabase';
+          }
+          
+          // Icons
+          if (id.includes('node_modules/lucide-react/')) {
+            return 'icons';
+          }
+          
+          // Charts
+          if (id.includes('node_modules/recharts/') || 
+              id.includes('node_modules/d3/')) {
+            return 'charts';
+          }
         },
+        // Ensure proper file types and names
         assetFileNames: (assetInfo) => {
           const info = assetInfo.name || '';
           if (info.endsWith('.css')) {
-            return 'assets/css/[name].[hash:8][extname]';
+            return 'assets/css/[name].[hash][extname]';
           }
-          if (/\.(png|jpe?g|gif|svg|webp)$/.test(info)) {
-            return 'assets/img/[name].[hash:8][extname]';
+          if (info.endsWith('.png') || info.endsWith('.jpg') || 
+              info.endsWith('.jpeg') || info.endsWith('.svg') || 
+              info.endsWith('.gif')) {
+            return 'assets/images/[name].[hash][extname]';
           }
-          if (/\.(woff2?|ttf|otf|eot)$/.test(info)) {
-            return 'assets/fonts/[name].[hash:8][extname]';
+          if (info.endsWith('.woff') || info.endsWith('.woff2') || 
+              info.endsWith('.ttf') || info.endsWith('.otf') || 
+              info.endsWith('.eot')) {
+            return 'assets/fonts/[name].[hash][extname]';
           }
-          return 'assets/[name].[hash:8][extname]';
+          return 'assets/[name].[hash][extname]';
         },
-        chunkFileNames: 'assets/js/[name].[hash:8].js',
-        entryFileNames: 'assets/js/[name].[hash:8].js',
+        // Optimize chunk names
+        chunkFileNames: 'assets/js/[name].[hash].js',
+        entryFileNames: 'assets/js/[name].[hash].js',
       }
     },
-    sourcemap: false,
+    // Enable source map optimization
+    sourcemap: process.env.NODE_ENV !== 'production',
+    // Enable chunk size optimization
     chunkSizeWarningLimit: 1000,
-    assetsInlineLimit: 10240, // Inline assets < 10kb
-    emptyOutDir: true,
-    modulePreload: {
-      polyfill: false // Reduces bundle size
-    }
+    // Add asset optimization
+    assetsInlineLimit: 4096,
+    cssCodeSplit: true,
+    modulePreload: true
   },
   optimizeDeps: {
     include: [
       'react',
       'react-dom',
+      'date-fns',
+      '@radix-ui/react-dialog',
+      'framer-motion',
       'react-router-dom',
-      '@radix-ui/react-dialog'
+      'recharts'
     ],
-    esbuildOptions: {
-      target: 'es2020',
-      supported: { 
-        'top-level-await': true 
-      },
-    }
+    // Don't exclude Vercel Analytics as it causes 404 errors in dev mode
+    // exclude: ['@vercel/analytics']
   },
   // Improve dev server performance
   server: {
     hmr: {
-      overlay: false // Improves dev performance
+      overlay: false
     },
     watch: {
       usePolling: false

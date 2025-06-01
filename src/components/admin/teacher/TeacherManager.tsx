@@ -17,7 +17,6 @@ interface TeacherManagerProps {
   onBulkImportTeachers?: (teachers: TeacherBulkImportItem[]) => Promise<{ success: number; errors: { index: number; error: string }[] }>;
   sectionId?: string;
   isSectionAdmin?: boolean;
-  isLoading?: boolean;
 }
 
 export function TeacherManager({
@@ -28,8 +27,7 @@ export function TeacherManager({
   onDeleteTeacher,
   onBulkImportTeachers,
   sectionId,
-  isSectionAdmin = false,
-  isLoading = false
+  isSectionAdmin = false
 }: TeacherManagerProps) {
   const [showFilters, setShowFilters] = useState(false);
   const [importMode, setImportMode] = useState(false);

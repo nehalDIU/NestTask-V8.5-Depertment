@@ -107,8 +107,10 @@ export const HomePage: React.FC<HomePageProps> = ({
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
         <button
           onClick={() => setStatFilter('all')}
-          className={`bg-white dark:bg-gray-800 rounded-xl p-4 shadow-sm hover:shadow-md transition-all ${
-            statFilter === 'all' ? 'ring-2 ring-blue-500 dark:ring-blue-400' : ''
+          className={`rounded-xl p-4 shadow-sm hover:shadow-md transition-all ${
+            statFilter === 'all' 
+              ? 'ring-2 ring-blue-500 dark:ring-blue-400 bg-blue-50 dark:bg-gray-700' 
+              : 'bg-white dark:bg-gray-800'
           }`}
         >
           <div className="flex items-center gap-3 mb-2">
@@ -124,8 +126,10 @@ export const HomePage: React.FC<HomePageProps> = ({
 
         <button
           onClick={() => setStatFilter('overdue')}
-          className={`bg-white dark:bg-gray-800 rounded-xl p-4 shadow-sm hover:shadow-md transition-all ${
-            statFilter === 'overdue' ? 'ring-2 ring-red-500 dark:ring-red-400' : ''
+          className={`rounded-xl p-4 shadow-sm hover:shadow-md transition-all ${
+            statFilter === 'overdue' 
+              ? 'ring-2 ring-red-500 dark:ring-red-400 bg-red-50 dark:bg-gray-700' 
+              : 'bg-white dark:bg-gray-800'
           }`}
         >
           <div className="flex items-center gap-3 mb-2">
@@ -141,8 +145,10 @@ export const HomePage: React.FC<HomePageProps> = ({
 
         <button
           onClick={() => setStatFilter('in-progress')}
-          className={`bg-white dark:bg-gray-800 rounded-xl p-4 shadow-sm hover:shadow-md transition-all ${
-            statFilter === 'in-progress' ? 'ring-2 ring-indigo-500 dark:ring-indigo-400' : ''
+          className={`rounded-xl p-4 shadow-sm hover:shadow-md transition-all ${
+            statFilter === 'in-progress' 
+              ? 'ring-2 ring-indigo-500 dark:ring-indigo-400 bg-indigo-50 dark:bg-gray-700' 
+              : 'bg-white dark:bg-gray-800'
           }`}
         >
           <div className="flex items-center gap-3 mb-2">
@@ -158,8 +164,10 @@ export const HomePage: React.FC<HomePageProps> = ({
 
         <button
           onClick={() => setStatFilter('completed')}
-          className={`bg-white dark:bg-gray-800 rounded-xl p-4 shadow-sm hover:shadow-md transition-all ${
-            statFilter === 'completed' ? 'ring-2 ring-green-500 dark:ring-green-400' : ''
+          className={`rounded-xl p-4 shadow-sm hover:shadow-md transition-all ${
+            statFilter === 'completed' 
+              ? 'ring-2 ring-green-500 dark:ring-green-400 bg-green-50 dark:bg-gray-700' 
+              : 'bg-white dark:bg-gray-800'
           }`}
         >
           <div className="flex items-center gap-3 mb-2">
@@ -186,23 +194,47 @@ export const HomePage: React.FC<HomePageProps> = ({
 
       {/* Task List */}
       <div>
-        <div className="flex items-center justify-between mb-6">
-          <h2 className="text-xl font-bold text-gray-900 dark:text-white">
+        <div className="flex items-center justify-between mb-4 sm:mb-6">
+          <h2 className="text-lg sm:text-xl font-bold text-gray-900 dark:text-white">
             {getStatTitle()}
           </h2>
           {statFilter !== 'all' && (
             <button
               onClick={() => setStatFilter('all')}
-              className="text-sm text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300"
+              className="px-2 py-1 text-xs sm:text-sm text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 rounded-md"
             >
               View All Tasks
             </button>
           )}
         </div>
-        <TaskList
-          tasks={getFilteredTasks()}
-          showDeleteButton={false}
-        />
+        {getFilteredTasks().length > 0 ? (
+          <TaskList
+            tasks={getFilteredTasks()}
+            showDeleteButton={false}
+          />
+        ) : (
+          <div className="text-center py-10 bg-white dark:bg-gray-800 rounded-xl shadow-sm">
+            <ListTodo className="mx-auto h-12 w-12 text-gray-400 dark:text-gray-500" />
+            <h3 className="mt-2 text-sm font-medium text-gray-900 dark:text-white">No tasks</h3>
+            <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
+              {selectedCategory || statFilter !== 'all'
+                ? "No tasks match your current filters."
+                : "You don't have any tasks yet. Get started by adding one!"}
+            </p>
+            {/* Optional: Add a "Create Task" button here if no tasks and no filters */}
+            {/* {!(selectedCategory || statFilter !== 'all') && (
+              <div className="mt-6">
+                <button
+                  type="button"
+                  // Add your navigation/action for creating a task
+                  className="inline-flex items-center px-4 py-2 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+                >
+                  Create New Task
+                </button>
+              </div>
+            )} */}
+          </div>
+        )}
       </div>
     </div>
   );

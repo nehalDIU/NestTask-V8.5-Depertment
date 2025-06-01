@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { 
   BookOpen, 
   PenSquare, 
@@ -27,6 +27,7 @@ interface TaskCategoriesProps {
 
 export function TaskCategories({ onCategorySelect, selectedCategory, categoryCounts }: TaskCategoriesProps) {
   const [isExpanded, setIsExpanded] = useState(false);
+  const showMoreButtonRef = useRef<HTMLButtonElement>(null);
   
   // Calculate total tasks from all categories
   const totalTasks = Object.values(categoryCounts).reduce((sum, count) => sum + count, 0);
@@ -51,24 +52,37 @@ export function TaskCategories({ onCategorySelect, selectedCategory, categoryCou
   const visibleCategories = isExpanded ? allCategories : allCategories.slice(0, 6);
   const hasMoreCategories = allCategories.length > 6;
 
+  const handleToggleExpansion = () => {
+    setIsExpanded(prevExpanded => {
+      const nextExpanded = !prevExpanded;
+      if (nextExpanded && showMoreButtonRef.current) {
+        setTimeout(() => {
+          showMoreButtonRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        }, 0);
+      }
+      return nextExpanded;
+    });
+  };
+
   return (
     <div className="mb-8">
       <div className="flex items-center justify-between mb-4">
         <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Categories</h2>
         {hasMoreCategories && (
           <button
-            onClick={() => setIsExpanded(!isExpanded)}
+            ref={showMoreButtonRef}
+            onClick={handleToggleExpansion}
             className="flex items-center gap-1 sm:gap-1.5 px-2 sm:px-3 py-1 sm:py-1.5 
               text-xs sm:text-sm font-medium text-blue-600 dark:text-blue-400 
               bg-blue-50 dark:bg-blue-900/20 hover:bg-blue-100 dark:hover:bg-blue-900/30 
               rounded-full transition-all duration-200"
           >
             <span>{isExpanded ? 'Show Less' : 'Show All'}</span>
-            {isExpanded ? (
-              <ChevronUp className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
-            ) : (
-              <ChevronDown className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
-            )}
+            <ChevronDown 
+              className={`w-3.5 h-3.5 sm:w-4 sm:h-4 transition-transform duration-300 ease-in-out ${
+                isExpanded ? 'rotate-180' : 'rotate-0'
+              }`} 
+            />
           </button>
         )}
       </div>
@@ -83,7 +97,7 @@ export function TaskCategories({ onCategorySelect, selectedCategory, categoryCou
                 group flex items-center gap-2 p-3 rounded-xl transition-all duration-200
                 ${selectedCategory === id
                   ? 'bg-blue-600 text-white shadow-lg scale-[1.02]'
-                  : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700'
+                  : `bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 ${count === 0 ? 'opacity-60 hover:opacity-100' : ''}`
                 }
                 hover:shadow-md hover:-translate-y-0.5
               `}
@@ -99,7 +113,9 @@ export function TaskCategories({ onCategorySelect, selectedCategory, categoryCou
               </div>
               <div className="flex-1 text-left">
                 <div className="text-sm font-medium">{label}</div>
-                <div className="text-xs opacity-80">{count} tasks</div>
+                <div className={`text-xs ${selectedCategory === id ? 'opacity-80' : (count === 0 ? 'opacity-60 group-hover:opacity-80' : 'opacity-80')}`}>
+                  {count} tasks
+                </div>
               </div>
             </button>
           ))}

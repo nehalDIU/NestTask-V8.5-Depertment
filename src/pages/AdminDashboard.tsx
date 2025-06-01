@@ -5,9 +5,9 @@ import { UserActivity } from '../components/admin/UserActivity';
 import { Dashboard } from '../components/admin/dashboard/Dashboard';
 import { UserActiveGraph } from '../components/admin/dashboard/UserActiveGraph';
 import { useAnnouncements } from '../hooks/useAnnouncements';
-import { useCourseData } from '../hooks/useCourseData';
-import { useRoutineData } from '../hooks/useRoutineData';
-import { useTeacherData } from '../hooks/useTeacherData';
+import { useCourses } from '../hooks/useCourses';
+import { useRoutines } from '../hooks/useRoutines';
+import { useTeachers } from '../hooks/useTeachers';
 import { useUsers } from '../hooks/useUsers';
 import { showErrorToast, showSuccessToast } from '../utils/notifications';
 import { isOverdue } from '../utils/dateUtils';
@@ -94,7 +94,7 @@ export function AdminDashboard({
   }, [activeTab]);
   
   // Filter tasks for section admin - memoized for performance
-  const filteredTasks = useMemo(() => {
+   const filteredTasks = useMemo(() => {
     if (!isSectionAdmin || !sectionId) {
       return tasks;
     }
@@ -102,7 +102,7 @@ export function AdminDashboard({
   }, [tasks, isSectionAdmin, sectionId]);
   
   // Conditionally load data based on active tab
-  const {
+  const { 
     announcements,
     createAnnouncement,
     deleteAnnouncement,
@@ -119,7 +119,7 @@ export function AdminDashboard({
       return !announcement.sectionId || announcement.sectionId === sectionId;
     });
   }, [announcements, isSectionAdmin, sectionId, activeTab]);
-
+  
   // Load course data only when needed
   const {
     courses,
@@ -133,7 +133,7 @@ export function AdminDashboard({
     bulkImportCourses,
     refreshCourses,
     loading: coursesLoading
-  } = useCourseData(user?.id);
+  } = useCourses();
 
   // Filter courses for section admin - memoized and conditional
   const filteredCourses = useMemo(() => {
@@ -160,7 +160,7 @@ export function AdminDashboard({
     bulkImportSlots,
     refreshRoutines,
     loading: routinesLoading
-  } = useRoutineData(user?.id);
+  } = useRoutines();
 
   // Filter routines for section admin - conditional loading
   const filteredRoutines = useMemo(() => {
@@ -179,7 +179,7 @@ export function AdminDashboard({
     bulkImportTeachers,
     refreshTeachers,
     loading: teachersLoading
-  } = useTeacherData(user?.id);
+  } = useTeachers();
   
   // Filter teachers for section admin - memoized and conditional
   const filteredTeachers = useMemo(() => {
@@ -225,53 +225,53 @@ export function AdminDashboard({
     
     // Only subscribe to data changes needed for current tab
     if (activeTab === 'tasks' || activeTab === 'dashboard') {
-      const tasksSubscription = supabase
-        .channel('section-tasks')
-        .on(
-          'postgres_changes',
-          {
-            event: '*',
-            schema: 'public',
-            table: 'tasks',
-            filter: `sectionId=eq.${sectionId}`
-          },
+    const tasksSubscription = supabase
+      .channel('section-tasks')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'tasks',
+          filter: `sectionId=eq.${sectionId}`
+        },
           () => refreshTasks()
-        )
-        .subscribe();
+      )
+      .subscribe();
       channels.push(tasksSubscription);
     }
-    
+      
     if (activeTab === 'routine') {
-      const routinesSubscription = supabase
-        .channel('section-routines')
-        .on(
-          'postgres_changes',
-          {
-            event: '*',
-            schema: 'public',
-            table: 'routines',
-            filter: `sectionId=eq.${sectionId}`
-          },
+    const routinesSubscription = supabase
+      .channel('section-routines')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'routines',
+          filter: `sectionId=eq.${sectionId}`
+        },
           () => refreshRoutines()
-        )
-        .subscribe();
+      )
+      .subscribe();
       channels.push(routinesSubscription);
     }
-    
+      
     if (activeTab === 'users' || activeTab === 'dashboard') {
-      const usersSubscription = supabase
-        .channel('section-users')
-        .on(
-          'postgres_changes',
-          {
-            event: '*',
-            schema: 'public',
-            table: 'users',
-            filter: `sectionId=eq.${sectionId}`
-          },
+    const usersSubscription = supabase
+      .channel('section-users')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'users',
+          filter: `sectionId=eq.${sectionId}`
+        },
           () => refreshUsers()
-        )
-        .subscribe();
+      )
+      .subscribe();
       channels.push(usersSubscription);
     }
 
@@ -336,31 +336,31 @@ export function AdminDashboard({
     // Only load data for the active tab
     switch (tab) {
       case 'tasks':
-        setShowTaskForm(true);
+      setShowTaskForm(true);
         // Force a fresh load of tasks when switching to the tasks tab
         refreshTasks(true);
         break;
       case 'users':
-        refreshUsers();
+      refreshUsers();
         break;
       case 'routine':
-        refreshRoutines();
+      refreshRoutines();
         break;
       case 'courses':
-        refreshCourses();
+      refreshCourses();
         break;
       case 'announcements':
-        refreshAnnouncements();
+      refreshAnnouncements();
         break;
       case 'teachers':
-        refreshTeachers();
+      refreshTeachers();
         break;
       case 'dashboard':
         // For dashboard, load key data
         Promise.all([refreshTasks(), refreshUsers()]);
         break;
       default:
-        setShowTaskForm(false);
+      setShowTaskForm(false);
     }
   }, [
     activeTab, 
@@ -402,8 +402,8 @@ export function AdminDashboard({
           break;
         case 'dashboard':
           // For dashboard, refresh all critical data
-          await Promise.all([
-            refreshTasks(),
+      await Promise.all([
+        refreshTasks(),
             refreshUsers()
           ]);
           break;
@@ -559,162 +559,162 @@ export function AdminDashboard({
   const loadingFallback = useMemo(() => (
     <div className="flex items-center justify-center p-8">
       <Loader2 className="w-8 h-8 text-blue-600 dark:text-blue-400 animate-spin" />
-    </div>
+              </div>
   ), []);
 
   // Render function for tab content with Suspense fallback
   const renderTabContent = () => {
     return (
       <Suspense fallback={loadingFallback}>
-        {activeTab === 'dashboard' && (
-          <Dashboard 
-            users={filteredUsers} 
-            tasks={filteredTasks}
-          />
-        )}
+            {activeTab === 'dashboard' && (
+              <Dashboard 
+                users={filteredUsers} 
+                tasks={filteredTasks} 
+              />
+            )}
 
-        {activeTab === 'users' && (
-          <div className="space-y-4 sm:space-y-6">
-            <UserStats 
-              users={filteredUsers} 
-              tasks={filteredTasks} 
-            />
-            
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-6">
-              <div className="lg:col-span-2">
+            {activeTab === 'users' && (
+              <div className="space-y-4 sm:space-y-6">
+                <UserStats 
+                  users={filteredUsers} 
+                  tasks={filteredTasks} 
+                />
+                
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-6">
+                  <div className="lg:col-span-2">
                 <UserActiveGraph users={filteredUsers} />
-              </div>
-              <div>
+                  </div>
+                  <div>
                 <UserActivity users={filteredUsers} />
-              </div>
-            </div>
-            
-            <UserList 
-              users={filteredUsers} 
-              onDeleteUser={handleDeleteUser}
-              onPromoteUser={handlePromoteUser}
-              onDemoteUser={handleDemoteUser}
-              isSectionAdmin={isSectionAdmin}
-              isLoading={usersLoading}
-            />
-          </div>
-        )}
-        
-        {activeTab === 'tasks' && (
-          <>
-            {error && (
-              <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl p-4 mb-6 flex items-start gap-3">
-                <AlertTriangle className="w-5 h-5 text-red-500 dark:text-red-400 flex-shrink-0 mt-0.5" />
-                <div>
-                  <h3 className="text-red-800 dark:text-red-300 font-medium text-sm">Error loading tasks</h3>
-                  <p className="text-red-600 dark:text-red-400 text-xs mt-1">{error}</p>
-                  <button 
-                    className="mt-2 px-3 py-1.5 bg-red-100 dark:bg-red-800 text-red-700 dark:text-red-300 text-xs rounded-lg hover:bg-red-200 dark:hover:bg-red-700 flex items-center gap-1.5"
-                    onClick={handleManualRefresh}
-                  >
-                    <RefreshCcw className="w-3 h-3" />
-                    Retry
-                  </button>
+                  </div>
                 </div>
+                
+                <UserList 
+                  users={filteredUsers} 
+                  onDeleteUser={handleDeleteUser}
+                  onPromoteUser={handlePromoteUser}
+                  onDemoteUser={handleDemoteUser}
+                  isSectionAdmin={isSectionAdmin}
+                  isLoading={usersLoading}
+                />
               </div>
             )}
             
+            {activeTab === 'tasks' && (
+              <>
+                {error && (
+                  <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl p-4 mb-6 flex items-start gap-3">
+                    <AlertTriangle className="w-5 h-5 text-red-500 dark:text-red-400 flex-shrink-0 mt-0.5" />
+                    <div>
+                      <h3 className="text-red-800 dark:text-red-300 font-medium text-sm">Error loading tasks</h3>
+                      <p className="text-red-600 dark:text-red-400 text-xs mt-1">{error}</p>
+                      <button 
+                        className="mt-2 px-3 py-1.5 bg-red-100 dark:bg-red-800 text-red-700 dark:text-red-300 text-xs rounded-lg hover:bg-red-200 dark:hover:bg-red-700 flex items-center gap-1.5"
+                        onClick={handleManualRefresh}
+                      >
+                        <RefreshCcw className="w-3 h-3" />
+                        Retry
+                      </button>
+                    </div>
+                  </div>
+                )}
+                
             {(tasksLoading || isCreatingTask) && (
-              <div className="fixed bottom-6 right-6 bg-white dark:bg-gray-800 shadow-lg rounded-lg px-4 py-3 flex items-center gap-3 z-50 border border-gray-200 dark:border-gray-700">
-                <Loader2 className="w-5 h-5 text-blue-600 dark:text-blue-400 animate-spin" />
+                  <div className="fixed bottom-6 right-6 bg-white dark:bg-gray-800 shadow-lg rounded-lg px-4 py-3 flex items-center gap-3 z-50 border border-gray-200 dark:border-gray-700">
+                    <Loader2 className="w-5 h-5 text-blue-600 dark:text-blue-400 animate-spin" />
                 <span className="text-gray-700 dark:text-gray-300 text-sm">
                   {isCreatingTask ? 'Creating task...' : 'Loading tasks...'}
                 </span>
-              </div>
-            )}
-            
-            <TaskManager
-              tasks={filteredTasks}
-              onCreateTask={handleCreateTask}
-              onDeleteTask={onDeleteTask}
-              onUpdateTask={onUpdateTask}
-              showTaskForm={showTaskForm}
-              sectionId={sectionId}
-              isSectionAdmin={isSectionAdmin}
-              isLoading={tasksLoading || isRefreshing}
+                  </div>
+                )}
+                
+              <TaskManager
+                tasks={filteredTasks}
+                onCreateTask={handleCreateTask}
+                onDeleteTask={onDeleteTask}
+                onUpdateTask={onUpdateTask}
+                  showTaskForm={showTaskForm}
+                sectionId={sectionId}
+                isSectionAdmin={isSectionAdmin}
+                  isLoading={tasksLoading || isRefreshing}
               isCreatingTask={isCreatingTask}
               onTaskCreateStart={() => setIsCreatingTask(true)}
               onTaskCreateEnd={() => setIsCreatingTask(false)}
-            />
-          </>
-        )}
+              />
+              </>
+            )}
 
-        {activeTab === 'announcements' && (
-          <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-4 sm:p-5 overflow-hidden">
-            <AnnouncementManager
-              announcements={filteredAnnouncements}
-              onCreateAnnouncement={createAnnouncement}
-              onDeleteAnnouncement={deleteAnnouncement}
-              sectionId={sectionId}
-              isSectionAdmin={isSectionAdmin}
-              isLoading={announcementsLoading}
-            />
-          </div>
-        )}
+            {activeTab === 'announcements' && (
+              <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-4 sm:p-5 overflow-hidden">
+                <AnnouncementManager
+                  announcements={filteredAnnouncements}
+                  onCreateAnnouncement={createAnnouncement}
+                  onDeleteAnnouncement={deleteAnnouncement}
+                  sectionId={sectionId}
+                  isSectionAdmin={isSectionAdmin}
+                  isLoading={announcementsLoading}
+                />
+              </div>
+            )}
 
-        {activeTab === 'teachers' && (
-          <TeacherManager
-            teachers={filteredTeachers}
-            courses={filteredCourses}
-            onCreateTeacher={createTeacher as (teacher: NewTeacher, courseIds: string[]) => Promise<Teacher | undefined>}
-            onUpdateTeacher={updateTeacher as (id: string, updates: Partial<Teacher>, courseIds: string[]) => Promise<Teacher | undefined>}
-            onDeleteTeacher={deleteTeacher}
-            onBulkImportTeachers={bulkImportTeachers}
-            sectionId={sectionId}
-            isSectionAdmin={isSectionAdmin}
-            isLoading={teachersLoading}
-          />
-        )}
+            {activeTab === 'teachers' && (
+              <TeacherManager
+                teachers={filteredTeachers}
+                courses={filteredCourses}
+                onCreateTeacher={createTeacher as (teacher: NewTeacher, courseIds: string[]) => Promise<Teacher | undefined>}
+                onUpdateTeacher={updateTeacher as (id: string, updates: Partial<Teacher>, courseIds: string[]) => Promise<Teacher | undefined>}
+                onDeleteTeacher={deleteTeacher}
+                onBulkImportTeachers={bulkImportTeachers}
+                sectionId={sectionId}
+                isSectionAdmin={isSectionAdmin}
+                isLoading={teachersLoading}
+              />
+            )}
 
-        {activeTab === 'courses' && (
-          <CourseManager
-            courses={filteredCourses}
-            teachers={filteredTeachers}
-            onCreateCourse={createCourse}
-            onUpdateCourse={updateCourse}
-            onDeleteCourse={deleteCourse}
-            onBulkImportCourses={bulkImportCourses}
-            sectionId={sectionId}
-            isSectionAdmin={isSectionAdmin}
-            isLoading={coursesLoading}
-          />
-        )}
+            {activeTab === 'courses' && (
+              <CourseManager
+                courses={filteredCourses}
+                teachers={filteredTeachers}
+                onCreateCourse={createCourse}
+                onUpdateCourse={updateCourse}
+                onDeleteCourse={deleteCourse}
+                onBulkImportCourses={bulkImportCourses}
+                sectionId={sectionId}
+                isSectionAdmin={isSectionAdmin}
+                isLoading={coursesLoading}
+              />
+            )}
 
-        {activeTab === 'study-materials' && (
-          <StudyMaterialManager
-            courses={filteredCourses}
-            materials={materials}
-            onCreateMaterial={createMaterial}
-            onDeleteMaterial={deleteMaterial}
-            sectionId={sectionId}
-            isSectionAdmin={isSectionAdmin}
-          />
-        )}
+            {activeTab === 'study-materials' && (
+              <StudyMaterialManager
+                courses={filteredCourses}
+                materials={materials}
+                onCreateMaterial={createMaterial}
+                onDeleteMaterial={deleteMaterial}
+                sectionId={sectionId}
+                isSectionAdmin={isSectionAdmin}
+              />
+            )}
 
-        {activeTab === 'routine' && (
-          <RoutineManager
-            routines={filteredRoutines}
-            courses={filteredCourses}
-            teachers={filteredTeachers}
-            onCreateRoutine={createRoutine}
-            onUpdateRoutine={updateRoutine}
-            onDeleteRoutine={deleteRoutine}
-            onAddSlot={addRoutineSlot}
-            onUpdateSlot={updateRoutineSlot}
-            onDeleteSlot={deleteRoutineSlot}
-            onActivateRoutine={activateRoutine}
-            onDeactivateRoutine={deactivateRoutine}
-            onBulkImportSlots={bulkImportSlots}
-            sectionId={sectionId}
-            isSectionAdmin={isSectionAdmin}
-            isLoading={routinesLoading}
-          />
-        )}
+            {activeTab === 'routine' && (
+              <RoutineManager
+                routines={filteredRoutines}
+                courses={filteredCourses}
+                teachers={filteredTeachers}
+                onCreateRoutine={createRoutine}
+                onUpdateRoutine={updateRoutine}
+                onDeleteRoutine={deleteRoutine}
+                onAddSlot={addRoutineSlot}
+                onUpdateSlot={updateRoutineSlot}
+                onDeleteSlot={deleteRoutineSlot}
+                onActivateRoutine={activateRoutine}
+                onDeactivateRoutine={deactivateRoutine}
+                onBulkImportSlots={bulkImportSlots}
+                sectionId={sectionId}
+                isSectionAdmin={isSectionAdmin}
+                isLoading={routinesLoading}
+              />
+            )}
       </Suspense>
     );
   };

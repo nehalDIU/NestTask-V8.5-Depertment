@@ -1,5 +1,6 @@
 import { supabase } from '../lib/supabase';
 import { lazyLoad, preloadComponent } from './lazyLoad';
+import { setCache, getCache, isCacheValid } from './cache';
 
 // Type for prefetch options
 export interface PrefetchOptions {
@@ -7,23 +8,12 @@ export interface PrefetchOptions {
   timeout?: number;
 }
 
-// Lightweight tracking maps
+// Lightweight tracking sets
 const prefetchedRoutes = new Set<string>();
 const prefetchedQueries = new Set<string>();
-const memoryCache = new Map<string, { data: any; timestamp: number }>();
 
 // Maximum cache age (10 minutes)
 const MAX_CACHE_AGE = 10 * 60 * 1000;
-
-// Clear cache data older than maxAge
-const cleanStaleCache = () => {
-  const now = Date.now();
-  for (const [key, value] of memoryCache.entries()) {
-    if (now - value.timestamp > MAX_CACHE_AGE) {
-      memoryCache.delete(key);
-    }
-  }
-};
 
 /**
  * Prefetch a specific route
@@ -73,11 +63,8 @@ export const prefetchApiData = async (
     }
     
     if (data) {
-      // Store in memory cache with timestamp
-      memoryCache.set(cacheKey, {
-        data,
-        timestamp: Date.now()
-      });
+      // Store in cache with timestamp
+      setCache(cacheKey, data);
     }
   } catch (err: unknown) {
     prefetchedQueries.delete(cacheKey); // Allow retry on error
@@ -90,16 +77,7 @@ export const prefetchApiData = async (
  * @returns The cached data or null if not found
  */
 export const getCachedData = (cacheKey: string) => {
-  const cached = memoryCache.get(cacheKey);
-  if (!cached) return null;
-  
-  // Check if cache is stale
-  if (Date.now() - cached.timestamp > MAX_CACHE_AGE) {
-    memoryCache.delete(cacheKey);
-    return null;
-  }
-  
-  return cached.data;
+  return getCache(cacheKey);
 };
 
 /**
@@ -143,9 +121,6 @@ export const prefetchResources = async (resources: Array<{
           prefetchAsset(resource.loader);
         }
       });
-      
-      // Clean stale cache data during idle time
-      cleanStaleCache();
     }, { timeout: 2000 });
   }
 };
@@ -174,5 +149,4 @@ export const prefetchAsset = (url: string) => {
 export const clearPrefetchCache = () => {
   prefetchedRoutes.clear();
   prefetchedQueries.clear();
-  memoryCache.clear();
 }; 

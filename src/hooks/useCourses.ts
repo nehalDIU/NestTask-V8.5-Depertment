@@ -13,22 +13,16 @@ import {
 } from '../services/course.service';
 import type { Course, NewCourse, StudyMaterial, NewStudyMaterial } from '../types/course';
 import { useOfflineStatus } from './useOfflineStatus';
-import { 
-  saveToIndexedDB, 
-  getAllFromIndexedDB, 
-  getByIdFromIndexedDB, 
-  clearIndexedDBStore,
-  STORES 
-} from '../utils/offlineStorage';
+import { setCache, getCache } from '../utils/cache';
 
-// Define cache timestamp keys
-const COURSES_CACHE_TIMESTAMP_KEY = 'courses_last_fetched';
-const MATERIALS_CACHE_TIMESTAMP_KEY = 'materials_last_fetched';
+// Define cache keys
+const COURSES_CACHE_KEY = 'courses';
+const MATERIALS_CACHE_KEY = 'materials';
 
 export function useCourses() {
-  const [courses, setCourses] = useState<Course[]>([]);
-  const [materials, setMaterials] = useState<StudyMaterial[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [courses, setCourses] = useState<Course[]>(() => getCache<Course[]>(COURSES_CACHE_KEY) || []);
+  const [materials, setMaterials] = useState<StudyMaterial[]>(() => getCache<StudyMaterial[]>(MATERIALS_CACHE_KEY) || []);
+  const [loading, setLoading] = useState(courses.length === 0 && materials.length === 0);
   const [error, setError] = useState<string | null>(null);
   const isOffline = useOfflineStatus();
 
@@ -36,17 +30,15 @@ export function useCourses() {
     try {
       setLoading(true);
       
-      // No need to check for forced refresh as we always load fresh data
-      
       if (isOffline) {
-        // When offline, get courses from IndexedDB
-        console.log('Offline mode: Loading courses from IndexedDB');
-        const offlineCourses = await getAllFromIndexedDB(STORES.COURSES);
-        if (offlineCourses && offlineCourses.length > 0) {
-          console.log('Found offline courses:', offlineCourses.length);
-          setCourses(offlineCourses);
+        // When offline, use cached data
+        console.log('Offline mode: Loading courses from cache');
+        const cachedCourses = getCache<Course[]>(COURSES_CACHE_KEY);
+        if (cachedCourses && cachedCourses.length > 0) {
+          console.log('Found cached courses:', cachedCourses.length);
+          setCourses(cachedCourses);
         } else {
-          console.log('No offline courses found');
+          console.log('No cached courses found');
           setCourses([]);
         }
       } else {
@@ -55,24 +47,24 @@ export function useCourses() {
         const data = await fetchCourses();
         setCourses(data);
         
-        // Save courses to IndexedDB for offline use
-        console.log('Saving courses to IndexedDB for offline access');
-        await saveToIndexedDB(STORES.COURSES, data);
+        // Save courses to cache for offline use
+        console.log('Saving courses to cache for offline access');
+        setCache(COURSES_CACHE_KEY, data);
       }
     } catch (err: any) {
       console.error('Error loading courses:', err);
       setError(err.message);
       
-      // If online fetch failed, try to load from IndexedDB as fallback
+      // If online fetch failed, try to load from cache as fallback
       if (!isOffline) {
         try {
-          const offlineCourses = await getAllFromIndexedDB(STORES.COURSES);
-          if (offlineCourses && offlineCourses.length > 0) {
+          const cachedCourses = getCache<Course[]>(COURSES_CACHE_KEY);
+          if (cachedCourses && cachedCourses.length > 0) {
             console.log('Using cached courses due to fetch error');
-            setCourses(offlineCourses);
+            setCourses(cachedCourses);
           }
-        } catch (offlineErr) {
-          console.error('Error loading fallback courses:', offlineErr);
+        } catch (cacheErr) {
+          console.error('Error loading fallback courses:', cacheErr);
         }
       }
     } finally {
@@ -85,14 +77,14 @@ export function useCourses() {
       setLoading(true);
       
       if (isOffline) {
-        // When offline, get materials from IndexedDB
-        console.log('Offline mode: Loading materials from IndexedDB');
-        const offlineMaterials = await getAllFromIndexedDB(STORES.MATERIALS);
-        if (offlineMaterials && offlineMaterials.length > 0) {
-          console.log('Found offline materials:', offlineMaterials.length);
-          setMaterials(offlineMaterials);
+        // When offline, use cached data
+        console.log('Offline mode: Loading materials from cache');
+        const cachedMaterials = getCache<StudyMaterial[]>(MATERIALS_CACHE_KEY);
+        if (cachedMaterials && cachedMaterials.length > 0) {
+          console.log('Found cached materials:', cachedMaterials.length);
+          setMaterials(cachedMaterials);
         } else {
-          console.log('No offline materials found');
+          console.log('No cached materials found');
           setMaterials([]);
         }
       } else {
@@ -101,24 +93,24 @@ export function useCourses() {
         const data = await fetchStudyMaterials();
         setMaterials(data);
         
-        // Save materials to IndexedDB for offline use
-        console.log('Saving materials to IndexedDB for offline access');
-        await saveToIndexedDB(STORES.MATERIALS, data);
+        // Save materials to cache for offline use
+        console.log('Saving materials to cache for offline access');
+        setCache(MATERIALS_CACHE_KEY, data);
       }
     } catch (err: any) {
       console.error('Error loading materials:', err);
       setError(err.message);
       
-      // If online fetch failed, try to load from IndexedDB as fallback
+      // If online fetch failed, try to load from cache as fallback
       if (!isOffline) {
         try {
-          const offlineMaterials = await getAllFromIndexedDB(STORES.MATERIALS);
-          if (offlineMaterials && offlineMaterials.length > 0) {
+          const cachedMaterials = getCache<StudyMaterial[]>(MATERIALS_CACHE_KEY);
+          if (cachedMaterials && cachedMaterials.length > 0) {
             console.log('Using cached materials due to fetch error');
-            setMaterials(offlineMaterials);
+            setMaterials(cachedMaterials);
           }
-        } catch (offlineErr) {
-          console.error('Error loading fallback materials:', offlineErr);
+        } catch (cacheErr) {
+          console.error('Error loading fallback materials:', cacheErr);
         }
       }
     } finally {
@@ -156,31 +148,14 @@ export function useCourses() {
   const handleCreateCourse = async (course: NewCourse) => {
     try {
       if (isOffline) {
-        // In offline mode, create a temporary course with an ID
-        const tempId = `temp-course-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
-        const offlineCourse: Course = {
-          ...course,
-          id: tempId,
-          createdAt: new Date().toISOString(),
-          createdBy: '',
-          _isOffline: true // Mark as created offline
-        };
-        
-        // Add to state and IndexedDB
-        setCourses(prev => [...prev, offlineCourse]);
-        await saveToIndexedDB(STORES.COURSES, offlineCourse);
-        
-        return offlineCourse;
+        throw new Error('Cannot create courses while offline');
       } else {
         // Online mode
         const newCourse = await createCourse(course);
         
-        // Update state and IndexedDB
+        // Update state and cache
         setCourses(prev => [...prev, newCourse]);
-        await saveToIndexedDB(STORES.COURSES, newCourse);
-        
-        // Update cache timestamp
-        localStorage.setItem(COURSES_CACHE_TIMESTAMP_KEY, Date.now().toString());
+        setCache(COURSES_CACHE_KEY, [...courses, newCourse]);
         
         return newCourse;
       }
@@ -193,41 +168,15 @@ export function useCourses() {
   const handleUpdateCourse = async (id: string, updates: Partial<Course>) => {
     try {
       if (isOffline) {
-        // In offline mode, update locally
-        const existingCourse = await getByIdFromIndexedDB(STORES.COURSES, id) as Course;
-        
-        if (!existingCourse) {
-          throw new Error('Course not found');
-        }
-        
-        const updatedCourse = { 
-          ...existingCourse, 
-          ...updates, 
-          _isOfflineUpdated: true 
-        };
-        
-        // Update state and IndexedDB
-        setCourses(prev => prev.map(c => c.id === id ? updatedCourse : c));
-        await saveToIndexedDB(STORES.COURSES, updatedCourse);
-        
-        return updatedCourse;
+        throw new Error('Cannot update courses while offline');
       } else {
         // Online mode
         await updateCourse(id, updates);
         
-        // Get the updated course for state and IndexedDB
-        const updatedCourse = await getByIdFromIndexedDB(STORES.COURSES, id) as Course;
-        if (updatedCourse) {
-          const refreshedCourse = { ...updatedCourse, ...updates };
-          setCourses(prev => prev.map(c => c.id === id ? refreshedCourse : c));
-          await saveToIndexedDB(STORES.COURSES, refreshedCourse);
-        } else {
-          // If not in IndexedDB yet, fetch and update all
-          await loadCourses(true);
-        }
-        
-        // Update cache timestamp
-        localStorage.setItem(COURSES_CACHE_TIMESTAMP_KEY, Date.now().toString());
+        // Get the updated course for state and cache
+        const updatedCourses = courses.map(c => c.id === id ? { ...c, ...updates } : c);
+        setCourses(updatedCourses);
+        setCache(COURSES_CACHE_KEY, updatedCourses);
       }
     } catch (err: any) {
       setError(err.message);
@@ -238,40 +187,17 @@ export function useCourses() {
   const handleDeleteCourse = async (id: string) => {
     try {
       if (isOffline) {
-        // In offline mode, mark for deletion or remove if temporary
-        const existingCourse = await getByIdFromIndexedDB(STORES.COURSES, id) as Course;
-        
-        if (existingCourse) {
-          if (existingCourse._isOffline) {
-            // If it's a temp course, remove it entirely
-            setCourses(prev => prev.filter(c => c.id !== id));
-            const allCourses = await getAllFromIndexedDB(STORES.COURSES);
-            const updatedCourses = allCourses.filter((c: Course) => c.id !== id);
-            await saveToIndexedDB(STORES.COURSES, updatedCourses);
-          } else {
-            // Otherwise mark for deletion
-            const markedCourse = { ...existingCourse, _isOfflineDeleted: true };
-            await saveToIndexedDB(STORES.COURSES, markedCourse);
-            setCourses(prev => prev.filter(c => c.id !== id));
-          }
-        }
+        throw new Error('Cannot delete courses while offline');
       } else {
-        // ONLINE MODE - ENHANCED DELETION WORKFLOW
-        console.log(`Starting enhanced deletion for course ${id}`);
-        
-        // 1. First update UI immediately for better UX
-        setCourses(prev => prev.filter(c => c.id !== id));
-        
-        // 2. Delete from remote database
+        // Online mode
         await deleteCourse(id);
         
-        // 3. No IndexedDB operations for admin dashboard, just load fresh data
-        await loadCourses(true);
-        
-        console.log(`Enhanced deletion for course ${id} completed`);
+        // Update state and cache
+        const filteredCourses = courses.filter(c => c.id !== id);
+        setCourses(filteredCourses);
+        setCache(COURSES_CACHE_KEY, filteredCourses);
       }
     } catch (err: any) {
-      console.error(`Error deleting course ${id}:`, err);
       setError(err.message);
       throw err;
     }
@@ -279,8 +205,15 @@ export function useCourses() {
 
   const handleCreateMaterial = async (material: NewStudyMaterial) => {
     try {
-      await createStudyMaterial(material);
-      await loadMaterials();
+      if (isOffline) {
+        throw new Error('Cannot create study materials while offline');
+      } else {
+        // Online mode
+        await createStudyMaterial(material);
+        
+        // Refresh to get updated list
+        await loadMaterials(true);
+      }
     } catch (err: any) {
       setError(err.message);
       throw err;
@@ -289,8 +222,15 @@ export function useCourses() {
 
   const handleUpdateMaterial = async (id: string, updates: Partial<StudyMaterial>) => {
     try {
-      await updateStudyMaterial(id, updates);
-      await loadMaterials();
+      if (isOffline) {
+        throw new Error('Cannot update study materials while offline');
+      } else {
+        // Online mode
+        await updateStudyMaterial(id, updates);
+        
+        // Refresh to get updated list
+        await loadMaterials(true);
+      }
     } catch (err: any) {
       setError(err.message);
       throw err;
@@ -299,37 +239,36 @@ export function useCourses() {
 
   const handleDeleteMaterial = async (id: string) => {
     try {
-      await deleteStudyMaterial(id);
-      await loadMaterials();
+      if (isOffline) {
+        throw new Error('Cannot delete study materials while offline');
+      } else {
+        // Online mode
+        await deleteStudyMaterial(id);
+        
+        // Update state and cache
+        const filteredMaterials = materials.filter(m => m.id !== id);
+        setMaterials(filteredMaterials);
+        setCache(MATERIALS_CACHE_KEY, filteredMaterials);
+      }
     } catch (err: any) {
       setError(err.message);
       throw err;
     }
   };
 
-  // Add the bulk import handler
   const handleBulkImportCourses = async (courses: NewCourse[]): Promise<{ success: number; errors: any[] }> => {
     try {
       if (isOffline) {
-        return {
-          success: 0,
-          errors: [{ message: 'Bulk import is not available in offline mode' }]
-        };
+        throw new Error('Cannot import courses while offline');
+      } else {
+        // Online mode
+        const result = await bulkImportCourses(courses);
+        await loadCourses(true);
+        return result;
       }
-      
-      // Process the bulk import
-      const result = await bulkImportCourses(courses);
-      
-      // Refresh the courses list
-      await loadCourses(true);
-      
-      return result;
-    } catch (error: any) {
-      console.error('Error bulk importing courses:', error);
-      return {
-        success: 0,
-        errors: [{ message: error.message || 'Failed to import courses' }]
-      };
+    } catch (err: any) {
+      setError(err.message);
+      throw err;
     }
   };
 
@@ -345,8 +284,6 @@ export function useCourses() {
     updateMaterial: handleUpdateMaterial,
     deleteMaterial: handleDeleteMaterial,
     bulkImportCourses: handleBulkImportCourses,
-    refreshCourses: () => loadCourses(true),
-    refreshMaterials: () => loadMaterials(true),
-    isOffline
+    refreshCourses: () => loadCourses(true)
   };
 }

@@ -12,170 +12,72 @@ import {
   bulkImportCourses
 } from '../services/course.service';
 import type { Course, NewCourse, StudyMaterial, NewStudyMaterial } from '../types/course';
-import { getCachedData } from '../utils/prefetch';
+import { setCache, getCache } from '../utils/cache';
 
-// In-memory cache for courses and materials
-const courseCache = new Map<string, { data: Course[]; timestamp: string }>();
-const materialCache = new Map<string, { data: StudyMaterial[]; timestamp: string }>();
+// Define cache keys
+const COURSES_CACHE_KEY = 'courses';
+const MATERIALS_CACHE_KEY = 'materials';
 
-/**
- * Custom hook for managing course data with memory caching
- */
-export function useCourseData(userId: string | undefined) {
-  const [courses, setCourses] = useState<any[]>(() => {
-    // Try to get data from memory cache first
-    const cachedData = getCachedData('courses');
-    return cachedData || [];
-  });
-  const [materials, setMaterials] = useState<StudyMaterial[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<Error | null>(null);
+export function useCourseData() {
+  const [courses, setCourses] = useState<Course[]>(() => getCache<Course[]>(COURSES_CACHE_KEY) || []);
+  const [materials, setMaterials] = useState<StudyMaterial[]>(() => getCache<StudyMaterial[]>(MATERIALS_CACHE_KEY) || []);
+  const [loading, setLoading] = useState(!courses.length && !materials.length);
+  const [error, setError] = useState<string | null>(null);
 
-  // Function to fetch courses from the database
-  const fetchCourses = useCallback(async () => {
-    if (!userId) {
-      setLoading(false);
-      return;
-    }
-
-    setLoading(true);
-    try {
-      const { data, error } = await supabase
-        .from('courses')
-        .select('*')
-        .order('name', { ascending: true });
-
-      if (error) throw error;
-
-      setCourses(data || []);
-    } catch (err) {
-      console.error('Error fetching courses:', err);
-      setError(err instanceof Error ? err : new Error('Unknown error fetching courses'));
-    } finally {
-      setLoading(false);
-    }
-  }, [userId]);
-
-  const loadCourses = useCallback(async (forceRefresh = false) => {
+  const refreshCourses = useCallback(async (forceRefresh = false) => {
     try {
       setLoading(true);
       
-      if (!forceRefresh) {
-        // Try to get courses from memory cache
-        const cachedCourses = getCachedData('courses');
-        if (cachedCourses) {
-          console.log('Using cached courses');
-          setCourses(cachedCourses);
-          setLoading(false);
-          
-          // Fetch fresh data in the background
-          try {
-            const freshData = await fetchCourses();
-            setCourses(freshData);
-            courseCache.set('courses', {
-              data: freshData,
-              timestamp: new Date().toISOString()
-            });
-          } catch (err) {
-            console.error('Background fetch failed for courses:', err);
-          }
-          return;
-        }
-      }
-      
-      // No cache or force refresh, fetch fresh data
+      // Always fetch fresh data for admin dashboard
       console.log('Fetching fresh course data');
       const data = await fetchCourses();
       setCourses(data);
       
-      // Update cache
-      courseCache.set('courses', {
-        data,
-        timestamp: new Date().toISOString()
-      });
+      // Cache the data
+      setCache(COURSES_CACHE_KEY, data);
     } catch (err: any) {
       console.error('Error loading courses:', err);
-      setError(err instanceof Error ? err : new Error('Unknown error loading courses'));
-      
-      // Try to use cached data as fallback
-      const cachedCourses = getCachedData('courses');
-      if (cachedCourses) {
-        console.log('Using cached courses due to fetch error');
-        setCourses(cachedCourses);
-      }
+      setError(err.message);
     } finally {
       setLoading(false);
     }
   }, []);
 
-  const loadMaterials = useCallback(async (forceRefresh = false) => {
+  const refreshMaterials = useCallback(async (forceRefresh = false) => {
     try {
       setLoading(true);
       
-      if (!forceRefresh) {
-        // Try to get materials from memory cache
-        const cachedMaterials = getCachedData('materials');
-        if (cachedMaterials) {
-          console.log('Using cached materials');
-          setMaterials(cachedMaterials);
-          setLoading(false);
-          
-          // Fetch fresh data in the background
-          try {
-            const freshData = await fetchStudyMaterials();
-            setMaterials(freshData);
-            materialCache.set('materials', {
-              data: freshData,
-              timestamp: new Date().toISOString()
-            });
-          } catch (err) {
-            console.error('Background fetch failed for materials:', err);
-          }
-          return;
-        }
-      }
-      
-      // No cache or force refresh, fetch fresh data
+      // Always fetch fresh data for admin dashboard
       console.log('Fetching fresh materials data');
       const data = await fetchStudyMaterials();
       setMaterials(data);
       
-      // Update cache
-      materialCache.set('materials', {
-        data,
-        timestamp: new Date().toISOString()
-      });
+      // Cache the data
+      setCache(MATERIALS_CACHE_KEY, data);
     } catch (err: any) {
       console.error('Error loading materials:', err);
-      setError(err instanceof Error ? err : new Error('Unknown error loading materials'));
-      
-      // Try to use cached data as fallback
-      const cachedMaterials = getCachedData('materials');
-      if (cachedMaterials) {
-        console.log('Using cached materials due to fetch error');
-        setMaterials(cachedMaterials);
-      }
+      setError(err.message);
     } finally {
       setLoading(false);
     }
   }, []);
 
   useEffect(() => {
-    loadCourses();
-    loadMaterials();
+    refreshCourses();
+    refreshMaterials();
 
     // Subscribe to changes
     const coursesSubscription = supabase
       .channel('courses')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'courses' }, () => {
-        loadCourses(true); // Force refresh
+        refreshCourses(true); // Force refresh
       })
       .subscribe();
 
     const materialsSubscription = supabase
       .channel('materials')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'study_materials' }, () => {
-        loadMaterials(true); // Force refresh
+        refreshMaterials(true); // Force refresh
       })
       .subscribe();
 
@@ -183,140 +85,109 @@ export function useCourseData(userId: string | undefined) {
       coursesSubscription.unsubscribe();
       materialsSubscription.unsubscribe();
     };
-  }, [loadCourses, loadMaterials]);
+  }, [refreshCourses, refreshMaterials]);
 
   const handleCreateCourse = async (course: NewCourse) => {
     try {
+      // Create course online
       const newCourse = await createCourse(course);
       
-      // Update state and cache
+      // Update local state and cache
       setCourses(prev => [...prev, newCourse]);
-      const currentCache = courseCache.get('courses');
-      if (currentCache) {
-        courseCache.set('courses', {
-          data: [...currentCache.data, newCourse],
-          timestamp: new Date().toISOString()
-        });
-      }
+      setCache(COURSES_CACHE_KEY, [...courses, newCourse]);
       
       return newCourse;
     } catch (err: any) {
-      setError(err instanceof Error ? err : new Error('Unknown error creating course'));
+      setError(err.message);
       throw err;
     }
   };
 
   const handleUpdateCourse = async (id: string, updates: Partial<Course>) => {
     try {
+      // Update course online
       const updatedCourse = await updateCourse(id, updates);
       
-      // Update state and cache
+      // Update local state and cache
       setCourses(prev => prev.map(c => c.id === id ? updatedCourse : c));
-      const currentCache = courseCache.get('courses');
-      if (currentCache) {
-        courseCache.set('courses', {
-          data: currentCache.data.map(c => c.id === id ? updatedCourse : c),
-          timestamp: new Date().toISOString()
-        });
-      }
+      setCache(COURSES_CACHE_KEY, courses.map(c => c.id === id ? updatedCourse : c));
       
       return updatedCourse;
     } catch (err: any) {
-      setError(err instanceof Error ? err : new Error('Unknown error updating course'));
+      setError(err.message);
       throw err;
     }
   };
 
   const handleDeleteCourse = async (id: string) => {
     try {
+      // Delete course online
       await deleteCourse(id);
       
-      // Update state and cache
-      setCourses(prev => prev.filter(c => c.id !== id));
-      const currentCache = courseCache.get('courses');
-      if (currentCache) {
-        courseCache.set('courses', {
-          data: currentCache.data.filter(c => c.id !== id),
-          timestamp: new Date().toISOString()
-        });
-      }
+      // Update local state and cache
+      const filteredCourses = courses.filter(c => c.id !== id);
+      setCourses(filteredCourses);
+      setCache(COURSES_CACHE_KEY, filteredCourses);
+      
+      return true;
     } catch (err: any) {
-      setError(err instanceof Error ? err : new Error('Unknown error deleting course'));
+      setError(err.message);
       throw err;
     }
   };
 
   const handleCreateMaterial = async (material: NewStudyMaterial) => {
     try {
-      const newMaterial = await createStudyMaterial(material);
+      // Create material online
+      await createStudyMaterial(material);
       
-      // Update state and cache
-      setMaterials(prev => [...prev, newMaterial]);
-      const currentCache = materialCache.get('materials');
-      if (currentCache) {
-        materialCache.set('materials', {
-          data: [...currentCache.data, newMaterial],
-          timestamp: new Date().toISOString()
-        });
-      }
-      
-      return newMaterial;
+      // Refresh materials to get updated list
+      await refreshMaterials(true);
     } catch (err: any) {
-      setError(err instanceof Error ? err : new Error('Unknown error creating material'));
+      setError(err.message);
       throw err;
     }
   };
 
   const handleUpdateMaterial = async (id: string, updates: Partial<StudyMaterial>) => {
     try {
-      const updatedMaterial = await updateStudyMaterial(id, updates);
+      // Update material online
+      await updateStudyMaterial(id, updates);
       
-      // Update state and cache
-      setMaterials(prev => prev.map(m => m.id === id ? updatedMaterial : m));
-      const currentCache = materialCache.get('materials');
-      if (currentCache) {
-        materialCache.set('materials', {
-          data: currentCache.data.map(m => m.id === id ? updatedMaterial : m),
-          timestamp: new Date().toISOString()
-        });
-      }
-      
-      return updatedMaterial;
+      // Refresh materials to get updated list
+      await refreshMaterials(true);
     } catch (err: any) {
-      setError(err instanceof Error ? err : new Error('Unknown error updating material'));
+      setError(err.message);
       throw err;
     }
   };
 
   const handleDeleteMaterial = async (id: string) => {
     try {
+      // Delete material online
       await deleteStudyMaterial(id);
       
-      // Update state and cache
-      setMaterials(prev => prev.filter(m => m.id !== id));
-      const currentCache = materialCache.get('materials');
-      if (currentCache) {
-        materialCache.set('materials', {
-          data: currentCache.data.filter(m => m.id !== id),
-          timestamp: new Date().toISOString()
-        });
-      }
+      // Update local state and cache
+      const filteredMaterials = materials.filter(m => m.id !== id);
+      setMaterials(filteredMaterials);
+      setCache(MATERIALS_CACHE_KEY, filteredMaterials);
     } catch (err: any) {
-      setError(err instanceof Error ? err : new Error('Unknown error deleting material'));
+      setError(err.message);
       throw err;
     }
   };
 
-  const handleBulkImportCourses = async (courses: NewCourse[]): Promise<{ success: number; errors: any[] }> => {
+  const handleBulkImportCourses = async (coursesToImport: NewCourse[]): Promise<{ success: number; errors: any[] }> => {
     try {
-      const result = await bulkImportCourses(courses);
+      // Use the bulk import service
+      const result = await bulkImportCourses(coursesToImport);
       
-      // Refresh courses after bulk import
-      await loadCourses(true);
+      // Refresh courses to get the updated list
+      await refreshCourses(true);
       
       return result;
     } catch (err: any) {
-      setError(err instanceof Error ? err : new Error('Unknown error bulk importing courses'));
+      setError(err.message);
       throw err;
     }
   };
@@ -326,14 +197,13 @@ export function useCourseData(userId: string | undefined) {
     materials,
     loading,
     error,
-    refreshCourses: () => loadCourses(true),
-    refreshMaterials: () => loadMaterials(true),
     createCourse: handleCreateCourse,
     updateCourse: handleUpdateCourse,
     deleteCourse: handleDeleteCourse,
     createMaterial: handleCreateMaterial,
     updateMaterial: handleUpdateMaterial,
     deleteMaterial: handleDeleteMaterial,
-    bulkImportCourses: handleBulkImportCourses
+    bulkImportCourses: handleBulkImportCourses,
+    refreshCourses
   };
 } 

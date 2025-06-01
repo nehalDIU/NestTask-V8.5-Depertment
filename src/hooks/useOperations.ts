@@ -21,28 +21,24 @@ interface UseOperationsResult {
 }
 
 /**
- * Hook for managing operations that need to be performed.
- * Simplified version without offline storage.
+ * Custom hook for handling operations
  */
-export function useOperations({ 
-  entityType, 
-  userId 
-}: UseOperationsParams): UseOperationsResult {
-  const [isLoading, setIsLoading] = useState(false);
+export function useOperations() {
+  const [loading, setLoading] = useState(false);
   const [error, setError] = useState<Error | null>(null);
-  
-  // Perform operation immediately
+
+  // Perform the operation immediately
   const performOperation = useCallback(async (operation: Operation) => {
-    setIsLoading(true);
+    setLoading(true);
     setError(null);
-    
+
     try {
-      console.log(`Performing ${operation.type} operation for ${entityType}`);
+      // Set the appropriate HTTP method based on operation type
+      const method = operation.type === 'create' ? 'POST' : 
+                    operation.type === 'update' ? 'PUT' : 'DELETE';
       
-      // Perform the actual API call
       const init: RequestInit = {
-        method: operation.type === 'create' ? 'POST' : 
-               operation.type === 'update' ? 'PUT' : 'DELETE',
+        method,
         headers: {
           'Content-Type': 'application/json'
         }
@@ -53,30 +49,31 @@ export function useOperations({
         init.body = JSON.stringify(operation.payload);
       }
       
-      // Execute the API call
+      // Perform the fetch operation
       const response = await fetch(operation.endpoint, init);
       
       if (!response.ok) {
-        throw new Error(`Failed to perform operation. Status: ${response.status}`);
+        throw new Error(`Operation failed: ${response.status} ${response.statusText}`);
       }
       
-      // Parse response data
-      const data = await response.json();
+      // Return the data if the response has any
+      if (method !== 'DELETE') {
+        return await response.json();
+      }
       
-      console.log(`Successfully performed ${operation.type} operation for ${entityType}`);
-      return data;
-    } catch (error) {
-      console.error(`Failed to perform operation:`, error);
-      setError(error as Error);
-      throw error;
+      return true;
+    } catch (err) {
+      console.error('Operation error:', err);
+      setError(err as Error);
+      throw err;
     } finally {
-      setIsLoading(false);
+      setLoading(false);
     }
-  }, [entityType]);
-  
+  }, []);
+
   return {
     performOperation,
-    isLoading,
+    loading,
     error
   };
 } 

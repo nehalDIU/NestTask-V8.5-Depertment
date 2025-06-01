@@ -47,16 +47,18 @@ const BottomNavigationItem = React.memo(({
             : 'text-gray-700 dark:text-gray-300'
         }`}
     >
-      <Icon 
-        className="w-5 h-5"
-        strokeWidth={isActive ? 2.5 : 1.8}
-      />
-      
-      {badge !== undefined && badge > 0 && (
-        <span className="absolute -top-1 -right-1 min-w-[14px] h-3.5 px-0.5 text-[9px] font-medium text-white bg-red-500 rounded-full flex items-center justify-center">
-          {badge > 99 ? '99+' : badge}
-        </span>
-      )}
+      <div className="relative">
+        <Icon 
+          className="w-5 h-5"
+          strokeWidth={isActive ? 2.5 : 1.8}
+        />
+        
+        {badge !== undefined && badge > 0 && (
+          <span className="absolute -top-1 -right-1 min-w-[14px] h-3.5 px-0.5 text-[9px] font-medium text-white bg-red-500 rounded-full flex items-center justify-center">
+            {badge > 99 ? '99+' : badge}
+          </span>
+        )}
+      </div>
       
       <span className={`text-[10px] mt-0.5 ${isActive ? 'font-medium' : 'font-normal opacity-70'}`}>
         {label}

@@ -4,75 +4,83 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>NestTask - Offline</title>
-  <link rel="icon" type="image/svg+xml" href="/icons/favicon.ico" />
   <style>
     body {
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
-      background-color: #f5f5f5;
-      color: #333;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+      background-color: #f9fafb;
+      color: #1f2937;
       display: flex;
       flex-direction: column;
       align-items: center;
       justify-content: center;
       height: 100vh;
       margin: 0;
-      padding: 20px;
+      padding: 1rem;
       text-align: center;
     }
-    .container {
-      max-width: 500px;
+    .logo {
+      font-size: 2rem;
+      font-weight: bold;
+      margin-bottom: 1.5rem;
+      color: #0284c7;
+    }
+    .card {
       background-color: white;
-      border-radius: 12px;
-      padding: 30px;
-      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+      border-radius: 0.5rem;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+      padding: 2rem;
+      width: 100%;
+      max-width: 28rem;
     }
-    h1 {
-      color: #4f46e5;
-      margin-bottom: 10px;
+    .title {
+      font-size: 1.5rem;
+      font-weight: 600;
+      margin-bottom: 1rem;
     }
-    p {
-      line-height: 1.6;
-      margin-bottom: 20px;
-      color: #666;
+    .message {
+      color: #4b5563;
+      margin-bottom: 1.5rem;
+      line-height: 1.5;
     }
-    .icon {
-      font-size: 64px;
-      margin-bottom: 20px;
-    }
-    .button {
-      background-color: #4f46e5;
+    .btn {
+      background-color: #0284c7;
       color: white;
       border: none;
-      padding: 12px 24px;
-      border-radius: 6px;
-      font-weight: 600;
+      border-radius: 0.375rem;
+      padding: 0.625rem 1.25rem;
+      font-size: 0.875rem;
+      font-weight: 500;
       cursor: pointer;
       transition: background-color 0.2s;
     }
-    .button:hover {
-      background-color: #4338ca;
+    .btn:hover {
+      background-color: #0369a1;
     }
-    .info {
-      margin-top: 20px;
-      font-size: 14px;
-      color: #888;
+    @media (prefers-color-scheme: dark) {
+      body {
+        background-color: #111827;
+        color: #f9fafb;
+      }
+      .card {
+        background-color: #1f2937;
+      }
+      .message {
+        color: #9ca3af;
+      }
     }
   </style>
 </head>
 <body>
-  <div class="container">
-    <div class="icon">📶</div>
-    <h1>You're Offline</h1>
-    <p>Don't worry! NestTask has saved your recent tasks and routines. You can still view your previously loaded content.</p>
-    <p>Some features may be limited until your connection is restored.</p>
-    <button class="button" onclick="window.location.reload()">Try Again</button>
-    <div class="info">
-      <p>If you were previously logged in, you can still access your cached tasks and routines.</p>
-    </div>
+  <div class="logo">NestTask</div>
+  <div class="card">
+    <div class="title">You're offline</div>
+    <p class="message">
+      It looks like you're currently offline. Please check your internet connection and try again.
+    </p>
+    <button class="btn" onclick="window.location.reload()">Try again</button>
   </div>
-
   <script>
-    // Check if we're back online
+    // Listen for online status and reload page when back online
     window.addEventListener('online', () => {
       window.location.reload();
     });

@@ -1,12 +1,11 @@
 {
   "name": "NestTask",
   "short_name": "NestTask",
-  "description": "A modern task management application for teams and individuals",
+  "description": "Task management application",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#ffffff",
   "theme_color": "#0284c7",
-  "orientation": "portrait-primary",
   "icons": [
     {
       "src": "/icons/icon-192x192.png",
@@ -18,21 +17,19 @@
       "src": "/icons/icon-512x512.png",
       "sizes": "512x512",
       "type": "image/png",
-      "purpose": "any maskable"
+      "purpose": "any"
     }
   ],
   "shortcuts": [
     {
       "name": "Add Task",
-      "short_name": "Add Task",
-      "description": "Create a new task",
+      "short_name": "Add",
       "url": "/?action=new-task",
       "icons": [{ "src": "/icons/add-task.png", "sizes": "192x192" }]
     },
     {
       "name": "View Tasks",
       "short_name": "Tasks",
-      "description": "View your tasks",
       "url": "/?view=tasks",
       "icons": [{ "src": "/icons/view-tasks.png", "sizes": "192x192" }]
     }
@@ -46,6 +43,6 @@
       "label": "NestTask Dashboard"
     }
   ],
-  "categories": ["productivity", "utilities"],
+  "categories": ["productivity"],
   "prefer_related_applications": false
 }

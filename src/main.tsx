@@ -1,44 +1,14 @@
-import React, { StrictMode, Suspense, lazy, useState, useEffect } from 'react';
+import React, { StrictMode, Suspense, lazy } from 'react';
 import { createRoot } from 'react-dom/client';
 import { createBrowserRouter, RouterProvider } from 'react-router-dom';
 // Import CSS (Vite handles this correctly)
 import './index.css';
-import { LoadingScreen } from '@/components/LoadingScreen';
-import { initPWA } from '@/utils/pwa';
-import { prefetchAsset } from '@/utils/prefetch';
+import { MicroLoader } from './components/MicroLoader';
+import { initPWA } from './utils/pwa';
 import { supabase } from './lib/supabase';
+import type { LoginCredentials, SignupCredentials } from './types/auth';
 
-// Ultra-light loading indicator to avoid expensive component imports
-const MicroLoader = () => (
-  <div className="fixed inset-0 flex items-center justify-center bg-white dark:bg-gray-900 z-50">
-    <svg width="32" height="32" viewBox="0 0 32 32" style={{ color: '#2563eb' }}>
-      <circle cx="16" cy="16" r="14" 
-        fill="none" 
-        stroke="currentColor" 
-        strokeOpacity="0.2" 
-        strokeWidth="4" 
-      />
-      <path
-        d="M16 2 A14 14 0 0 1 30 16"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="4"
-        strokeLinecap="round"
-      >
-        <animateTransform
-          attributeName="transform"
-          type="rotate"
-          from="0 16 16"
-          to="360 16 16"
-          dur="0.75s"
-          repeatCount="indefinite"
-        />
-      </path>
-    </svg>
-  </div>
-);
-
-// Lazy-load all pages
+// Lazy-load core pages
 const App = lazy(() => import('./App'));
 const ResetPasswordPage = lazy(() => import('./pages/ResetPasswordPage').then(module => ({ default: module.ResetPasswordPage })));
 const AuthPage = lazy(() => import('./pages/AuthPage').then(module => ({ default: module.AuthPage })));
@@ -55,45 +25,16 @@ if (import.meta.env.PROD) {
   }
 }
 
-// Performance optimizations initialization
-const startTime = performance.now();
-
-// Mark the first paint timing
-performance.mark('app-init-start');
-
 // Conditionally import Analytics only in production
 const Analytics = import.meta.env.PROD 
   ? lazy(() => import('@vercel/analytics/react').then(mod => ({ default: mod.Analytics })))
   : () => null;
 
-// Simple error boundary component for analytics
+// Simple error boundary for analytics
 const AnalyticsErrorBoundary = ({ children }: { children: React.ReactNode }) => {
-  const [hasError, setHasError] = useState(false);
-  
-  useEffect(() => {
-    const handler = (event: ErrorEvent) => {
-      if (event.message.includes('_vercel/insights') || 
-          (event.error && event.error.stack && event.error.stack.includes('_vercel/insights'))) {
-        setHasError(true);
-        event.preventDefault();
-      }
-    };
-    
-    window.addEventListener('error', handler);
-    return () => window.removeEventListener('error', handler);
-  }, []);
-  
-  return hasError ? null : <>{children}</>;
+  if (!import.meta.env.PROD) return null;
+  return <>{children}</>;
 };
-
-// Load important components in parallel before router definition
-const preloadPromise = Promise.all([
-  // Preload the auth page as it's likely the first thing users will see
-  import('./pages/AuthPage').then(module => module.AuthPage),
-  
-  // Preload App.tsx for faster main app load
-  import('./App'),
-]);
 
 // Define app routes
 const router = createBrowserRouter([
@@ -107,38 +48,34 @@ const router = createBrowserRouter([
     element: (
       <Suspense fallback={<MicroLoader />}>
         <AuthPage 
-          onLogin={async (credentials, rememberMe) => {
+          onLogin={async (credentials: LoginCredentials, rememberMe?: boolean) => {
             try {
-              // Login is deferred to when the component is actually loaded
-              const { data, error } = await supabase.auth.signInWithPassword({
+              const { error } = await supabase.auth.signInWithPassword({
                 email: credentials.email,
                 password: credentials.password
               });
               if (error) throw error;
             } catch (error) {
-              console.error('Login error:', error);
               throw error;
             }
           }}
-          onSignup={async (credentials) => {
+          onSignup={async (credentials: SignupCredentials) => {
             try {
-              const { data, error } = await supabase.auth.signUp({
+              const { error } = await supabase.auth.signUp({
                 email: credentials.email,
                 password: credentials.password,
                 options: { data: { name: credentials.name } }
               });
               if (error) throw error;
             } catch (error) {
-              console.error('Signup error:', error);
               throw error;
             }
           }}
-          onForgotPassword={async (email) => {
+          onForgotPassword={async (email: string) => {
             try {
               const { error } = await supabase.auth.resetPasswordForEmail(email);
               if (error) throw error;
             } catch (error) {
-              console.error('Forgot password error:', error);
               throw error;
             }
           }}
@@ -152,34 +89,25 @@ const router = createBrowserRouter([
   }
 ]);
 
-// Optimized connection hints - only the most critical ones
-function addConnectionHints() {
-  // Only add the Supabase URL hint to avoid too many preconnects
-  const url = import.meta.env.VITE_SUPABASE_URL;
-  if (url) {
+// Initialize app with minimal operations
+function initApp() {
+  // Add DNS prefetch for critical domains
+  if (import.meta.env.VITE_SUPABASE_URL) {
     try {
-      const u = new URL(url);
+      const url = new URL(import.meta.env.VITE_SUPABASE_URL);
       const link = document.createElement('link');
-      link.rel = 'preconnect';
-      link.href = u.origin;
-      link.crossOrigin = 'anonymous';
+      link.rel = 'dns-prefetch';
+      link.href = url.origin;
       document.head.appendChild(link);
     } catch (e) {
       // Silently fail - non-critical
     }
   }
-}
-
-// Initialize app with minimal operations
-function initApp() {
-  // Add minimal connection hints
-  addConnectionHints();
   
-  // Get root element
+  // Get root element and create React root
   const root = document.getElementById('root');
   if (!root) return;
   
-  // Create React root and render with minimal extras
   const reactRoot = createRoot(root);
   
   // Render app with minimal surrounding components
@@ -196,51 +124,18 @@ function initApp() {
     </StrictMode>
   );
   
-  // Initialize PWA immediately but handle registration in background
+  // Initialize PWA features
   if ('serviceWorker' in navigator) {
-    // Register service worker immediately
-    navigator.serviceWorker.register('/service-worker.js')
-      .then(registration => {
-        // After successful registration, initialize PWA features
-        setTimeout(() => {
-          initPWA().catch(console.error);
-        }, 1000);
-      })
-      .catch(error => console.error('SW registration failed:', error));
+    window.addEventListener('load', () => {
+      navigator.serviceWorker.register('/service-worker.js')
+        .then(() => {
+          // Initialize PWA features after service worker is registered
+          setTimeout(() => initPWA(), 1000);
+        })
+        .catch(error => console.error('SW registration failed:', error));
+    });
   }
-  
-  // Defer non-essential operations
-  setTimeout(() => {
-    // Prefetch critical assets after UI is visible
-    if (navigator.onLine) {
-      const link = document.createElement('link');
-      link.rel = 'prefetch';
-      link.href = '/icons/icon-192x192.png';
-      document.head.appendChild(link);
-    }
-    
-    // Log performance metrics
-    const loadTime = performance.now() - startTime;
-    console.debug(`App initialized in ${loadTime.toFixed(0)}ms`);
-  }, 2000);
 }
 
 // Start the app
 initApp();
-
-// Attach core event listeners only
-if ('serviceWorker' in navigator) {
-  window.addEventListener('load', () => {
-    navigator.serviceWorker.register('/service-worker.js')
-      .catch(error => console.error('SW registration failed:', error));
-  });
-  
-  // Basic auth state change handler
-  supabase.auth.onAuthStateChange((event) => {
-    if (event === 'SIGNED_IN') {
-      console.debug('User signed in');
-    } else if (event === 'SIGNED_OUT') {
-      console.debug('User signed out');
-    }
-  });
-}

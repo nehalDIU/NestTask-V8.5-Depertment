@@ -11,6 +11,77 @@ console.log('== Environment Variables ==');
 console.log(`VITE_SUPABASE_URL set: ${process.env.VITE_SUPABASE_URL ? 'Yes' : 'No'}`);
 console.log(`VITE_SUPABASE_ANON_KEY set: ${process.env.VITE_SUPABASE_ANON_KEY ? 'Yes' : 'No'}`);
 
+// Function to recursively check files for encoding issues
+function checkFilesForEncodingIssues(dirPath, fileExtensions = ['.ts', '.tsx']) {
+  try {
+    console.log(`Checking for encoding issues in ${dirPath}...`);
+    const entries = fs.readdirSync(dirPath, { withFileTypes: true });
+    
+    for (const entry of entries) {
+      const fullPath = path.join(dirPath, entry.name);
+      
+      if (entry.isDirectory()) {
+        // Skip node_modules and .git directories
+        if (entry.name !== 'node_modules' && entry.name !== '.git') {
+          checkFilesForEncodingIssues(fullPath, fileExtensions);
+        }
+      } else if (entry.isFile() && fileExtensions.some(ext => entry.name.endsWith(ext))) {
+        // Check file for BOM or other encoding issues
+        try {
+          // First, check the file as binary to detect BOM markers
+          const buffer = fs.readFileSync(fullPath);
+          let hasBOM = false;
+          
+          // Check for different BOM markers
+          if (buffer.length >= 3 && 
+              buffer[0] === 0xEF && 
+              buffer[1] === 0xBB && 
+              buffer[2] === 0xBF) {
+            hasBOM = true; // UTF-8 BOM
+          } else if (buffer.length >= 2 && 
+                   buffer[0] === 0xFE && 
+                   buffer[1] === 0xFF) {
+            hasBOM = true; // UTF-16 BE BOM
+          } else if (buffer.length >= 2 && 
+                   buffer[0] === 0xFF && 
+                   buffer[1] === 0xFE) {
+            hasBOM = true; // UTF-16 LE BOM
+          }
+          
+          if (hasBOM) {
+            console.log(`Found BOM in ${fullPath}`);
+            
+            // Read as UTF-8 and remove BOM
+            const fileContent = fs.readFileSync(fullPath, 'utf8')
+              .replace(/^\uFEFF/, '');  // Remove UTF-8 BOM
+            fs.writeFileSync(fullPath, fileContent, 'utf8');
+            console.log(`Fixed BOM issue in ${fullPath}`);
+            continue; // Skip to next file
+          }
+          
+          // Also check for other encoding issues
+          const fileContent = fs.readFileSync(fullPath, 'utf8');
+          // Check for other common encoding problem markers
+          if (fileContent.includes('') || 
+              /[\u0000-\u0008\u000B-\u000C\u000E-\u001F]/.test(fileContent.substring(0, 20))) {
+            console.log(`Found encoding issue in ${fullPath}`);
+            
+            // Try to clean the file by removing problematic characters
+            const cleanContent = fileContent
+              .replace(/[^\x20-\x7E\x0A\x0D\u00A0-\uFFFF]/g, ''); // Keep only printable chars
+            fs.writeFileSync(fullPath, cleanContent, 'utf8');
+            console.log(`Attempted to fix encoding issue in ${fullPath}`);
+          }
+        } catch (fileErr) {
+          console.error(`Error reading/processing ${fullPath}:`, fileErr.message);
+        }
+      }
+    }
+  } catch (err) {
+    console.error(`Error scanning directory ${dirPath}:`, err.message);
+  }
+}
+
 // Copy production env file
 try {
   if (fs.existsSync('.env.production')) {
@@ -47,6 +118,11 @@ try {
     console.error('Error installing dependencies:', depError);
     // Continue with build anyway
   }
+  
+  // Check for encoding issues in source files before building
+  console.log('Checking for file encoding issues...');
+  checkFilesForEncodingIssues('./src');
+  console.log('Finished checking for encoding issues');
   
   execSync('npm run build', { stdio: 'inherit' });
   console.log('Build completed successfully!');

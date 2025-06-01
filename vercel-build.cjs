@@ -19,14 +19,35 @@ try {
     console.log('Successfully copied .env.production to .env');
   } else {
     console.warn('.env.production file not found');
+    
+    // Create .env file with hardcoded values as fallback
+    if (!process.env.VITE_SUPABASE_URL || !process.env.VITE_SUPABASE_ANON_KEY) {
+      console.log('Creating fallback .env file with hardcoded values');
+      const fallbackEnv = 
+`VITE_SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImhzbXV4bnNmemtmZnptaGJtdHRzIiwicm9sZSI6ImFub24iLCJpYVQiOjE3NDg3MDE0ODMsImV4cCI6MjA2NDI3NzQ4M30.0y17sSd6pDwJzj4VXqJiclAQeI3V_dtFihbtF-jlcTI
+VITE_SUPABASE_URL=https://hsmuxnsfzkffzmhbmtts.supabase.co`;
+      fs.writeFileSync('.env', fallbackEnv);
+      console.log('Fallback .env file created');
+    }
   }
 } catch (error) {
-  console.error('Error copying .env.production:', error);
+  console.error('Error handling environment files:', error);
 }
 
 // Run build
 try {
   console.log('Starting build process...');
+  
+  // First, ensure all dependencies are installed, especially @radix-ui/react-dropdown-menu
+  console.log('Ensuring all dependencies are installed...');
+  try {
+    execSync('npm install @radix-ui/react-dropdown-menu@^2.0.6 --no-save', { stdio: 'inherit' });
+    console.log('Successfully installed required dependencies');
+  } catch (depError) {
+    console.error('Error installing dependencies:', depError);
+    // Continue with build anyway
+  }
+  
   execSync('npm run build', { stdio: 'inherit' });
   console.log('Build completed successfully!');
 } catch (error) {

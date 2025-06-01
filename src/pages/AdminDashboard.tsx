@@ -5,9 +5,9 @@ import { UserActivity } from '../components/admin/UserActivity';
 import { Dashboard } from '../components/admin/dashboard/Dashboard';
 import { UserActiveGraph } from '../components/admin/dashboard/UserActiveGraph';
 import { useAnnouncements } from '../hooks/useAnnouncements';
-import { useCourses } from '../hooks/useCourses';
-import { useRoutines } from '../hooks/useRoutines';
-import { useTeachers } from '../hooks/useTeachers';
+import { useCourseData } from '../hooks/useCourseData';
+import { useRoutineData } from '../hooks/useRoutineData';
+import { useTeacherData } from '../hooks/useTeacherData';
 import { useUsers } from '../hooks/useUsers';
 import { showErrorToast, showSuccessToast } from '../utils/notifications';
 import { isOverdue } from '../utils/dateUtils';
@@ -133,7 +133,7 @@ export function AdminDashboard({
     bulkImportCourses,
     refreshCourses,
     loading: coursesLoading
-  } = useCourses();
+  } = useCourseData(user?.id);
 
   // Filter courses for section admin - memoized and conditional
   const filteredCourses = useMemo(() => {
@@ -160,7 +160,7 @@ export function AdminDashboard({
     bulkImportSlots,
     refreshRoutines,
     loading: routinesLoading
-  } = useRoutines();
+  } = useRoutineData(user?.id);
 
   // Filter routines for section admin - conditional loading
   const filteredRoutines = useMemo(() => {
@@ -179,7 +179,7 @@ export function AdminDashboard({
     bulkImportTeachers,
     refreshTeachers,
     loading: teachersLoading
-  } = useTeachers();
+  } = useTeacherData(user?.id);
   
   // Filter teachers for section admin - memoized and conditional
   const filteredTeachers = useMemo(() => {

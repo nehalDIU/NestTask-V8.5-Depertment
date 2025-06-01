@@ -53,3 +53,35 @@ export function isSameDay(date1: Date, date2: Date): boolean {
     date1.getDate() === date2.getDate()
   );
 }
+
+export function formatUpcomingDueDate(dueDate: string | Date): string {
+  const taskDueDate = typeof dueDate === 'string' ? new Date(dueDate) : dueDate;
+  taskDueDate.setHours(0, 0, 0, 0);
+
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+
+  const tomorrow = new Date(today);
+  tomorrow.setDate(today.getDate() + 1);
+
+  if (isSameDay(taskDueDate, today)) {
+    return "Due Today";
+  }
+  if (isSameDay(taskDueDate, tomorrow)) {
+    return "Due Tomorrow";
+  }
+
+  const timeDiff = taskDueDate.getTime() - today.getTime();
+  const daysDiff = Math.ceil(timeDiff / (1000 * 3600 * 24));
+
+  if (daysDiff > 1 && daysDiff <= 7) {
+    return `Due in ${daysDiff} days`;
+  }
+  
+  // Default format for dates further out or in the past (though upcoming tasks shouldn't be in the past)
+  return `Due ${taskDueDate.toLocaleDateString(undefined, {
+    weekday: 'short',
+    month: 'short',
+    day: 'numeric',
+  })}`;
+}

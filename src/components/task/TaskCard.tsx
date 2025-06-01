@@ -5,6 +5,17 @@ import { parseLinks } from '../../utils/linkParser';
 // Import only the icons we definitely need immediately
 import { Crown, Calendar } from 'lucide-react';
 
+// Add lightweight CSS animation - defined once and reused
+const pulseAnimation = `
+  @keyframes simplePulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.6; }
+  }
+  .animate-pulse-light {
+    animation: simplePulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+  }
+`;
+
 // Lazily load the category icons - shared across all instances
 const iconMap = {
   quiz: lazy(() => import('lucide-react').then(mod => ({ default: mod.BookOpen }))),
@@ -54,20 +65,27 @@ const categoryColorMap: Record<string, string> = {
   'default': 'text-gray-600 dark:text-gray-400'
 };
 
+// Predefined status color variables to avoid recalculations
+const statusColors = {
+  completed: 'bg-green-500',
+  overdue: 'bg-red-500', 
+  default: 'bg-sky-500'
+};
+
 const statusStyleMap = {
   completed: {
     textColor: 'text-green-600 dark:text-green-400',
-    bgColor: 'bg-green-500',
+    bgColor: statusColors.completed,
     cardStyle: 'md:border-green-200 md:dark:border-green-900/80 bg-green-50 dark:bg-gray-800 md:bg-white md:dark:bg-gray-800'
   },
   overdue: {
     textColor: 'text-red-600 dark:text-red-400',
-    bgColor: 'bg-red-500',
+    bgColor: statusColors.overdue,
     cardStyle: 'md:border-red-200 md:dark:border-red-900/80 bg-red-50 dark:bg-gray-800 md:bg-white md:dark:bg-gray-800'
   },
   default: {
     textColor: 'text-sky-600 dark:text-sky-400',
-    bgColor: 'bg-sky-500',
+    bgColor: statusColors.default,
     cardStyle: 'md:border-sky-100 md:dark:border-sky-800/30 md:hover:border-sky-200 md:dark:hover:border-sky-700/50'
   }
 };
@@ -78,24 +96,28 @@ const getCategoryColor = (category: string) => {
   return categoryColorMap[key] || categoryColorMap.default;
 };
 
-// Create a lightweight status indicator dot component
+// Optimized lightweight status indicator dot component
 const StatusDot = memo(({ status, overdue }: { status: string; overdue: boolean }) => {
-  // Only use animation for non-completed, important statuses
-  const shouldAnimate = status !== 'completed' && (overdue || status === 'in-progress');
+  // Simple logic to determine color - avoids complex calculations
+  let bgColor = statusColors.default;
   
-  const style = status === 'completed' 
-    ? statusStyleMap.completed 
-    : overdue 
-      ? statusStyleMap.overdue 
-      : statusStyleMap.default;
+  if (status === 'completed') {
+    bgColor = statusColors.completed;
+  } else if (overdue) {
+    bgColor = statusColors.overdue;
+  }
   
+  // Only animate for high priority states to reduce rendering load
+  const needsAnimation = status !== 'completed' && overdue;
+  
+  // Single element with conditional animation class
   return (
-    <span className="relative flex h-2.5 w-2.5 md:h-2 md:w-2">
-      {shouldAnimate && (
-        <span className={`animate-ping absolute inline-flex h-full w-full rounded-full opacity-75 ${style.bgColor}`} />
-      )}
-      <span className={`relative inline-flex rounded-full h-2.5 w-2.5 md:h-2 md:w-2 ${style.bgColor}`} />
-    </span>
+    <span 
+      className={`inline-block rounded-full h-2.5 w-2.5 md:h-2 md:w-2 ${bgColor} ${
+        needsAnimation ? 'animate-pulse-light' : ''
+      }`}
+      style={needsAnimation ? { animationDuration: '2s' } : undefined}
+    />
   );
 });
 
@@ -124,6 +146,17 @@ export const TaskCard = memo(({
   index, 
   onSelect 
 }: TaskCardProps) => {
+  // Inject the animation styles once when component mounts
+  useMemo(() => {
+    // Only inject if not already present
+    if (!document.getElementById('pulse-animation-style')) {
+      const styleEl = document.createElement('style');
+      styleEl.id = 'pulse-animation-style';
+      styleEl.textContent = pulseAnimation;
+      document.head.appendChild(styleEl);
+    }
+  }, []);
+
   // These should be fast calculations, so we can do them directly
   const overdue = isOverdue(task.dueDate);
   const formattedCategory = task.category.replace(/-/g, ' ');
@@ -142,9 +175,9 @@ export const TaskCard = memo(({
     [task.description]
   );
   
-  // Only parse links if there's a cleaned description
+  // Only parse links if there's a cleaned description and it potentially contains links
   const parsedLinks = useMemo(() => 
-    cleanedDescription ? parseLinks(cleanedDescription) : [],
+    cleanedDescription && cleanedDescription.includes('http') ? parseLinks(cleanedDescription) : [],
     [cleanedDescription]
   );
   
@@ -160,10 +193,8 @@ export const TaskCard = memo(({
     }
   }, [task.dueDate]);
 
-  // Add a fade-in transition function to avoid style recalculation
-  const getAnimationStyle = () => ({
-    animationDelay: `${Math.min(index * 50, 300)}ms` // Cap animation delay to improve performance
-  });
+  // More efficient animation delay calculation
+  const animationDelay = `${Math.min(index * 30, 200)}ms`;
 
   return (
     <div
@@ -179,7 +210,7 @@ export const TaskCard = memo(({
         touch-manipulation md:touch-auto
         ${statusStyle.cardStyle}
         motion-safe:animate-fade-in motion-safe:animate-duration-500`}
-      style={getAnimationStyle()}
+      style={{ animationDelay }}
     >
       {/* Category Tag - Desktop */}
       <div className="hidden md:flex items-start justify-between mb-3.5 md:mb-2">

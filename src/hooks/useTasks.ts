@@ -13,12 +13,8 @@ const tasksCache = new Map<string, {
 // Cache TTL in milliseconds (5 minutes)
 const CACHE_TTL = 5 * 60 * 1000;
 
-// Task fetch timeout in milliseconds (increased from 20 seconds to 45 seconds)
-const TASK_FETCH_TIMEOUT = 45000;
-
-// Maximum number of retries for task fetching
-const MAX_RETRIES_TIMEOUT = 5;
-const MAX_RETRIES_OTHER = 3;
+// Task fetch timeout in milliseconds (increased from 10 seconds to 20 seconds)
+const TASK_FETCH_TIMEOUT = 20000;
 
 export function useTasks(userId: string | undefined) {
   const [tasks, setTasks] = useState<Task[]>([]);
@@ -37,8 +33,6 @@ export function useTasks(userId: string | undefined) {
   const abortControllerRef = useRef<AbortController | null>(null);
   // Track user id for cache key generation
   const userIdRef = useRef<string | undefined>(userId);
-  // Track if we're in tab switch recovery mode
-  const tabSwitchRecoveryRef = useRef(false);
 
   // Update ref when userId changes
   useEffect(() => {
@@ -57,25 +51,15 @@ export function useTasks(userId: string | undefined) {
     abortControllerRef.current = new AbortController();
     const signal = abortControllerRef.current.signal;
     
-    // If force is true, reset recovery mode and retry count
-    if (options.force) {
-      tabSwitchRecoveryRef.current = true;
-      if (isMountedRef.current) {
-        setRetryCount(0);
-      }
-    }
-    
     // Don't reload if a request is already in progress, unless forced
     if (loadingRef.current && !options.force) {
       console.log('Task loading already in progress, skipping');
       return;
     }
     
-    // Implement throttling - don't reload if last load was less than 3 seconds ago
-    // but reduce to 1 second if we're in tab switch recovery mode
+    // Implement throttling - don't reload if last load was less than 5 seconds ago
     const now = Date.now();
-    const throttleTime = tabSwitchRecoveryRef.current ? 1000 : 3000;
-    if (!options.force && now - lastLoadTimeRef.current < throttleTime) {
+    if (!options.force && now - lastLoadTimeRef.current < 5000) {
       console.log('Task loading throttled - too soon since last load');
       return;
     }
@@ -101,8 +85,8 @@ export function useTasks(userId: string | undefined) {
     }
 
     try {
-      // Only set loading state if there's no cached data or force refresh
-      if ((!tasksCache.has(userId) || options.force) && isMountedRef.current) {
+      // Only set loading state if there's no cached data
+      if (!tasksCache.has(userId) && isMountedRef.current) {
         setLoading(true);
       }
       loadingRef.current = true;
@@ -157,8 +141,7 @@ export function useTasks(userId: string | undefined) {
 
       // Batch process tasks in chunks for better performance
       const processTasks = async () => {
-        // Add signal to fetch request for timeout control
-        const data = await fetchTasks(userId, signal);
+        const data = await fetchTasks(userId, undefined);
         return data;
       };
       
@@ -181,7 +164,6 @@ export function useTasks(userId: string | undefined) {
         setError(null);
         lastLoadTimeRef.current = Date.now();
         setRetryCount(0); // Reset retry count on success
-        tabSwitchRecoveryRef.current = false; // We've recovered if we were in recovery mode
       }
     } catch (err: any) {
       // Only update error state if component is mounted and not aborted
@@ -195,7 +177,7 @@ export function useTasks(userId: string | undefined) {
           
           // Provide a more informative error message for timeouts
           if (err.message === 'Task fetch timeout') {
-            setError(`Using cached data. Failed to refresh: Task fetch timeout after ${TASK_FETCH_TIMEOUT/1000}s. Network may be slow or server overloaded.`);
+            setError(`Using cached data. Failed to refresh: Task fetch timeout. Network may be slow or server overloaded.`);
           } else {
             setError(`Using cached data. Failed to refresh: ${err.message || 'Unknown error'}`);
           }
@@ -203,25 +185,15 @@ export function useTasks(userId: string | undefined) {
           setError(err.message || 'Failed to load tasks');
           
           // Increase retry limit for timeouts
-          const maxRetries = err.message === 'Task fetch timeout' ? MAX_RETRIES_TIMEOUT : MAX_RETRIES_OTHER;
+          const maxRetries = err.message === 'Task fetch timeout' ? 5 : 3;
           
           if (!isOffline && retryCount < maxRetries) {
-            // Use exponential backoff with some randomness
-            const randomOffset = Math.floor(Math.random() * 1000);
-            const timeout = Math.min(1000 * Math.pow(2, retryCount) + randomOffset, 15000);
-            
-            console.log(`Retrying task fetch in ${timeout}ms (attempt ${retryCount + 1}/${maxRetries})`);
-            
+            const timeout = Math.min(1000 * Math.pow(2, retryCount), 15000);
             setTimeout(() => {
               if (isMountedRef.current) {
                 setRetryCount(prev => prev + 1);
               }
             }, timeout);
-          } else if (retryCount >= maxRetries) {
-            // After max retries, we should try to reset and make a forced refresh
-            // next time the user interacts or becomes active
-            tabSwitchRecoveryRef.current = true;
-            console.warn(`Maximum retries (${maxRetries}) reached for task fetching. Will force refresh next time.`);
           }
         }
       }
@@ -229,10 +201,7 @@ export function useTasks(userId: string | undefined) {
       if (isMountedRef.current) {
         setLoading(false);
       }
-      // Small delay before clearing loadingRef to prevent immediate re-requests
-      setTimeout(() => {
-        loadingRef.current = false;
-      }, 100);
+      loadingRef.current = false;
     }
   }, [userId, retryCount, isOffline]);
 
@@ -280,17 +249,11 @@ export function useTasks(userId: string | undefined) {
       // Enhanced visibility change handler with fallback mechanism
       const handleVisibilityChange = () => {
         if (document.visibilityState === 'visible') {
-          // Always reset stuck state on tab focus
-          if (loadingRef.current) {
-            console.log('Resetting loading state on visibility change');
-            loadingRef.current = false;
-          }
-          
           // Check if we're in a loading state for too long (possible abandoned request)
-          const isStuck = Date.now() - lastLoadTimeRef.current > 20000;
+          const isStuck = loadingRef.current && (Date.now() - lastLoadTimeRef.current > 10000);
           
-          if (isStuck || tabSwitchRecoveryRef.current) {
-            console.warn('Task loading needs recovery, forcing refresh');
+          if (isStuck) {
+            console.warn('Task loading appears stuck, forcing refresh');
             // Force refresh with the force option
             loadTasks({ force: true });
           } else {
@@ -315,7 +278,6 @@ export function useTasks(userId: string | undefined) {
           loadingRef.current = false;
           if (isMountedRef.current) {
             setLoading(false);
-            tabSwitchRecoveryRef.current = true;
           }
         }
       }, 5000);
@@ -336,6 +298,28 @@ export function useTasks(userId: string | undefined) {
       };
     }
   }, [userId, loadTasks, isOffline]);
+
+  // Add cache reset when visibility changes
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        // Reset any stuck loading state with increased timeout value
+        if (loadingRef.current && Date.now() - lastLoadTimeRef.current > TASK_FETCH_TIMEOUT / 2) {
+          console.log('Resetting stuck loading state on visibility change');
+          loadingRef.current = false;
+          if (isMountedRef.current) {
+            setLoading(false);
+          }
+        }
+      }
+    };
+    
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, []);
 
   const handleCreateTask = async (newTask: NewTask, sectionId?: string) => {
     if (isOffline) {

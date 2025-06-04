@@ -114,13 +114,6 @@ async function uploadFile(file: File): Promise<string> {
   }
 }
 
-// Define interface for tracking uploaded files
-interface UploadedFile {
-  url: string;
-  name: string;
-  path: string;
-}
-
 /**
  * Creates a new task in the database
  * @param userId - The user ID creating the task
@@ -166,92 +159,29 @@ export const createTask = async (
     
     let description = task.description;
     
-    // Track uploaded files for cleanup in case of failure
-    const uploadedFiles: UploadedFile[] = [];
-    let fileUploadError: Error | null = null;
-    let totalUploadSize = 0;
-
-    // Wrap file upload in a promise with timeout
-    const uploadFileWithTimeout = async (file: File, timeoutMs = 60000): Promise<string> => {
-      return new Promise(async (resolve, reject) => {
-        // Create AbortController for better timeout control
-        const controller = new AbortController();
-        const signal = controller.signal;
-        
-        // Set a timeout to reject the promise if it takes too long
-        const timeoutId = setTimeout(() => {
-          controller.abort();
-          reject(new Error(`Upload timed out for file ${file.name} after ${timeoutMs/1000}s`));
-        }, timeoutMs);
-        
-        try {
-          // Wrap the file upload with the abort controller signal
-          const uploadWithSignal = async () => {
-            // Add some basic file validation
-            if (!file.name || file.size === 0) {
-              throw new Error(`Invalid file: ${file.name || "unnamed"} (${file.size} bytes)`);
-            }
-            
-            // Check size limits for mobile
-            if (file.size > 25 * 1024 * 1024) { // 25MB
-              throw new Error(`File too large: ${file.name} (${Math.round(file.size/1024/1024)}MB). Mobile file limit is 25MB.`);
-            }
-            
-            // Upload logic here with signal
-            const fileExt = file.name.split('.').pop();
-            const fileName = `${crypto.randomUUID()}.${fileExt}`;
-            const filePath = `task-files/${fileName}`;
-        
-            console.log(`[Debug] Starting upload for ${file.name} (${Math.round(file.size/1024)}KB) to ${filePath}`);
-        
-            const { error: uploadError } = await supabase.storage
-              .from('task-attachments')
-              .upload(filePath, file, {
-                // Add special options for mobile uploads
-                contentType: file.type,
-                cacheControl: '3600',
-                upsert: false
-              });
-        
-            if (uploadError) throw uploadError;
-        
-            const { data: { publicUrl } } = supabase.storage
-              .from('task-attachments')
-              .getPublicUrl(filePath);
-            
-            console.log(`[Debug] Successfully uploaded ${file.name} to ${filePath} (${publicUrl.slice(-20)})`);
-            return publicUrl;
-          };
-          
-          const url = await uploadWithSignal();
-          clearTimeout(timeoutId);
-          resolve(url);
-        } catch (error) {
-          clearTimeout(timeoutId);
-          
-          // Special handling for aborted requests
-          if (signal.aborted) {
-            reject(new Error(`Upload timed out for file ${file.name}`));
-          } else {
-            reject(error);
-          }
-        }
-      });
-    };
-    
     // Process mobile files first if they exist
-    if (isMobileUpload && mobileFiles) {
+    if (isMobileUpload) {
       try {
         console.log('[Debug] Uploading mobile files', mobileFiles.map(f => ({name: f.name, size: f.size})));
         
-        // Check total upload size
-        const totalSize = mobileFiles.reduce((sum, file) => sum + file.size, 0);
-        console.log(`[Debug] Total mobile upload size: ${Math.round(totalSize/1024/1024)}MB`);
-        
-        // Mobile upload size limit
-        if (totalSize > 100 * 1024 * 1024) { // 100MB total
-          throw new Error(`Total upload size too large: ${Math.round(totalSize/1024/1024)}MB exceeds 100MB limit for mobile uploads`);
-        }
+        // Wrap file upload in a promise with timeout
+        const uploadFileWithTimeout = async (file: File, timeoutMs = 15000): Promise<string> => {
+          return new Promise(async (resolve, reject) => {
+            // Set a timeout to reject the promise if it takes too long
+            const timeoutId = setTimeout(() => {
+              reject(new Error(`Upload timed out for file ${file.name}`));
+            }, timeoutMs);
+            
+            try {
+              const url = await uploadFile(file);
+              clearTimeout(timeoutId);
+              resolve(url);
+            } catch (error) {
+              clearTimeout(timeoutId);
+              reject(error);
+            }
+          });
+        };
         
         // Upload each mobile file with retry logic
         for (const file of mobileFiles) {
@@ -261,40 +191,28 @@ export const createTask = async (
           }
           
           try {
-            console.log(`[Debug] Uploading mobile file: ${file.name} (${Math.round(file.size/1024)}KB)`);
+            console.log('[Debug] Uploading mobile file:', file.name);
             
-            // Try up to 3 times with exponential backoff
+            // Try up to 3 times
             let permanentUrl = '';
             let attempts = 0;
-            let lastError: Error | null = null;
+            let lastError = null;
             
             while (attempts < 3 && !permanentUrl) {
               try {
                 attempts++;
-                // Increase timeout for larger files
-                const timeout = Math.min(30000 + (file.size / 1024 / 10), 60000); // 30s base + 1s per 10KB, max 60s
-                permanentUrl = await uploadFileWithTimeout(file, timeout);
-                uploadedFiles.push({
-                  url: permanentUrl,
-                  name: file.name,
-                  path: new URL(permanentUrl).pathname.split('/').pop() || ''
-                });
-                totalUploadSize += file.size;
+                permanentUrl = await uploadFileWithTimeout(file);
                 break;
               } catch (uploadError) {
                 console.error(`[Error] Failed to upload mobile file (attempt ${attempts}/3):`, file.name, uploadError);
-                lastError = uploadError instanceof Error ? uploadError : new Error(String(uploadError));
-                // Wait with exponential backoff before retrying (1s, 2s, 4s)
-                if (attempts < 3) {
-                  const backoffMs = 1000 * Math.pow(2, attempts - 1);
-                  await new Promise(resolve => setTimeout(resolve, backoffMs));
-                }
+                lastError = uploadError;
+                // Wait 1 second before retrying
+                if (attempts < 3) await new Promise(resolve => setTimeout(resolve, 1000));
               }
             }
             
             if (!permanentUrl) {
-              fileUploadError = lastError || new Error(`Failed to upload file after 3 attempts: ${file.name}`);
-              throw fileUploadError;
+              throw lastError || new Error(`Failed to upload file after 3 attempts: ${file.name}`);
             }
             
             // Update description to replace attachment references with permanent URLs
@@ -328,64 +246,13 @@ export const createTask = async (
             console.log('[Debug] Replaced attachment reference with permanent URL');
           } catch (fileError) {
             console.error('[Error] Failed to upload mobile file:', file.name, fileError);
-            
-            // Store the first error encountered if not already set
-            if (!fileUploadError) {
-              fileUploadError = fileError instanceof Error ? fileError : new Error(String(fileError));
-            }
-            
-            // Continue trying other files instead of failing completely
-            continue;
           }
         }
-        
-        // If we had an upload error but managed to upload some files, continue with what we have
-        if (fileUploadError && uploadedFiles.length === 0) {
-          // Only throw if we couldn't upload ANY files
-          throw fileUploadError;
-        } else if (fileUploadError) {
-          console.warn('[Warning] Some files failed to upload, but continuing with successful uploads', 
-            { successful: uploadedFiles.length, failed: mobileFiles.length - uploadedFiles.length });
-        }
-        
-        // Log successful upload statistics
-        console.log(`[Debug] Successfully uploaded ${uploadedFiles.length}/${mobileFiles.length} files, total size: ${Math.round(totalUploadSize/1024/1024)}MB`);
         
         // Remove the mobile upload marker comment
         description = description.replace(/\n<!-- mobile-uploads -->\n/g, '');
       } catch (mobileUploadError) {
         console.error('[Error] Mobile file upload process failed:', mobileUploadError);
-        
-        // Attempt to clean up any successfully uploaded files if the overall process failed
-        try {
-          if (uploadedFiles && uploadedFiles.length > 0) {
-            console.log(`[Debug] Cleaning up ${uploadedFiles.length} uploaded files after error`);
-            
-            // Clean up files in parallel
-            await Promise.allSettled(uploadedFiles.map(async (file: UploadedFile) => {
-              if (file.path) {
-                try {
-                  const { error } = await supabase.storage
-                    .from('task-attachments')
-                    .remove([`task-files/${file.path}`]);
-                    
-                  if (error) {
-                    console.error(`[Error] Failed to clean up file ${file.path}:`, error);
-                  } else {
-                    console.log(`[Debug] Successfully cleaned up file: ${file.path}`);
-                  }
-                } catch (cleanupError) {
-                  console.error(`[Error] Error during file cleanup for ${file.path}:`, cleanupError);
-                }
-              }
-            }));
-          }
-        } catch (cleanupError) {
-          console.error('[Error] Failed during cleanup after upload error:', cleanupError);
-        }
-        
-        // Re-throw the original error
-        throw mobileUploadError;
       }
     } else {
       // Standard desktop file processing

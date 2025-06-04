@@ -73,9 +73,11 @@ self.addEventListener('fetch', (event) => {
         .then(cachedResponse => {
           const fetchPromise = fetch(event.request)
             .then(networkResponse => {
-              if (networkResponse.ok) {
-                const cache = caches.open(STATIC_CACHE_NAME)
-                  .then(cache => cache.put(event.request, networkResponse.clone()));
+              if (networkResponse && networkResponse.ok) {
+                // Clone the response before using it
+                const responseToCache = networkResponse.clone();
+                caches.open(STATIC_CACHE_NAME)
+                  .then(cache => cache.put(event.request, responseToCache));
               }
               return networkResponse;
             });
@@ -93,7 +95,8 @@ self.addEventListener('fetch', (event) => {
       Promise.race([
         fetch(event.request.clone())
           .then(response => {
-            if (response.ok) {
+            if (response && response.ok) {
+              // Clone the response before using it
               const clonedResponse = response.clone();
               caches.open(DYNAMIC_CACHE_NAME)
                 .then(cache => cache.put(event.request, clonedResponse));
@@ -112,10 +115,16 @@ self.addEventListener('fetch', (event) => {
   event.respondWith(
     fetch(event.request)
       .then(networkResponse => {
-        if (networkResponse.ok) {
+        if (networkResponse && networkResponse.ok) {
+          // Clone the response before using it
           const clonedResponse = networkResponse.clone();
           caches.open(DYNAMIC_CACHE_NAME)
-            .then(cache => cache.put(event.request, clonedResponse));
+            .then(cache => {
+              // Use an independent promise chain to prevent response usage errors
+              cache.put(event.request, clonedResponse)
+                .catch(err => console.error('Cache put error:', err));
+            })
+            .catch(err => console.error('Cache open error:', err));
         }
         return networkResponse;
       })

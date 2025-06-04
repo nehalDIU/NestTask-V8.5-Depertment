@@ -4,6 +4,7 @@ import { getToken } from 'firebase/messaging';
 
 const VAPID_KEY = 'BP0PQk228HtybCDJ7LkkRGd437hwZjbC0SAQYM4Pk2n5PyFRfbxKoRKq7ze6lFuTM1njp7f9y0oaWFM5D_k5TS4';
 const FCM_TOKEN_STORAGE_KEY = 'nesttask_fcm_token';
+const FCM_TOKEN_TIMEOUT = 45000; // 45 seconds timeout
 
 /**
  * Get current device information for token tracking
@@ -33,21 +34,63 @@ export const getFcmToken = async (): Promise<string | null> => {
       return cachedToken;
     }
     
-    // No cached token, generate a new one
-    console.log('[FCM] Generating new token');
-    const token = await getToken(messaging, { vapidKey: VAPID_KEY });
+    // Check if service worker is registered
+    const registrations = await navigator.serviceWorker.getRegistrations();
+    const swRegistration = registrations.find(reg => 
+      reg.active?.scriptURL.includes('firebase-messaging-sw.js'));
     
-    if (token) {
-      // Cache the token to prevent generating different ones
-      localStorage.setItem(FCM_TOKEN_STORAGE_KEY, token);
-      console.log('[FCM] New token generated and cached');
-      return token;
+    if (!swRegistration) {
+      console.warn('[FCM] Firebase messaging service worker not registered');
+      try {
+        console.log('[FCM] Attempting to register service worker');
+        await navigator.serviceWorker.register('/firebase-messaging-sw.js', {
+          scope: '/'
+        });
+        console.log('[FCM] Service worker registered successfully');
+      } catch (error) {
+        console.error('[FCM] Service worker registration failed:', error);
+        return null;
+      }
+    }
+    
+    // No cached token, generate a new one with timeout
+    console.log('[FCM] Generating new token');
+    
+    // Create an AbortController for the timeout
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), FCM_TOKEN_TIMEOUT);
+    
+    try {
+      // Request the token with timeout
+      const tokenPromise = getToken(messaging, { 
+        vapidKey: VAPID_KEY,
+        serviceWorkerRegistration: swRegistration
+      });
+      
+      const token = await Promise.race([
+        tokenPromise,
+        new Promise<string>((_, reject) => {
+          setTimeout(() => reject(new Error('FCM token request timeout')), FCM_TOKEN_TIMEOUT);
+        })
+      ]);
+      
+      if (token) {
+        // Cache the token to prevent generating different ones
+        localStorage.setItem(FCM_TOKEN_STORAGE_KEY, token);
+        console.log('[FCM] New token generated and cached');
+        return token;
+      }
+    } catch (tokenError) {
+      console.error('[FCM] Error getting token:', tokenError);
+      return null;
+    } finally {
+      clearTimeout(timeoutId);
     }
     
     console.error('[FCM] Failed to generate token');
     return null;
   } catch (error) {
-    console.error('[FCM] Error getting token:', error);
+    console.error('[FCM] Error in getFcmToken:', error);
     return null;
   }
 };
@@ -63,27 +106,32 @@ export const saveFcmToken = async (userId: string): Promise<boolean> => {
     const token = await getFcmToken();
     
     if (!token) {
+      console.error('[FCM] No token to save');
       return false;
     }
     
     // Get device info
     const deviceInfo = getDeviceInfo();
     
-    // Check if token already exists for this user
-    const { data: existingTokens, error: fetchError } = await supabase
+    // Check if token already exists for this user (handle response with care)
+    const fetchResponse = await supabase
       .from('fcm_tokens')
       .select('*')
       .eq('user_id', userId)
       .eq('fcm_token', token);
     
+    const existingTokens = fetchResponse.data || [];
+    const fetchError = fetchResponse.error;
+    
     if (fetchError) {
       console.error('[FCM] Error checking existing token:', fetchError);
-      return false;
+      // Try direct insertion as fallback
+      return await insertNewToken(userId, token, deviceInfo);
     }
     
     // If token exists, update its metadata
-    if (existingTokens && existingTokens.length > 0) {
-      const { error: updateError } = await supabase
+    if (existingTokens.length > 0) {
+      const updateResponse = await supabase
         .from('fcm_tokens')
         .update({
           last_used: new Date().toISOString(),
@@ -92,8 +140,8 @@ export const saveFcmToken = async (userId: string): Promise<boolean> => {
         })
         .eq('id', existingTokens[0].id);
       
-      if (updateError) {
-        console.error('[FCM] Error updating token:', updateError);
+      if (updateResponse.error) {
+        console.error('[FCM] Error updating token:', updateResponse.error);
         return false;
       }
       
@@ -102,7 +150,19 @@ export const saveFcmToken = async (userId: string): Promise<boolean> => {
     }
     
     // If token doesn't exist, create a new record
-    const { error: insertError } = await supabase
+    return await insertNewToken(userId, token, deviceInfo);
+  } catch (error) {
+    console.error('[FCM] Error in saveFcmToken:', error);
+    return false;
+  }
+};
+
+/**
+ * Helper function to insert a new token record
+ */
+async function insertNewToken(userId: string, token: string, deviceInfo: any): Promise<boolean> {
+  try {
+    const insertResponse = await supabase
       .from('fcm_tokens')
       .insert({
         user_id: userId,
@@ -113,18 +173,40 @@ export const saveFcmToken = async (userId: string): Promise<boolean> => {
         is_active: true
       });
     
-    if (insertError) {
-      console.error('[FCM] Error saving token:', insertError);
+    if (insertResponse.error) {
+      console.error('[FCM] Error saving token:', insertResponse.error);
+      
+      // Try update as fallback in case of conflict
+      if (insertResponse.error.code === '23505') { // Duplicate key error
+        const updateResponse = await supabase
+          .from('fcm_tokens')
+          .update({
+            user_id: userId,
+            last_used: new Date().toISOString(),
+            device_info: deviceInfo,
+            is_active: true
+          })
+          .eq('fcm_token', token);
+        
+        if (updateResponse.error) {
+          console.error('[FCM] Error in fallback update:', updateResponse.error);
+          return false;
+        }
+        
+        console.log('[FCM] Token updated via fallback method');
+        return true;
+      }
+      
       return false;
     }
     
     console.log('[FCM] Token saved successfully');
     return true;
   } catch (error) {
-    console.error('[FCM] Error in saveFcmToken:', error);
+    console.error('[FCM] Error in insertNewToken:', error);
     return false;
   }
-};
+}
 
 /**
  * Unregister FCM token for a user
@@ -144,7 +226,7 @@ export const removeFcmToken = async (userId: string): Promise<boolean> => {
       
       if (error) {
         console.error('[FCM] Error deleting token from database:', error);
-        return false;
+        // Continue to remove from localStorage even if database delete fails
       }
     }
     
@@ -154,6 +236,8 @@ export const removeFcmToken = async (userId: string): Promise<boolean> => {
     return true;
   } catch (error) {
     console.error('[FCM] Error removing token:', error);
+    // Still try to remove from localStorage
+    localStorage.removeItem(FCM_TOKEN_STORAGE_KEY);
     return false;
   }
 }; 

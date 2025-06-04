@@ -35,6 +35,32 @@ try {
     event.waitUntil(clients.claim());
   });
 
+  // Add proper fetch handler for FCM token registration
+  self.addEventListener('fetch', (event) => {
+    // Only handle specific FCM-related requests or requests to Supabase fcm_tokens
+    const url = new URL(event.request.url);
+    if (url.pathname.includes('fcm_tokens') || 
+        url.pathname.includes('/fcm/') || 
+        url.pathname.includes('/firebase-messaging-sw.js')) {
+      
+      // For GET requests, pass through but handle response properly
+      if (event.request.method === 'GET') {
+        event.respondWith(
+          fetch(event.request.clone())
+            .then(response => {
+              // Important: clone before using
+              console.log('[SW] FCM fetch response status:', response.status);
+              return response;
+            })
+            .catch(error => {
+              console.error('[SW] FCM fetch error:', error);
+              throw error;
+            })
+        );
+      }
+    }
+  });
+
   // Keep service worker alive with periodic ping
   setInterval(() => {
     console.log('[SW] Service worker ping - keeping alive');

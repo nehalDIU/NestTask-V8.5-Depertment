@@ -301,27 +301,78 @@ self.addEventListener('message', (event: any) => {
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 self.addEventListener('fetch', (event: any) => {
   const request = event.request;
-  const url = new URL(request.url);
   
   // Skip non-GET requests
   if (request.method !== 'GET') return;
   
-  // Skip requests that should never be cached
-  if (!isValidCacheURL(request.url)) return;
-  
-  // Keep service worker alive
-  updateActivityTimestamp();
-  
-  // Handle navigation requests
-  if (request.mode === 'navigate') {
-    event.respondWith(
-      fetch(request).catch(() => {
-        return caches.match(OFFLINE_URL) || caches.match('/');
-      })
-    );
-    return;
+  try {
+    const url = new URL(request.url);
+    
+    // Skip requests that should never be cached
+    if (!isValidCacheURL(request.url)) return;
+    
+    // Keep service worker alive
+    updateActivityTimestamp();
+    
+    // Handle navigation requests
+    if (request.mode === 'navigate') {
+      event.respondWith(
+        fetch(request).catch(() => {
+          return caches.match(OFFLINE_URL) || caches.match('/');
+        })
+      );
+      return;
+    }
+    
+    // For API requests and other resources that we want to cache
+    if (request.url.match(/\.(css|js|woff2|woff|ttf|svg|png|jpg|jpeg|gif|webp)$/)) {
+      event.respondWith(
+        caches.match(request)
+          .then(cachedResponse => {
+            // Return cached response if available
+            if (cachedResponse) {
+              return cachedResponse;
+            }
+            
+            // Otherwise fetch from network and cache
+            return fetch(request.clone())
+              .then(networkResponse => {
+                // Check if valid response
+                if (!networkResponse || !networkResponse.ok) {
+                  return networkResponse;
+                }
+                
+                try {
+                  // Clone the response BEFORE reading it
+                  const responseToCache = networkResponse.clone();
+                  
+                  // Store response in cache (in a separate promise chain)
+                  caches.open(STATIC_CACHE)
+                    .then(cache => {
+                      cache.put(request, responseToCache)
+                        .catch(err => console.error('Cache put error:', err));
+                    })
+                    .catch(err => console.error('Cache open error:', err));
+                    
+                  return networkResponse;
+                } catch (error) {
+                  console.error('Error handling response:', error);
+                  return networkResponse;
+                }
+              })
+              .catch(error => {
+                console.error('Fetch error:', error);
+                throw error;
+              });
+          })
+      );
+      return;
+    }
+  } catch (error) {
+    console.error('Service worker fetch error:', error);
   }
   
+  // For all other requests, just use network
   // Let the browser handle everything else with default network behavior
 });
 

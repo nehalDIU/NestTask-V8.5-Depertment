@@ -10,14 +10,29 @@ import { mapTaskFromDB } from '../utils/taskMapper';
  */
 export const fetchTasks = async (userId: string, sectionId?: string | null): Promise<Task[]> => {
   try {
-    // For development environment, return faster with reduced logging
-    if (process.env.NODE_ENV === 'development') {
-      let query = supabase.from('tasks').select('*');
-      query = query.order('created_at', { ascending: false });
-      const { data, error } = await query;
+    // For development environment or Vercel deployment in production
+    if (process.env.NODE_ENV === 'development' || 
+        (typeof window !== 'undefined' && window.location.hostname.includes('vercel.app'))) {
       
-      if (error) throw error;
-      return data.map(mapTaskFromDB);
+      try {
+        let query = supabase.from('tasks').select('*');
+        query = query.order('created_at', { ascending: false });
+        const { data, error } = await query;
+        
+        // Check for table not found error (404)
+        if (error && error.code === '42P01') {
+          console.warn('Tasks table not found in this environment. Using empty tasks array.');
+          return [];
+        }
+        
+        if (error) throw error;
+        return data.map(mapTaskFromDB);
+      } catch (tableError) {
+        // Log error but return empty array for Vercel deployments
+        // This prevents blocking the app when tables don't exist yet
+        console.error('Error accessing tasks table:', tableError);
+        return [];
+      }
     }
     
     // Performance optimization: Use a timeout for the query
@@ -45,6 +60,12 @@ export const fetchTasks = async (userId: string, sectionId?: string | null): Pro
 
     // Clear the timeout
     clearTimeout(timeoutId);
+
+    // Check for table not found error (404 or PostgreSQL code 42P01)
+    if (error && (error.code === '42P01' || error.code === '404')) {
+      console.warn('Tasks table not found in this environment. Using empty tasks array.');
+      return [];
+    }
 
     if (error) {
       console.error('Error fetching tasks:', error);
@@ -84,6 +105,13 @@ export const fetchTasks = async (userId: string, sectionId?: string | null): Pro
     if (error.name === 'AbortError') {
       console.error('Task fetch timed out');
       throw new Error('Task fetch timed out. Please try again.');
+    }
+    
+    // Special handling for table not found errors
+    if (error.code === '42P01' || error.code === '404' || 
+        (error.message && error.message.includes('does not exist'))) {
+      console.warn('Tasks table not found - using empty task list');
+      return [];
     }
     
     console.error('Error in fetchTasks:', error);

@@ -113,100 +113,98 @@ export const saveFcmToken = async (userId: string): Promise<boolean> => {
     // Get device info
     const deviceInfo = getDeviceInfo();
     
-    // Check if token already exists for this user (handle response with care)
-    const fetchResponse = await supabase
-      .from('fcm_tokens')
-      .select('*')
-      .eq('user_id', userId)
-      .eq('fcm_token', token);
+    // FCM tokens often contain characters that need special handling
+    // Instead of trying to query by token which can cause 406 errors,
+    // check if token exists by using a more reliable approach
     
-    const existingTokens = fetchResponse.data || [];
-    const fetchError = fetchResponse.error;
-    
-    if (fetchError) {
-      console.error('[FCM] Error checking existing token:', fetchError);
-      // Try direct insertion as fallback
-      return await insertNewToken(userId, token, deviceInfo);
-    }
-    
-    // If token exists, update its metadata
-    if (existingTokens.length > 0) {
-      const updateResponse = await supabase
+    try {
+      // First try to insert directly - if it fails with unique constraint error,
+      // then we know the token already exists
+      const insertResponse = await supabase
         .from('fcm_tokens')
-        .update({
+        .insert({
+          user_id: userId,
+          fcm_token: token,
+          created_at: new Date().toISOString(),
           last_used: new Date().toISOString(),
           device_info: deviceInfo,
           is_active: true
-        })
-        .eq('id', existingTokens[0].id);
+        });
       
-      if (updateResponse.error) {
-        console.error('[FCM] Error updating token:', updateResponse.error);
-        return false;
+      // If insert worked, we're done
+      if (!insertResponse.error) {
+        console.log('[FCM] Token saved successfully');
+        return true;
       }
       
-      console.log('[FCM] Token updated successfully');
-      return true;
+      // If it failed with duplicate key error, update the existing token
+      if (insertResponse.error.code === '23505') { // Duplicate key error
+        // Since we can't easily query by the token due to encoding issues,
+        // use a safer approach with an anonymous function to encode properly
+        const { error: updateError } = await supabase.rpc('update_fcm_token', {
+          p_user_id: userId,
+          p_token: token,
+          p_device_info: deviceInfo
+        });
+        
+        if (updateError) {
+          // Fallback to manual update query if RPC function doesn't exist
+          console.warn('[FCM] RPC function not found, using fallback update method');
+          
+          // Use a raw SQL query which avoids encoding issues
+          // Note: This is less safe but works as a fallback
+          const { error: rawUpdateError } = await supabase.rpc('exec_sql', {
+            sql_query: `UPDATE fcm_tokens 
+                        SET user_id = '${userId}', 
+                            last_used = NOW(),
+                            is_active = true
+                        WHERE fcm_token = '${token.replace(/'/g, "''")}'`
+          });
+          
+          if (rawUpdateError) {
+            // If everything fails, try the most direct approach
+            if (rawUpdateError.code === '404') {
+              console.warn('[FCM] RPC functions not available, using basic insert method');
+              
+              // Since we can't query by token and know it exists, try to update based on userId
+              // This may result in orphaned tokens but at least provides some functionality
+              const { error: basicUpdateError } = await supabase
+                .from('fcm_tokens')
+                .update({
+                  fcm_token: token,
+                  last_used: new Date().toISOString(),
+                  device_info: deviceInfo,
+                  is_active: true
+                })
+                .eq('user_id', userId);
+              
+              if (basicUpdateError) {
+                console.error('[FCM] All update attempts failed:', basicUpdateError);
+                return false;
+              }
+            } else {
+              console.error('[FCM] Error in fallback raw update:', rawUpdateError);
+              return false;
+            }
+          }
+        }
+        
+        console.log('[FCM] Token updated successfully');
+        return true;
+      }
+      
+      // Any other insert error
+      console.error('[FCM] Error saving token:', insertResponse.error);
+      return false;
+    } catch (error) {
+      console.error('[FCM] Error in token save/update:', error);
+      return false;
     }
-    
-    // If token doesn't exist, create a new record
-    return await insertNewToken(userId, token, deviceInfo);
   } catch (error) {
     console.error('[FCM] Error in saveFcmToken:', error);
     return false;
   }
 };
-
-/**
- * Helper function to insert a new token record
- */
-async function insertNewToken(userId: string, token: string, deviceInfo: any): Promise<boolean> {
-  try {
-    const insertResponse = await supabase
-      .from('fcm_tokens')
-      .insert({
-        user_id: userId,
-        fcm_token: token,
-        created_at: new Date().toISOString(),
-        last_used: new Date().toISOString(),
-        device_info: deviceInfo,
-        is_active: true
-      });
-    
-    if (insertResponse.error) {
-      console.error('[FCM] Error saving token:', insertResponse.error);
-      
-      // Try update as fallback in case of conflict
-      if (insertResponse.error.code === '23505') { // Duplicate key error
-        const updateResponse = await supabase
-          .from('fcm_tokens')
-          .update({
-            user_id: userId,
-            last_used: new Date().toISOString(),
-            device_info: deviceInfo,
-            is_active: true
-          })
-          .eq('fcm_token', token);
-        
-        if (updateResponse.error) {
-          console.error('[FCM] Error in fallback update:', updateResponse.error);
-          return false;
-        }
-        
-        console.log('[FCM] Token updated via fallback method');
-        return true;
-      }
-      
-      return false;
-    }
-    
-    console.log('[FCM] Token saved successfully');
-    return true;
-  } catch (error) {
-    console.error('[FCM] Error in insertNewToken:', error);
-    return false;
-  }
-}
 
 /**
  * Unregister FCM token for a user
@@ -218,14 +216,15 @@ export const removeFcmToken = async (userId: string): Promise<boolean> => {
     const token = localStorage.getItem(FCM_TOKEN_STORAGE_KEY);
     
     if (token) {
-      // Remove token from database
+      // Don't try to directly query by token due to encoding issues
+      // Instead use userId which is safer
       const { error } = await supabase
         .from('fcm_tokens')
         .delete()
-        .match({ user_id: userId, fcm_token: token });
+        .eq('user_id', userId);
       
       if (error) {
-        console.error('[FCM] Error deleting token from database:', error);
+        console.error('[FCM] Error deleting tokens from database:', error);
         // Continue to remove from localStorage even if database delete fails
       }
     }

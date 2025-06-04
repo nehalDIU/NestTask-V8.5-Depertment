@@ -217,13 +217,9 @@ export function useAuth() {
       
       updateAuthStatus(true);
       
-      // Request notification permission after successful login
-      try {
-        await requestNotificationPermission(result.user.id);
-      } catch (notifError) {
-        console.error('Error requesting notification permission:', notifError);
-        // Don't block the login process if notification permission fails
-      }
+      // Don't automatically request notification permission
+      // Let the user request it explicitly through UI interaction
+      // This prevents "[Violation] Only request notification permission in response to a user gesture" warnings
       
       return result.user;
     } catch (err: any) {
@@ -255,13 +251,9 @@ export function useAuth() {
       
       updateAuthStatus(true);
       
-      // Request notification permission after successful signup
-      try {
-        await requestNotificationPermission(result.user.id);
-      } catch (notifError) {
-        console.error('Error requesting notification permission:', notifError);
-        // Don't block the signup process if notification permission fails
-      }
+      // Don't automatically request notification permission
+      // Let the user request it explicitly through UI interaction
+      // This prevents "[Violation] Only request notification permission in response to a user gesture" warnings
       
       return result.user;
     } catch (err: any) {

@@ -113,93 +113,74 @@ export const saveFcmToken = async (userId: string): Promise<boolean> => {
     // Get device info
     const deviceInfo = getDeviceInfo();
     
-    // FCM tokens often contain characters that need special handling
-    // Instead of trying to query by token which can cause 406 errors,
-    // check if token exists by using a more reliable approach
+    // Use the safe SQL function we created to handle the token
+    const { data, error } = await supabase.rpc('update_fcm_token', {
+      p_user_id: userId,
+      p_token: token,
+      p_device_info: deviceInfo
+    });
     
-    try {
-      // First try to insert directly - if it fails with unique constraint error,
-      // then we know the token already exists
-      const insertResponse = await supabase
-        .from('fcm_tokens')
-        .insert({
-          user_id: userId,
-          fcm_token: token,
-          created_at: new Date().toISOString(),
-          last_used: new Date().toISOString(),
-          device_info: deviceInfo,
-          is_active: true
-        });
+    if (error) {
+      // Log the specific error
+      console.error('[FCM] Error saving token with RPC:', error);
       
-      // If insert worked, we're done
-      if (!insertResponse.error) {
-        console.log('[FCM] Token saved successfully');
-        return true;
-      }
-      
-      // If it failed with duplicate key error, update the existing token
-      if (insertResponse.error.code === '23505') { // Duplicate key error
-        // Since we can't easily query by the token due to encoding issues,
-        // use a safer approach with an anonymous function to encode properly
-        const { error: updateError } = await supabase.rpc('update_fcm_token', {
-          p_user_id: userId,
-          p_token: token,
-          p_device_info: deviceInfo
-        });
+      // Fall back to direct insert if the function doesn't exist
+      if (error.code === '42883') { // Function doesn't exist
+        console.warn('[FCM] RPC function not found, using fallback insert method');
         
-        if (updateError) {
-          // Fallback to manual update query if RPC function doesn't exist
-          console.warn('[FCM] RPC function not found, using fallback update method');
+        try {
+          // Try insert first, ignoring unique constraint errors
+          const { error: insertError } = await supabase
+            .from('fcm_tokens')
+            .insert({
+              user_id: userId,
+              fcm_token: token,
+              device_info: deviceInfo,
+              is_active: true
+            });
           
-          // Use a raw SQL query which avoids encoding issues
-          // Note: This is less safe but works as a fallback
-          const { error: rawUpdateError } = await supabase.rpc('exec_sql', {
-            sql_query: `UPDATE fcm_tokens 
-                        SET user_id = '${userId}', 
-                            last_used = NOW(),
-                            is_active = true
-                        WHERE fcm_token = '${token.replace(/'/g, "''")}'`
-          });
-          
-          if (rawUpdateError) {
-            // If everything fails, try the most direct approach
-            if (rawUpdateError.code === '404') {
-              console.warn('[FCM] RPC functions not available, using basic insert method');
+          if (insertError) {
+            // If insert fails with unique violation, we know the token exists
+            if (insertError.code === '23505') {
+              console.log('[FCM] Token already exists, updating user_id');
               
-              // Since we can't query by token and know it exists, try to update based on userId
-              // This may result in orphaned tokens but at least provides some functionality
-              const { error: basicUpdateError } = await supabase
-                .from('fcm_tokens')
-                .update({
-                  fcm_token: token,
-                  last_used: new Date().toISOString(),
-                  device_info: deviceInfo,
-                  is_active: true
-                })
-                .eq('user_id', userId);
+              // Use a safer approach that avoids direct token comparison
+              const { error: updateError } = await supabase.rpc('exec_sql', {
+                sql_query: `UPDATE fcm_tokens 
+                          SET user_id = '${userId}', 
+                              last_used = NOW(),
+                              is_active = true,
+                              device_info = '${JSON.stringify(deviceInfo).replace(/'/g, "''")}'
+                          WHERE id IN (
+                            SELECT id FROM fcm_tokens 
+                            ORDER BY created_at DESC 
+                            LIMIT 1
+                          )`
+              });
               
-              if (basicUpdateError) {
-                console.error('[FCM] All update attempts failed:', basicUpdateError);
+              if (updateError) {
+                console.error('[FCM] Fallback update failed:', updateError);
                 return false;
               }
             } else {
-              console.error('[FCM] Error in fallback raw update:', rawUpdateError);
+              console.error('[FCM] Insert failed:', insertError);
               return false;
             }
           }
+          
+          console.log('[FCM] Token saved with fallback method');
+          return true;
+        } catch (fallbackError) {
+          console.error('[FCM] All fallback methods failed:', fallbackError);
+          return false;
         }
-        
-        console.log('[FCM] Token updated successfully');
-        return true;
       }
       
-      // Any other insert error
-      console.error('[FCM] Error saving token:', insertResponse.error);
-      return false;
-    } catch (error) {
-      console.error('[FCM] Error in token save/update:', error);
       return false;
     }
+    
+    console.log('[FCM] Token saved successfully with RPC function');
+    return true;
   } catch (error) {
     console.error('[FCM] Error in saveFcmToken:', error);
     return false;
@@ -216,16 +197,33 @@ export const removeFcmToken = async (userId: string): Promise<boolean> => {
     const token = localStorage.getItem(FCM_TOKEN_STORAGE_KEY);
     
     if (token) {
-      // Don't try to directly query by token due to encoding issues
-      // Instead use userId which is safer
-      const { error } = await supabase
-        .from('fcm_tokens')
-        .delete()
-        .eq('user_id', userId);
+      // Use the safe deletion function
+      const { data, error } = await supabase.rpc('delete_fcm_token', {
+        p_token: token
+      });
       
       if (error) {
-        console.error('[FCM] Error deleting tokens from database:', error);
-        // Continue to remove from localStorage even if database delete fails
+        console.warn('[FCM] Error using RPC to delete token:', error);
+        
+        // Fall back to deactivating tokens by user_id
+        if (error.code === '42883') { // Function doesn't exist
+          const { error: fallbackError } = await supabase.rpc('deactivate_user_tokens', {
+            p_user_id: userId
+          });
+          
+          if (fallbackError && fallbackError.code === '42883') {
+            // If that also fails, use direct SQL as last resort
+            const { error: directError } = await supabase
+              .from('fcm_tokens')
+              .update({ is_active: false })
+              .eq('user_id', userId);
+            
+            if (directError) {
+              console.error('[FCM] All token deletion methods failed:', directError);
+              // Continue to remove from localStorage even if database delete fails
+            }
+          }
+        }
       }
     }
     

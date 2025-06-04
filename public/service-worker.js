@@ -27,7 +27,8 @@ self.addEventListener('install', (event) => {
   event.waitUntil(
     Promise.all([
       caches.open(STATIC_CACHE_NAME)
-        .then((cache) => cache.addAll(PRECACHE_ASSETS)),
+        .then((cache) => cache.addAll(PRECACHE_ASSETS))
+        .catch(err => console.error('Cache pre-installation error:', err)),
       self.skipWaiting()
     ])
   );
@@ -49,7 +50,7 @@ self.addEventListener('activate', (event) => {
   );
 });
 
-// Fetch event - improved caching strategy
+// Fetch event - improved caching strategy with better error handling
 self.addEventListener('fetch', (event) => {
   // Skip non-GET requests and browser-sync
   if (event.request.method !== 'GET' || 
@@ -61,7 +62,12 @@ self.addEventListener('fetch', (event) => {
   if (event.request.mode === 'navigate') {
     event.respondWith(
       fetch(event.request)
-        .catch(() => caches.match('/offline.html'))
+        .catch(() => caches.match('/offline.html')
+          .catch(() => new Response('Offline page not available', {
+            status: 503,
+            headers: { 'Content-Type': 'text/plain' }
+          }))
+        )
     );
     return;
   }
@@ -69,21 +75,46 @@ self.addEventListener('fetch', (event) => {
   // CSS, JS, and critical assets - cache first with network update
   if (event.request.url.match(/\.(css|js|woff2|woff|ttf|svg|png|jpg|jpeg|gif|webp)$/)) {
     event.respondWith(
-      caches.match(event.request)
-        .then(cachedResponse => {
-          const fetchPromise = fetch(event.request)
-            .then(networkResponse => {
-              if (networkResponse && networkResponse.ok) {
-                // Clone the response before using it
-                const responseToCache = networkResponse.clone();
-                caches.open(STATIC_CACHE_NAME)
-                  .then(cache => cache.put(event.request, responseToCache));
-              }
-              return networkResponse;
-            });
+      (async () => {
+        try {
+          // Try cache first
+          const cachedResponse = await caches.match(event.request);
+          if (cachedResponse) {
+            // Update cache in background
+            fetch(event.request)
+              .then(networkResponse => {
+                if (networkResponse && networkResponse.ok) {
+                  const responseToCache = networkResponse.clone();
+                  caches.open(STATIC_CACHE_NAME)
+                    .then(cache => cache.put(event.request, responseToCache))
+                    .catch(err => console.error('Static cache update error:', err));
+                }
+              })
+              .catch(err => console.error('Background fetch error:', err));
             
-          return cachedResponse || fetchPromise;
-        })
+            return cachedResponse;
+          }
+
+          // If not in cache, get from network
+          const networkResponse = await fetch(event.request);
+          if (networkResponse && networkResponse.ok) {
+            // Clone before using
+            const responseToCache = networkResponse.clone();
+            caches.open(STATIC_CACHE_NAME)
+              .then(cache => cache.put(event.request, responseToCache))
+              .catch(err => console.error('Cache update error:', err));
+          }
+          return networkResponse;
+        } catch (error) {
+          console.error('Asset fetch error:', error, event.request.url);
+          // For 404 errors on static assets, return empty response with correct content type
+          const contentType = getContentTypeFromUrl(event.request.url);
+          return new Response('', {
+            status: 404,
+            headers: { 'Content-Type': contentType }
+          });
+        }
+      })()
     );
     return;
   }
@@ -92,45 +123,106 @@ self.addEventListener('fetch', (event) => {
   if (event.request.url.includes('/api/')) {
     const TIMEOUT = 3000;
     event.respondWith(
-      Promise.race([
-        fetch(event.request.clone())
-          .then(response => {
-            if (response && response.ok) {
-              // Clone the response before using it
-              const clonedResponse = response.clone();
-              caches.open(DYNAMIC_CACHE_NAME)
-                .then(cache => cache.put(event.request, clonedResponse));
-            }
-            return response;
-          }),
-        new Promise((_, reject) => 
-          setTimeout(() => reject(new Error('timeout')), TIMEOUT)
-        )
-      ]).catch(() => caches.match(event.request))
+      (async () => {
+        try {
+          // Race between fetch and timeout
+          const response = await Promise.race([
+            fetch(event.request.clone()),
+            new Promise((_, reject) => 
+              setTimeout(() => reject(new Error('timeout')), TIMEOUT)
+            )
+          ]);
+          
+          // If response is ok, cache it
+          if (response && response.ok) {
+            const clonedResponse = response.clone();
+            caches.open(DYNAMIC_CACHE_NAME)
+              .then(cache => cache.put(event.request, clonedResponse))
+              .catch(err => console.error('API cache error:', err));
+          }
+          
+          return response;
+        } catch (error) {
+          console.error('API fetch error:', error);
+          // Try to get from cache
+          try {
+            const cachedResponse = await caches.match(event.request);
+            if (cachedResponse) return cachedResponse;
+          } catch (cacheError) {
+            console.error('Cache match error:', cacheError);
+          }
+          
+          // Return appropriate error response
+          return new Response(JSON.stringify({error: 'Network error'}), {
+            status: 503,
+            headers: {'Content-Type': 'application/json'}
+          });
+        }
+      })()
     );
     return;
   }
   
   // All other requests - network first with cache fallback
   event.respondWith(
-    fetch(event.request)
-      .then(networkResponse => {
+    (async () => {
+      try {
+        // Try network first
+        const networkResponse = await fetch(event.request);
+        
+        // If response is ok, clone it before using
         if (networkResponse && networkResponse.ok) {
-          // Clone the response before using it
           const clonedResponse = networkResponse.clone();
+          // Use a separate promise chain for caching to avoid blocking the response
           caches.open(DYNAMIC_CACHE_NAME)
-            .then(cache => {
-              // Use an independent promise chain to prevent response usage errors
-              cache.put(event.request, clonedResponse)
-                .catch(err => console.error('Cache put error:', err));
-            })
-            .catch(err => console.error('Cache open error:', err));
+            .then(cache => cache.put(event.request, clonedResponse))
+            .catch(err => console.error('Dynamic cache error:', err));
         }
+        
         return networkResponse;
-      })
-      .catch(() => caches.match(event.request))
+      } catch (error) {
+        console.error('Fetch error:', error);
+        
+        // Try to get from cache
+        try {
+          const cachedResponse = await caches.match(event.request);
+          if (cachedResponse) return cachedResponse;
+        } catch (cacheError) {
+          console.error('Cache match error:', cacheError);
+        }
+        
+        // For 404 errors, return appropriate response based on requested content type
+        const contentType = event.request.headers.get('Accept')?.includes('application/json') 
+          ? 'application/json' 
+          : 'text/plain';
+          
+        return new Response(
+          contentType === 'application/json' 
+            ? JSON.stringify({error: 'Resource not available'}) 
+            : 'Resource not available', 
+          {
+            status: 404,
+            headers: {'Content-Type': contentType}
+          }
+        );
+      }
+    })()
   );
 });
+
+// Helper function to determine content type from URL
+function getContentTypeFromUrl(url) {
+  if (url.match(/\.js$/)) return 'application/javascript';
+  if (url.match(/\.css$/)) return 'text/css';
+  if (url.match(/\.(jpg|jpeg)$/)) return 'image/jpeg';
+  if (url.match(/\.png$/)) return 'image/png';
+  if (url.match(/\.gif$/)) return 'image/gif';
+  if (url.match(/\.webp$/)) return 'image/webp';
+  if (url.match(/\.svg$/)) return 'image/svg+xml';
+  if (url.match(/\.(woff|woff2)$/)) return 'font/woff2';
+  if (url.match(/\.ttf$/)) return 'font/ttf';
+  return 'text/plain';
+}
 
 // Handle messages from clients
 self.addEventListener('message', (event) => {

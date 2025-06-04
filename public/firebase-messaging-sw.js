@@ -35,7 +35,7 @@ try {
     event.waitUntil(clients.claim());
   });
 
-  // Add proper fetch handler for FCM token registration
+  // Improved fetch handler with better error handling
   self.addEventListener('fetch', (event) => {
     // Only handle specific FCM-related requests or requests to Supabase fcm_tokens
     const url = new URL(event.request.url);
@@ -43,21 +43,39 @@ try {
         url.pathname.includes('/fcm/') || 
         url.pathname.includes('/firebase-messaging-sw.js')) {
       
-      // For GET requests, pass through but handle response properly
-      if (event.request.method === 'GET') {
-        event.respondWith(
-          fetch(event.request.clone())
-            .then(response => {
-              // Important: clone before using
-              console.log('[SW] FCM fetch response status:', response.status);
-              return response;
-            })
-            .catch(error => {
-              console.error('[SW] FCM fetch error:', error);
-              throw error;
-            })
-        );
-      }
+      event.respondWith(
+        (async () => {
+          try {
+            // Always clone the request before using it
+            const request = event.request.clone();
+            
+            // Attempt to fetch the resource
+            const response = await fetch(request);
+            
+            // Log the response status
+            console.log('[SW] FCM fetch response status:', response.status, 'for', url.pathname);
+            
+            // Always clone the response before returning it
+            return response.clone();
+          } catch (error) {
+            console.error('[SW] FCM fetch error:', error, 'for', url.pathname);
+            
+            // Return a fallback response for 404 errors instead of throwing
+            if (url.pathname.includes('/firebase-messaging-sw.js')) {
+              return new Response('// Service worker content', {
+                status: 200,
+                headers: { 'Content-Type': 'application/javascript' }
+              });
+            }
+            
+            // For other errors, return a generic error response
+            return new Response('Error fetching resource', { 
+              status: 500,
+              headers: { 'Content-Type': 'text/plain' }
+            });
+          }
+        })()
+      );
     }
   });
 

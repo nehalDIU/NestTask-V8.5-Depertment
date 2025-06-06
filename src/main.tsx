@@ -7,7 +7,6 @@ import { MicroLoader } from './components/MicroLoader';
 import { initPWA } from './utils/pwa';
 import { supabase } from './lib/supabase';
 import type { LoginCredentials, SignupCredentials } from './types/auth';
-import { messaging, getFcmToken } from './firebase';
 
 // Lazy-load core pages
 const App = lazy(() => import('./App'));

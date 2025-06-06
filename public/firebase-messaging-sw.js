@@ -1,3 +1,7 @@
+// Log initialization
+console.log('Firebase Messaging SW Starting:', new Date().toISOString());
+
+// Import Firebase scripts
 importScripts('https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js');
 importScripts('https://www.gstatic.com/firebasejs/9.22.0/firebase-messaging-compat.js');
 
@@ -12,101 +16,84 @@ const firebaseConfig = {
     measurementId: "G-37LEQPKB3B"
 };
 
-// Initialize Firebase
-firebase.initializeApp(firebaseConfig);
-const messaging = firebase.messaging();
+// Initialize Firebase with error handling
+try {
+  firebase.initializeApp(firebaseConfig);
+  console.log('Firebase initialized in SW');
+} catch (error) {
+  console.error('Firebase init error in SW:', error);
+}
 
-// Track active service worker
-self.addEventListener('activate', (event) => {
-  console.log('Firebase messaging service worker activated');
-  
-  // Track the timestamp when the service worker was last activated
-  self.lastActivatedTimestamp = Date.now();
-  
-  // Store this timestamp in IndexedDB for tracking
-  const request = indexedDB.open('fcm-tracking', 1);
-  
-  request.onupgradeneeded = function(event) {
-    const db = event.target.result;
-    if (!db.objectStoreNames.contains('timestamps')) {
-      db.createObjectStore('timestamps', { keyPath: 'id' });
-    }
-  };
-  
-  request.onsuccess = function(event) {
-    const db = event.target.result;
-    const transaction = db.transaction(['timestamps'], 'readwrite');
-    const store = transaction.objectStore('timestamps');
-    
-    store.put({
-      id: 'lastActivated',
-      timestamp: self.lastActivatedTimestamp
-    });
-  };
-});
-
-// Set up a ping mechanism to keep the service worker alive
-self.addEventListener('message', (event) => {
-  if (event.data && event.data.type === 'PING') {
-    console.log('Ping received by service worker', Date.now());
-    
-    // Send a pong back to the client
-    if (event.ports && event.ports[0]) {
-      event.ports[0].postMessage({
-        type: 'PONG',
-        timestamp: Date.now()
-      });
-    }
-  }
-});
+// Get messaging
+let messaging;
+try {
+  messaging = firebase.messaging();
+  console.log('Firebase messaging initialized in SW');
+} catch (error) {
+  console.error('Messaging init error in SW:', error);
+}
 
 // Handle background messages
-messaging.onBackgroundMessage((payload) => {
-  console.log('Background message received:', payload);
-  
-  const notificationTitle = payload.notification.title;
-  const notificationOptions = {
-    body: payload.notification.body,
-    icon: '/icons/icon-192x192.png',
-    badge: '/icons/badge-72x72.png',
-    data: payload.data || {},
-    tag: payload.data?.tag || 'default',  // Group notifications if tag is provided
-    renotify: true,                       // Notify again even if tag exists
-    requireInteraction: true              // Keep notification visible until user interacts
-  };
+if (messaging) {
+  messaging.onBackgroundMessage(function(payload) {
+    console.log('Background message received:', payload);
 
-  self.registration.showNotification(notificationTitle, notificationOptions)
-    .then(() => {
-      console.log('Background notification displayed successfully');
-    })
-    .catch(error => {
-      console.error('Error displaying background notification:', error);
-    });
-});
+    const notificationTitle = payload.notification?.title || 'Notification';
+    const notificationOptions = {
+      body: payload.notification?.body || '',
+      icon: '/icons/icon-192x192.png',
+      data: payload.data
+    };
 
-// Handle notification click
-self.addEventListener('notificationclick', (event) => {
+    self.registration.showNotification(notificationTitle, notificationOptions);
+  });
+}
+
+// Handle notification clicks
+self.addEventListener('notificationclick', function(event) {
+  console.log('Notification clicked:', event);
   event.notification.close();
-  
-  // Extract any data from the notification
-  const url = event.notification.data?.url || '/';
-  
-  // Open the app and navigate to a specific page if URL is provided
-  event.waitUntil(
-    clients.matchAll({ type: 'window' }).then(clientsArr => {
-      // If a window client is already open, focus it and navigate
-      const hadWindowToFocus = clientsArr.some(windowClient => {
-        if (windowClient.url === url) {
-          return windowClient.focus();
-        }
-        return false;
-      });
 
-      // If no window client is open, open a new one
-      if (!hadWindowToFocus) {
-        clients.openWindow(url)
-          .then(windowClient => windowClient ? windowClient.focus() : null);
+  // Get URL from data or default to root
+  const urlToOpen = event.notification.data?.url || '/';
+
+  // Open or focus window
+  event.waitUntil(
+    clients.matchAll({type: 'window'}).then(function(clientList) {
+      // If we have a client already, focus it
+      for (const client of clientList) {
+        if (client.url === urlToOpen && 'focus' in client) {
+          return client.focus();
+        }
+      }
+      // Otherwise open a new window
+      if (clients.openWindow) {
+        return clients.openWindow(urlToOpen);
       }
     })
   );
+});
+
+// Handle service worker lifecycle events
+self.addEventListener('install', function(event) {
+  console.log('SW installed:', new Date().toISOString());
+  self.skipWaiting();
+});
+
+self.addEventListener('activate', function(event) {
+  console.log('SW activated:', new Date().toISOString());
+  event.waitUntil(clients.claim());
+});
+
+// Handle messages from the main app
+self.addEventListener('message', function(event) {
+  console.log('SW received message:', event.data);
+  
+  // Send response if needed
+  if (event.data?.type === 'PING') {
+    event.ports[0]?.postMessage({
+      type: 'PONG',
+      time: Date.now()
+    });
+  }
 });

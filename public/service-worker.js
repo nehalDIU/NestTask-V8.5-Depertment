@@ -49,46 +49,11 @@ self.addEventListener('activate', (event) => {
   );
 });
 
-// Helper function to check if URL is cacheable
-function isCacheableUrl(url) {
-  try {
-    const urlObj = new URL(url, self.location.href);
-    // Only cache http/https URLs, exclude all other schemes
-    const validSchemes = ['http:', 'https:'];
-    if (!validSchemes.includes(urlObj.protocol)) {
-      console.log('Skipping cache for non-HTTP URL:', urlObj.protocol, url);
-      return false;
-    }
-    
-    // Exclude browser extension URLs and other problematic URLs
-    const blockedPrefixes = [
-      'chrome-extension:', 
-      'moz-extension:', 
-      'ms-browser-extension:',
-      'chrome:', 
-      'edge:', 
-      'brave:', 
-      'file:'
-    ];
-    
-    if (blockedPrefixes.some(prefix => url.startsWith(prefix))) {
-      console.log('Skipping cache for extension URL:', url);
-      return false;
-    }
-    
-    return true;
-  } catch (err) {
-    console.error('Error checking if URL is cacheable:', err);
-    return false;
-  }
-}
-
 // Fetch event - improved caching strategy
 self.addEventListener('fetch', (event) => {
-  // Skip non-GET requests, browser-sync, and chrome-extension URLs
+  // Skip non-GET requests and browser-sync
   if (event.request.method !== 'GET' || 
-      event.request.url.includes('browser-sync') ||
-      event.request.url.startsWith('chrome-extension:')) {
+      event.request.url.includes('browser-sync')) {
     return;
   }
   
@@ -109,20 +74,8 @@ self.addEventListener('fetch', (event) => {
           const fetchPromise = fetch(event.request)
             .then(networkResponse => {
               if (networkResponse.ok) {
-                // Clone and store in cache asynchronously but don't wait for it
-                const clonedResponse = networkResponse.clone();
-                // Only cache if URL is cacheable
-                if (isCacheableUrl(event.request.url)) {
-                  caches.open(STATIC_CACHE_NAME)
-                    .then(cache => {
-                      try {
-                        cache.put(event.request, clonedResponse);
-                      } catch (err) {
-                        console.error('Error caching asset:', err);
-                      }
-                    })
-                    .catch(err => console.error('Cache open error for asset:', err));
-                }
+                const cache = caches.open(STATIC_CACHE_NAME)
+                  .then(cache => cache.put(event.request, networkResponse.clone()));
               }
               return networkResponse;
             });
@@ -141,21 +94,9 @@ self.addEventListener('fetch', (event) => {
         fetch(event.request.clone())
           .then(response => {
             if (response.ok) {
-              // Clone the response before using it
               const clonedResponse = response.clone();
-              // Store response in cache asynchronously but don't wait for it
-              // Only cache if URL is cacheable
-              if (isCacheableUrl(event.request.url)) {
-                caches.open(DYNAMIC_CACHE_NAME)
-                  .then(cache => {
-                    try {
-                      cache.put(event.request, clonedResponse);
-                    } catch (err) {
-                      console.error('Error caching API response:', err);
-                    }
-                  })
-                  .catch(err => console.error('Cache open error for API:', err));
-              }
+              caches.open(DYNAMIC_CACHE_NAME)
+                .then(cache => cache.put(event.request, clonedResponse));
             }
             return response;
           }),
@@ -172,21 +113,9 @@ self.addEventListener('fetch', (event) => {
     fetch(event.request)
       .then(networkResponse => {
         if (networkResponse.ok) {
-          // Clone the response before using it
           const clonedResponse = networkResponse.clone();
-          // Store response in cache asynchronously but don't wait for it
-          // Only cache if URL is cacheable
-          if (isCacheableUrl(event.request.url)) {
-            caches.open(DYNAMIC_CACHE_NAME)
-              .then(cache => {
-                try {
-                  cache.put(event.request, clonedResponse);
-                } catch (err) {
-                  console.error('Error caching response:', err);
-                }
-              })
-              .catch(err => console.error('Cache open error:', err));
-          }
+          caches.open(DYNAMIC_CACHE_NAME)
+            .then(cache => cache.put(event.request, clonedResponse));
         }
         return networkResponse;
       })
@@ -256,14 +185,4 @@ self.addEventListener('message', (event) => {
         break;
     }
   }
-});
-
-// Global error handler for service worker
-self.addEventListener('error', (event) => {
-  console.error('Service Worker error:', event.message, event.filename, event.lineno);
-});
-
-// Unhandled promise rejection handler
-self.addEventListener('unhandledrejection', (event) => {
-  console.error('Service Worker unhandled promise rejection:', event.reason);
 }); 

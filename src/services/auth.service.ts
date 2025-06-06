@@ -93,10 +93,19 @@ async function storeInIndexedDB(key: string, value: any): Promise<void> {
   }
 }
 
-export async function loginUser({ email, password }: LoginCredentials): Promise<User> {
+// Add a new interface for authentication results
+export interface AuthResult {
+  user: User | null;
+  error: Error | null;
+}
+
+export async function loginUser({ email, password }: LoginCredentials): Promise<AuthResult> {
   try {
     if (!email || !password) {
-      throw new Error('Email and password are required');
+      return { 
+        user: null, 
+        error: new Error('Email and password are required') 
+      };
     }
 
     // Debug logging for authentication debugging
@@ -150,7 +159,7 @@ export async function loginUser({ email, password }: LoginCredentials): Promise<
       localStorage.setItem('nesttask_saved_email', email);
       localStorage.setItem('nesttask_auth_bypass', 'true');
       
-      return mockUser;
+      return { user: mockUser, error: null };
     }
 
     // Set session persistence by ensuring we have a clean session state
@@ -197,28 +206,18 @@ export async function loginUser({ email, password }: LoginCredentials): Promise<
         localStorage.setItem('nesttask_demo_user', JSON.stringify(fallbackUser));
         localStorage.setItem('nesttask_auth_bypass', 'true');
         
-        return fallbackUser;
+        return { user: fallbackUser, error: null };
       }
       
-      // Non-development mode - throw the error
-      console.error('Login error:', authError);
-      
-      // Add more specific error handling
-      let errorMessage = getAuthErrorMessage(authError);
-      
-      if (authError.message && authError.message.includes('Invalid login credentials')) {
-        errorMessage = 'Invalid email or password. Please try again.';
-      }
-      
-      // For network errors
-      if (authError.message && authError.message.includes('fetch')) {
-        errorMessage = 'Network error. Please check your internet connection.';
-      }
-      
-      throw new Error(errorMessage);
+      // Handle real auth errors
+      const errorMessage = getAuthErrorMessage(authError);
+      console.error('Authentication error:', errorMessage);
+      return { user: null, error: new Error(errorMessage) };
     }
     
-    if (!authData?.user) throw new Error('No user data received');
+    if (!authData.user) {
+      return { user: null, error: new Error('No user data returned') };
+    }
 
     // Store the session in localStorage AND IndexedDB for maximum persistence
     if (authData.session) {
@@ -275,7 +274,8 @@ export async function loginUser({ email, password }: LoginCredentials): Promise<
         throw new Error('No profile data received after creation');
       }
 
-      return mapDbUserToUser(newProfile);
+      const mappedUser = mapDbUserToUser(newProfile);
+      return { user: mappedUser, error: null };
     }
 
     if (!profile) {
@@ -303,42 +303,15 @@ export async function loginUser({ email, password }: LoginCredentials): Promise<
         throw new Error('No profile data received after creation');
       }
 
-      return mapDbUserToUser(newProfile);
+      const mappedUser = mapDbUserToUser(newProfile);
+      return { user: mappedUser, error: null };
     }
 
-    return mapDbUserToUser(profile);
-  } catch (error: any) {
-    console.error('Login error:', error);
-    // Enhanced error logging with more details
-    if (error.message) {
-      console.error('Error message:', error.message);
-    }
-    if (error.code) {
-      console.error('Error code:', error.code);
-    }
-    if (error.status) {
-      console.error('Error status:', error.status);
-    }
-    if (error.details) {
-      console.error('Error details:', error.details);
-    }
-    
-    let errorMessage = getAuthErrorMessage(error);
-    
-    // Add more specific error handling
-    if (error.message && error.message.includes('Invalid login credentials')) {
-      if (import.meta.env.DEV) {
-        console.warn('Try using test credentials in development mode: test@example.com / password123');
-      }
-      errorMessage = 'Invalid email or password. Please try again.';
-    }
-    
-    // For network errors
-    if (error.message && error.message.includes('fetch')) {
-      errorMessage = 'Network error. Please check your internet connection.';
-    }
-    
-    throw new Error(errorMessage);
+    const mappedUser = mapDbUserToUser(profile);
+    return { user: mappedUser, error: null };
+  } catch (err: any) {
+    console.error('Unexpected error during login:', err);
+    return { user: null, error: err };
   }
 }
 
@@ -351,7 +324,7 @@ export async function signupUser({
   departmentId, 
   batchId, 
   sectionId 
-}: SignupCredentials): Promise<User> {
+}: SignupCredentials): Promise<AuthResult> {
   try {
     // Validate required fields
     if (!email || !password || !name || !phone || !studentId) {
@@ -419,42 +392,51 @@ export async function signupUser({
         console.error('Second attempt failed to fetch user data:', basicUserError);
         // If we can't get the user data, return what we have
         return {
-          id: data.user.id,
-          email,
-          name,
-          phone,
-          studentId,
-          role: 'user',
-          createdAt: new Date().toISOString(),
-          departmentId,
-          batchId,
-          sectionId
+          user: {
+            id: data.user.id,
+            email,
+            name,
+            phone,
+            studentId,
+            role: 'user',
+            createdAt: new Date().toISOString(),
+            departmentId,
+            batchId,
+            sectionId
+          },
+          error: null
         };
       }
       
-      return mapDbUserToUser(basicUserData);
+      return {
+        user: mapDbUserToUser(basicUserData),
+        error: null
+      };
     }
 
     // Return the user data with all related info
     return {
-      id: userData.id,
-      email: userData.email,
-      name: userData.name,
-      role: userData.role as 'user' | 'admin' | 'super-admin' | 'section-admin',
-      phone: userData.phone,
-      studentId: userData.studentId,
-      createdAt: userData.createdAt,
-      lastActive: userData.lastActive,
-      departmentId: userData.departmentId,
-      departmentName: userData.departmentName,
-      batchId: userData.batchId,
-      batchName: userData.batchName,
-      sectionId: userData.sectionId,
-      sectionName: userData.sectionName
+      user: {
+        id: userData.id,
+        email: userData.email,
+        name: userData.name,
+        role: userData.role as 'user' | 'admin' | 'super-admin' | 'section-admin',
+        phone: userData.phone,
+        studentId: userData.studentId,
+        createdAt: userData.createdAt,
+        lastActive: userData.lastActive,
+        departmentId: userData.departmentId,
+        departmentName: userData.departmentName,
+        batchId: userData.batchId,
+        batchName: userData.batchName,
+        sectionId: userData.sectionId,
+        sectionName: userData.sectionName
+      },
+      error: null
     };
-  } catch (error: any) {
-    console.error('Signup error:', error);
-    throw new Error(error.message || 'Failed to create account');
+  } catch (err: any) {
+    console.error('Unexpected error during signup:', err);
+    return { user: null, error: err };
   }
 }
 

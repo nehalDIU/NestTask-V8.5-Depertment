@@ -1,16 +1,18 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from './useAuth';
 import { 
-  requestNotificationPermission, 
-  subscribeToPushNotifications,
-  unsubscribeFromPushNotifications
-} from '../utils/pushNotifications';
+  checkNotificationPermission, 
+  requestNotificationPermission,
+  unsubscribeFromNotifications,
+  getCurrentFcmToken
+} from '../notifications';
 
 export function usePushNotifications() {
   const { user } = useAuth();
   const [isSubscribed, setIsSubscribed] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [fcmToken, setFcmToken] = useState<string | null>(null);
 
   useEffect(() => {
     if (!user) {
@@ -24,17 +26,22 @@ export function usePushNotifications() {
 
   const checkSubscriptionStatus = async () => {
     try {
-      if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
+      if (!('Notification' in window)) {
         setError('Push notifications are not supported in this browser');
         setLoading(false);
         return;
       }
 
-      const registration = await navigator.serviceWorker.ready;
-      const subscription = await registration.pushManager.getSubscription();
-      setIsSubscribed(!!subscription);
+      const permission = checkNotificationPermission();
+      setIsSubscribed(permission === 'granted');
+      
+      // If we have permission, get the token
+      if (permission === 'granted') {
+        const token = await getCurrentFcmToken();
+        setFcmToken(token);
+      }
     } catch (error: any) {
-      console.error('Error checking subscription status:', error);
+      console.error('[usePushNotifications] Error checking subscription status:', error);
       setError(getNotificationErrorMessage(error));
     } finally {
       setLoading(false);
@@ -48,22 +55,22 @@ export function usePushNotifications() {
       setError(null);
       setLoading(true);
 
-      const permissionGranted = await requestNotificationPermission();
-      if (!permissionGranted) {
+      const success = await requestNotificationPermission(user.id);
+      if (!success) {
         setError('Please allow notifications in your browser settings to receive updates');
         return false;
       }
 
-      const subscription = await subscribeToPushNotifications(user.id);
-      if (!subscription) {
-        setError('Failed to subscribe to notifications. Please try again.');
-        return false;
-      }
-
+      // Update state after successful subscription
       setIsSubscribed(true);
+      
+      // Get and set the token
+      const token = await getCurrentFcmToken();
+      setFcmToken(token);
+      
       return true;
     } catch (error: any) {
-      console.error('Error subscribing to notifications:', error);
+      console.error('[usePushNotifications] Error subscribing to notifications:', error);
       setError(getNotificationErrorMessage(error));
       return false;
     } finally {
@@ -78,15 +85,44 @@ export function usePushNotifications() {
       setError(null);
       setLoading(true);
 
-      const success = await unsubscribeFromPushNotifications(user.id);
-      setIsSubscribed(!success);
+      const success = await unsubscribeFromNotifications(user.id);
+      
+      // Update state after unsubscribe attempt
+      if (success) {
+        setIsSubscribed(false);
+        setFcmToken(null);
+      }
+      
       return success;
     } catch (error: any) {
-      console.error('Error unsubscribing from notifications:', error);
+      console.error('[usePushNotifications] Error unsubscribing from notifications:', error);
       setError(getNotificationErrorMessage(error));
       return false;
     } finally {
       setLoading(false);
+    }
+  };
+
+  const sendTest = async () => {
+    if (!user || !isSubscribed) return false;
+
+    try {
+      setError(null);
+      
+      // Create a local notification for testing
+      if (Notification.permission === 'granted') {
+        new Notification('Test Notification', {
+          body: 'This is a test notification from NestTask',
+          icon: '/icons/icon-192x192.png'
+        });
+        return true;
+      }
+      
+      return false;
+    } catch (error: any) {
+      console.error('[usePushNotifications] Error sending test notification:', error);
+      setError(getNotificationErrorMessage(error));
+      return false;
     }
   };
 
@@ -104,7 +140,9 @@ export function usePushNotifications() {
     isSubscribed,
     loading,
     error,
+    fcmToken,
     subscribe,
-    unsubscribe
+    unsubscribe,
+    sendTest
   };
 }

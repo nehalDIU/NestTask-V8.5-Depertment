@@ -1,6 +1,7 @@
 import { useState } from 'react';
-import { Bell, Loader2, AlertCircle } from 'lucide-react';
+import { Bell, Loader2, AlertCircle, Send } from 'lucide-react';
 import { usePushNotifications } from '../../hooks/usePushNotifications';
+import { NotificationPermission } from '../notifications/NotificationPermission';
 
 export function NotificationSettings() {
   const { 
@@ -8,10 +9,13 @@ export function NotificationSettings() {
     loading, 
     error, 
     subscribe, 
-    unsubscribe 
+    unsubscribe,
+    sendTest 
   } = usePushNotifications();
 
   const [isUpdating, setIsUpdating] = useState(false);
+  const [isTesting, setIsTesting] = useState(false);
+  const [testResult, setTestResult] = useState<string | null>(null);
 
   const handleToggle = async () => {
     setIsUpdating(true);
@@ -23,6 +27,30 @@ export function NotificationSettings() {
       }
     } finally {
       setIsUpdating(false);
+    }
+  };
+
+  const handleTestNotification = async () => {
+    setIsTesting(true);
+    setTestResult(null);
+    
+    try {
+      const success = await sendTest();
+      if (success) {
+        setTestResult('Test notification sent successfully!');
+      } else {
+        setTestResult('Failed to send test notification. Make sure notifications are enabled.');
+      }
+    } catch (error) {
+      setTestResult('Error sending test notification.');
+      console.error(error);
+    } finally {
+      setIsTesting(false);
+      
+      // Clear the test result message after 5 seconds
+      setTimeout(() => {
+        setTestResult(null);
+      }, 5000);
     }
   };
 
@@ -86,6 +114,53 @@ export function NotificationSettings() {
           />
         </button>
       </div>
+
+      {/* Browser Notification Permission */}
+      <div className="pt-4 border-t border-gray-100 dark:border-gray-700">
+        <h4 className="text-sm font-medium text-gray-900 dark:text-white mb-3">
+          Browser Notifications
+        </h4>
+        <NotificationPermission />
+      </div>
+
+      {/* Test Notification Button */}
+      {isSubscribed && (
+        <div className="pt-4 border-t border-gray-100 dark:border-gray-700">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+            <div>
+              <h4 className="text-sm font-medium text-gray-900 dark:text-white">
+                Test Notifications
+              </h4>
+              <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                Send a test notification to verify everything is working
+              </p>
+            </div>
+            <button
+              onClick={handleTestNotification}
+              disabled={isTesting || !isSubscribed}
+              className="inline-flex items-center justify-center px-4 py-2 text-sm font-medium text-white bg-blue-600 border border-transparent rounded-md shadow-sm hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {isTesting ? (
+                <>
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  Sending...
+                </>
+              ) : (
+                <>
+                  <Send className="w-4 h-4 mr-2" />
+                  Send Test
+                </>
+              )}
+            </button>
+          </div>
+          
+          {testResult && (
+            <div className={`mt-3 p-3 rounded-md text-sm ${testResult.includes('success') ? 'bg-green-50 text-green-700 dark:bg-green-900/20 dark:text-green-300' : 'bg-red-50 text-red-700 dark:bg-red-900/20 dark:text-red-300'}`}>
+              {testResult}
+            </div>
+          )}
+        </div>
+      )}
 
       {error && (
         <div className="flex items-start gap-2 p-4 rounded-lg bg-red-50 dark:bg-red-900/20">

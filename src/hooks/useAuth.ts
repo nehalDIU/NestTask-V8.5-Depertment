@@ -1,8 +1,9 @@
 import { useState, useEffect } from 'react';
 import { supabase, testConnection } from '../lib/supabase';
-import { loginUser, signupUser, logoutUser, resetPassword } from '../services/auth.service';
+import { loginUser, signupUser, logoutUser, resetPassword, AuthResult } from '../services/auth.service';
 import { forceCleanReload, updateAuthStatus } from '../utils/auth';
 import type { User, LoginCredentials, SignupCredentials } from '../types/auth';
+import { requestNotificationPermission } from '../notifications';
 
 const REMEMBER_ME_KEY = 'nesttask_remember_me';
 const SAVED_EMAIL_KEY = 'nesttask_saved_email';
@@ -200,168 +201,75 @@ export function useAuth() {
         localStorage.removeItem(SAVED_EMAIL_KEY);
       }
       
-      // Check for development mode more robustly
-      const isDevelopment = import.meta.env.DEV || 
-                          import.meta.env.MODE === 'development' ||
-                          window.location.hostname === 'localhost' ||
-                          window.location.hostname === '127.0.0.1';
+      setLoading(true);
+      const result = await loginUser(credentials);
       
-      // Try to load demo user from localStorage first (for development mode)
-      if (isDevelopment && localStorage.getItem('nesttask_demo_user')) {
-        try {
-          const demoUser = JSON.parse(localStorage.getItem('nesttask_demo_user') || '{}');
-          if (demoUser && demoUser.email === credentials.email) {
-            console.log('Using cached demo user from localStorage:', demoUser);
-            setUser(demoUser);
-            updateAuthStatus(true);
-            
-            // Handle superadmin redirect for demo users too
-            if (demoUser.role === 'super-admin' || demoUser.email === 'superadmin@nesttask.com') {
-              console.log('Demo super admin detected');
-              localStorage.setItem('is_super_admin', 'true');
-              sessionStorage.setItem('is_super_admin', 'true');
-              localStorage.setItem('auth_completed', 'true');
-            }
-            
-            return demoUser;
-          }
-        } catch (err) {
-          console.warn('Failed to parse demo user from localStorage');
-        }
+      if (result.error) {
+        console.error('Login error:', result.error);
+        setError(result.error.message);
+        return null;
       }
       
-      // Regular login process with the backend
-      const user = await loginUser(credentials);
-      console.log('User after login:', user);
+      if (!result.user) {
+        setError('Failed to login. Please try again.');
+        return null;
+      }
       
       updateAuthStatus(true);
       
-      // Check for superadmin role - use multiple conditions for robust detection
-      if (
-        user.role === 'super-admin' ||
-        credentials.email === 'superadmin@nesttask.com' ||
-        user.email === 'superadmin@nesttask.com'
-      ) {
-        console.log('Super admin login detected');
-        
-        // Ensure the role is set correctly
-        user.role = 'super-admin';
-        
-        try {
-          const { data: userData, error: userError } = await supabase
-            .from('users_with_full_info')
-            .select('*')
-            .eq('email', user.email)
-            .single();
-            
-          if (!userError && userData) {
-            console.log('Super admin data from database:', userData);
-            if (userData.name) user.name = userData.name;
-          }
-        } catch (err) {
-          console.warn('Error fetching super admin data, using default values', err);
-        }
-        
-        localStorage.setItem('is_super_admin', 'true');
-        sessionStorage.setItem('is_super_admin', 'true');
-        localStorage.setItem('auth_completed', 'true');
-        
-        setUser(user);
-        
-        return user;
+      // Request notification permission after successful login
+      try {
+        await requestNotificationPermission(result.user.id);
+      } catch (notifError) {
+        console.error('Error requesting notification permission:', notifError);
+        // Don't block the login process if notification permission fails
       }
       
-      const { data: userData, error: userError } = await supabase
-        .from('users')
-        .select('*')
-        .eq('id', user.id)
-        .single();
-        
-      if (userError) {
-        console.error('Error fetching user data after login:', userError);
-      } else {
-        console.log('User data from database after login:', userData);
-        if (userData) {
-          if (userData.role) {
-            user.role = userData.role as 'user' | 'admin' | 'super-admin' | 'section-admin';
-            console.log('Updated user role from database:', user.role);
-          }
-          
-          if (userData.department_id) {
-            user.departmentId = userData.department_id;
-            console.log('Updated user department ID:', user.departmentId);
-          }
-          
-          if (userData.batch_id) {
-            user.batchId = userData.batch_id;
-            console.log('Updated user batch ID:', user.batchId);
-          }
-          
-          if (userData.section_id) {
-            user.sectionId = userData.section_id;
-            console.log('Updated user section ID:', user.sectionId);
-          }
-          
-          if (userData.phone) {
-            user.phone = userData.phone;
-          }
-          
-          if (userData.student_id) {
-            user.studentId = userData.student_id;
-          }
-          
-          if (userData.avatar) {
-            user.avatar = userData.avatar;
-          }
-        }
-      }
-      
-      setUser(user);
-      
-      setTimeout(() => forceCleanReload(), 1000);
-      
-      return user;
+      return result.user;
     } catch (err: any) {
-      setError(err.message);
-      throw err;
+      console.error('Unexpected login error:', err);
+      setError(err.message || 'An unexpected error occurred');
+      return null;
+    } finally {
+      setLoading(false);
     }
   };
 
   const signup = async (credentials: SignupCredentials) => {
     try {
       setError(null);
-      console.log('Starting signup process with credentials:', {
-        ...credentials,
-        password: '[REDACTED]'
-      });
+      setLoading(true);
       
-      if (credentials.departmentId) {
-        console.log(`Department selected: ${credentials.departmentId}`);
-      }
-      if (credentials.batchId) {
-        console.log(`Batch selected: ${credentials.batchId}`);
-      }
-      if (credentials.sectionId) {
-        console.log(`Section selected: ${credentials.sectionId}`);
+      const result = await signupUser(credentials);
+      
+      if (result.error) {
+        console.error('Signup error:', result.error);
+        setError(result.error.message);
+        return null;
       }
       
-      const user = await signupUser(credentials);
-      console.log('Signup successful, user data:', {
-        id: user.id,
-        email: user.email,
-        name: user.name,
-        role: user.role,
-        departmentId: user.departmentId,
-        batchId: user.batchId,
-        sectionId: user.sectionId
-      });
+      if (!result.user) {
+        setError('Failed to create account. Please try again.');
+        return null;
+      }
       
-      setUser(user);
-      return user;
+      updateAuthStatus(true);
+      
+      // Request notification permission after successful signup
+      try {
+        await requestNotificationPermission(result.user.id);
+      } catch (notifError) {
+        console.error('Error requesting notification permission:', notifError);
+        // Don't block the signup process if notification permission fails
+      }
+      
+      return result.user;
     } catch (err: any) {
-      console.error('Signup error:', err);
-      setError(err.message);
-      throw err;
+      console.error('Unexpected signup error:', err);
+      setError(err.message || 'An unexpected error occurred');
+      return null;
+    } finally {
+      setLoading(false);
     }
   };
 

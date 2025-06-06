@@ -1,11 +1,10 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from './useAuth';
-import { checkNotificationPermission } from '../notifications';
 import { 
-  registerForPushNotifications, 
-  unregisterFromPushNotifications, 
-  sendTestNotification 
-} from '../services/pushNotification.service';
+  requestNotificationPermission, 
+  subscribeToPushNotifications,
+  unsubscribeFromPushNotifications
+} from '../utils/pushNotifications';
 
 export function usePushNotifications() {
   const { user } = useAuth();
@@ -25,14 +24,15 @@ export function usePushNotifications() {
 
   const checkSubscriptionStatus = async () => {
     try {
-      if (!('Notification' in window)) {
+      if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
         setError('Push notifications are not supported in this browser');
         setLoading(false);
         return;
       }
 
-      const permission = checkNotificationPermission();
-      setIsSubscribed(permission === 'granted');
+      const registration = await navigator.serviceWorker.ready;
+      const subscription = await registration.pushManager.getSubscription();
+      setIsSubscribed(!!subscription);
     } catch (error: any) {
       console.error('Error checking subscription status:', error);
       setError(getNotificationErrorMessage(error));
@@ -48,9 +48,15 @@ export function usePushNotifications() {
       setError(null);
       setLoading(true);
 
-      const success = await registerForPushNotifications(user.id);
-      if (!success) {
+      const permissionGranted = await requestNotificationPermission();
+      if (!permissionGranted) {
         setError('Please allow notifications in your browser settings to receive updates');
+        return false;
+      }
+
+      const subscription = await subscribeToPushNotifications(user.id);
+      if (!subscription) {
+        setError('Failed to subscribe to notifications. Please try again.');
         return false;
       }
 
@@ -72,7 +78,7 @@ export function usePushNotifications() {
       setError(null);
       setLoading(true);
 
-      const success = await unregisterFromPushNotifications(user.id);
+      const success = await unsubscribeFromPushNotifications(user.id);
       setIsSubscribed(!success);
       return success;
     } catch (error: any) {
@@ -81,19 +87,6 @@ export function usePushNotifications() {
       return false;
     } finally {
       setLoading(false);
-    }
-  };
-
-  const sendTest = async () => {
-    if (!user) return false;
-
-    try {
-      setError(null);
-      return await sendTestNotification(user.id);
-    } catch (error: any) {
-      console.error('Error sending test notification:', error);
-      setError(getNotificationErrorMessage(error));
-      return false;
     }
   };
 
@@ -112,7 +105,6 @@ export function usePushNotifications() {
     loading,
     error,
     subscribe,
-    unsubscribe,
-    sendTest
+    unsubscribe
   };
 }

@@ -1,4 +1,4 @@
-import React, { StrictMode, Suspense, lazy, useEffect } from 'react';
+import React, { StrictMode, Suspense, lazy } from 'react';
 import { createRoot } from 'react-dom/client';
 import { createBrowserRouter, RouterProvider } from 'react-router-dom';
 // Import CSS (Vite handles this correctly)
@@ -6,8 +6,8 @@ import './index.css';
 import { MicroLoader } from './components/MicroLoader';
 import { initPWA } from './utils/pwa';
 import { supabase } from './lib/supabase';
-import { onForegroundMessage } from './firebase';
 import type { LoginCredentials, SignupCredentials } from './types/auth';
+import { messaging, getFcmToken } from './firebase';
 
 // Lazy-load core pages
 const App = lazy(() => import('./App'));
@@ -34,24 +34,6 @@ const Analytics = import.meta.env.PROD
 // Simple error boundary for analytics
 const AnalyticsErrorBoundary = ({ children }: { children: React.ReactNode }) => {
   if (!import.meta.env.PROD) return null;
-  return <>{children}</>;
-};
-
-// Wrapper component to initialize Firebase messaging
-const FirebaseMessagingProvider = ({ children }: { children: React.ReactNode }) => {
-  useEffect(() => {
-    // Initialize Firebase Cloud Messaging for foreground messages
-    if ('Notification' in window && Notification.permission === 'granted') {
-      onForegroundMessage()
-        .then(() => {
-          console.log('FCM foreground handler initialized');
-        })
-        .catch(err => {
-          console.error('Error setting up FCM foreground handler:', err);
-        });
-    }
-  }, []);
-
   return <>{children}</>;
 };
 
@@ -132,16 +114,14 @@ function initApp() {
   // Render app with minimal surrounding components
   reactRoot.render(
     <StrictMode>
-      <FirebaseMessagingProvider>
-        <Suspense fallback={<MicroLoader />}>
-          <RouterProvider router={router} />
-          {import.meta.env.PROD && (
-            <AnalyticsErrorBoundary>
-              <Suspense fallback={null}><Analytics /></Suspense>
-            </AnalyticsErrorBoundary>
-          )}
-        </Suspense>
-      </FirebaseMessagingProvider>
+      <Suspense fallback={<MicroLoader />}>
+        <RouterProvider router={router} />
+        {import.meta.env.PROD && (
+          <AnalyticsErrorBoundary>
+            <Suspense fallback={null}><Analytics /></Suspense>
+          </AnalyticsErrorBoundary>
+        )}
+      </Suspense>
     </StrictMode>
   );
   

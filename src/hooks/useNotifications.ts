@@ -2,8 +2,6 @@ import { useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
 import type { Task } from '../types';
 import type { Announcement } from '../types/announcement';
-import { useAuth } from './useAuth';
-import { requestNotificationPermission, checkNotificationPermission, unsubscribeFromNotifications } from '../notifications';
 
 export interface Notification {
   id: string;
@@ -17,14 +15,9 @@ export interface Notification {
   isAnnouncement: boolean;
 }
 
-export function useNotifications() {
-  const { user } = useAuth();
+export function useNotifications(userId: string | undefined) {
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
-  const [permission, setPermission] = useState<NotificationPermission | 'unsupported'>(
-    checkNotificationPermission()
-  );
-  const [isLoading, setIsLoading] = useState(false);
 
   const sortNotifications = (notifs: Notification[]): Notification[] => {
     return [...notifs].sort((a, b) => {
@@ -34,14 +27,14 @@ export function useNotifications() {
   };
 
   useEffect(() => {
-    if (!user) return;
+    if (!userId) return;
 
     const loadExistingItems = async () => {
       const [{ data: tasks }, { data: announcements }] = await Promise.all([
         supabase
           .from('tasks')
           .select('*')
-          .or(`user_id.eq.${user.id},is_admin_task.eq.true`)
+          .or(`user_id.eq.${userId},is_admin_task.eq.true`)
           .order('created_at', { ascending: false }),
         supabase
           .from('announcements')
@@ -96,7 +89,7 @@ export function useNotifications() {
           event: 'INSERT',
           schema: 'public',
           table: 'tasks',
-          filter: `user_id=eq.${user.id}`
+          filter: `user_id=eq.${userId}`
         },
         (payload) => {
           handleNewTask(payload.new as any);
@@ -135,10 +128,10 @@ export function useNotifications() {
       taskSubscription.unsubscribe();
       announcementSubscription.unsubscribe();
     };
-  }, [user]);
+  }, [userId]);
 
   const handleNewTask = (task: any) => {
-    if (task.is_admin_task || task.user_id === user.id) {
+    if (task.is_admin_task || task.user_id === userId) {
       const notification: Notification = {
         id: crypto.randomUUID(),
         title: task.is_admin_task ? 'New Admin Task' : 'New Task',
@@ -203,59 +196,11 @@ export function useNotifications() {
     });
   };
 
-  // Check permission when component mounts
-  useEffect(() => {
-    setPermission(checkNotificationPermission());
-  }, []);
-
-  // Request permission when user logs in
-  useEffect(() => {
-    if (user && permission === 'default') {
-      requestPermission();
-    }
-  }, [user, permission]);
-
-  // Function to request notification permission
-  const requestPermission = async () => {
-    if (!user) return;
-    setIsLoading(true);
-
-    try {
-      await requestNotificationPermission(user.id);
-      setPermission(checkNotificationPermission());
-    } catch (error) {
-      console.error('Error requesting notification permission:', error);
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  // Function to unsubscribe from notifications
-  const unsubscribe = async () => {
-    if (!user) return;
-    setIsLoading(true);
-
-    try {
-      await unsubscribeFromNotifications(user.id);
-      // Note: This doesn't change the permission status, just removes the token
-    } catch (error) {
-      console.error('Error unsubscribing from notifications:', error);
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
   return {
     notifications,
     unreadCount,
     markAsRead,
     markAllAsRead,
-    clearNotification,
-    permission,
-    isLoading,
-    requestPermission,
-    unsubscribe,
-    isSupported: permission !== 'unsupported',
-    isEnabled: permission === 'granted'
+    clearNotification
   };
 }

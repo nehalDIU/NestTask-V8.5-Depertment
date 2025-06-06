@@ -9,7 +9,7 @@ import { Navigation } from './components/Navigation';
 import { BottomNavigation } from './components/BottomNavigation';
 import { NotificationPanel } from './components/notifications/NotificationPanel';
 import { InstallPWA } from './components/InstallPWA';
-import { isSameDay } from './utils/dateUtils';
+import { isSameDay, isOverdue } from './utils/dateUtils';
 import { InstantTransition } from './components/InstantTransition';
 import type { NavPage } from './types/navigation';
 import type { TaskCategory } from './types/task';
@@ -18,6 +18,8 @@ import type { User } from './types/user';
 import { ResetPasswordPage } from './pages/ResetPasswordPage';
 import { supabase, testConnection } from './lib/supabase';
 import { HomePage } from './pages/HomePage';
+import useFcmToken from './hooks/useFcmToken';
+import { NotificationHandler } from './components/NotificationHandler';
 
 // Page import functions
 const importAdminDashboard = () => import('./pages/AdminDashboard').then(module => ({ default: module.AdminDashboard }));
@@ -42,6 +44,31 @@ const RoutinePage = lazy(importRoutinePage);
 type StatFilter = 'all' | 'overdue' | 'in-progress' | 'completed';
 
 export default function App() {
+
+  const [authUser, setAuthUser] = useState<any>(null);
+  
+  // Try to use FCM token but catch any errors
+  try {
+    useFcmToken(); // Register FCM token on mount
+  } catch (err) {
+    console.warn('Failed to register FCM token:', err);
+    // Continue without FCM token
+  }
+
+  useEffect(() => {
+    // Check current user
+    supabase.auth.getUser().then(({ data: { user } }) => {
+      setAuthUser(user);
+    });
+
+    // Listen for auth changes
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_, session) => {
+      setAuthUser(session?.user ?? null);
+    });
+
+    return () => subscription.unsubscribe();
+  }, []);
+
   // Always call all hooks first, regardless of any conditions
   const { user, loading: authLoading, error: authError, login, signup, logout, forgotPassword } = useAuth();
   
@@ -129,7 +156,8 @@ export default function App() {
     return {
       total: totalTasks,
       inProgress: validTasks.filter(t => t.status === 'in-progress').length,
-      completed: validTasks.filter(t => t.status === 'completed').length
+      completed: validTasks.filter(t => t.status === 'completed').length,
+      overdue: validTasks.filter(t => isOverdue(t.dueDate) && t.status !== 'completed').length
     };
   }, [tasks]);
 
@@ -281,7 +309,7 @@ export default function App() {
       default:
         return (
           <HomePage
-            user={user}
+            user={user as User}
             tasks={tasks || []}
             selectedCategory={selectedCategory}
             setSelectedCategory={setSelectedCategory}
@@ -317,8 +345,8 @@ export default function App() {
       <AuthPage
         onLogin={(credentials, rememberMe = false) => login(credentials, rememberMe)}
         onSignup={async (credentials) => {
-          const user = await signup(credentials);
-          return undefined; // Explicitly return undefined to match void type
+          await signup(credentials);
+          return; // Explicitly return undefined to match void type
         }}
         onForgotPassword={forgotPassword}
         error={authError || undefined}
@@ -355,8 +383,8 @@ export default function App() {
     );
   }
 
-   // Add handling for section_admin role
-   if (user.role === 'section_admin') {
+   // Add handling for section admin role
+   if (user.role === 'section-admin') {
     return (
       <Suspense fallback={<LoadingScreen minimumLoadTime={300} />}>
         <AdminDashboard

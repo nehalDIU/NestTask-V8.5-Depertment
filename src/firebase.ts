@@ -1,11 +1,11 @@
 import { initializeApp } from 'firebase/app';
-import { getMessaging, onMessage } from 'firebase/messaging';
+import { getMessaging, getToken, onMessage } from 'firebase/messaging';
 
 const firebaseConfig = {
     apiKey: "AIzaSyACfcXjX0vNXWNduCRks1Z6LRa9XAY2pJ8",
     authDomain: "nesttask-diu.firebaseapp.com",
     projectId: "nesttask-diu",
-    storageBucket: "nesttask-diu.appspot.com",
+    storageBucket: "nesttask-diu.firebasestorage.app",
     messagingSenderId: "743430115138",
     appId: "1:743430115138:web:3cbbdc0c149def8f88c2db",
     measurementId: "G-37LEQPKB3B"
@@ -15,38 +15,25 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 export const messaging = getMessaging(app);
 
-// Handle foreground messages
-export const onForegroundMessage = () => {
-  return new Promise((resolve) => {
+// Export token fetching function as both named and default export
+export const getFcmToken = async () => {
+  try {
+    const token = await getToken(messaging, { 
+      vapidKey: 'BP0PQk228HtybCDJ7LkkRGd437hwZjbC0SAQYM4Pk2n5PyFRfbxKoRKq7ze6lFuTM1njp7f9y0oaWFM5D_k5TS4' 
+    });
+    return token;
+  } catch (error) {
+    console.error('Error getting FCM token:', error);
+    return null;
+  }
+};
+
+export const onMessageListener = () =>
+  new Promise((resolve) => {
     onMessage(messaging, (payload) => {
-      console.log('Foreground message received:', payload);
-      
-      // Show a notification if the app is in the foreground
-      if (Notification.permission === 'granted') {
-        const notificationTitle = payload.notification?.title || 'NestTask Notification';
-        const notificationOptions = {
-          body: payload.notification?.body || '',
-          icon: payload.notification?.icon || '/logo192.png',
-          badge: '/badge-icon.png',
-          data: payload.data || {},
-        };
-        
-        // Show the notification
-        const notification = new Notification(notificationTitle, notificationOptions);
-        
-        // Handle notification click
-        notification.onclick = () => {
-          notification.close();
-          window.focus();
-          
-          // Navigate to a specific URL if provided
-          if (payload.data?.url) {
-            window.location.href = payload.data.url;
-          }
-        };
-      }
-      
       resolve(payload);
     });
   });
-};
+
+// Add a default export for compatibility
+export default { getFcmToken, onMessageListener, messaging };

@@ -373,16 +373,6 @@ export function AdminManagement({
           <div className="p-2 rounded-lg text-gray-600 dark:text-gray-300 transition-colors">
             <HelpTooltip content="To promote a user to admin, click the shield icon in their actions. The user will need to log out and log back in for the changes to take effect. Only super-admins can promote users." />
           </div>
-          
-          {/* Refresh Button */}
-          <button
-            onClick={handleRefresh}
-            disabled={loading || refreshing}
-            className="p-2 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 rounded-lg text-gray-600 dark:text-gray-300 transition-colors"
-            title="Refresh user list"
-          >
-            <RefreshCw className={`h-4 w-4 ${refreshing ? 'animate-spin' : ''}`} />
-          </button>
         </div>
       </div>
 

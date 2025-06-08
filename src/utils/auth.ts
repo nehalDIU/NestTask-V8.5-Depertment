@@ -3,7 +3,7 @@
 import { supabase } from '../lib/supabase';
 
 /**
- * Forces a clean reload of the application after login
+ * Clears application caches after login/logout without forcing a page reload
  * This helps ensure PWA cache is refreshed for authenticated views
  */
 export function forceCleanReload(): void {
@@ -12,11 +12,11 @@ export function forceCleanReload(): void {
                        sessionStorage.getItem('is_super_admin') === 'true' ||
                        localStorage.getItem('is_super_admin') === 'true';
   
-  console.log('Force clean reload called, isSuperAdmin:', isSuperAdmin);
+  console.log('Cache cleanup called, isSuperAdmin:', isSuperAdmin);
   
-  // For super admin, don't reload or clear caches - instead just preserve the state
+  // For super admin, don't clear caches - instead just preserve the state
   if (isSuperAdmin) {
-    console.log('Super admin detected - preserving state without reload');
+    console.log('Super admin detected - preserving state without cache clearing');
     
     // Just notify service worker to preserve admin caches
     if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
@@ -26,7 +26,7 @@ export function forceCleanReload(): void {
       });
     }
     
-    return; // Don't reload the page
+    return; // Don't clear caches
   }
   
   // For other users, perform normal cache clearing
@@ -52,20 +52,14 @@ export function forceCleanReload(): void {
     // Listen for response from service worker
     navigator.serviceWorker.addEventListener('message', (event) => {
       if (event.data && event.data.type === 'CACHES_CLEARED') {
-        console.log('Service worker cleared caches, reloading page');
-        window.location.reload();
+        console.log('Service worker cleared caches');
+        // Removed the window.location.reload() call
       }
     }, { once: true }); // Only listen once
     
-    // Fallback reload in case service worker doesn't respond
-    setTimeout(() => {
-      console.log('Forcing page reload after timeout');
-      window.location.reload();
-    }, 1000);
-  } else {
-    // If no service worker, just reload the page
-    window.location.reload();
+    // Removed the fallback reload timeout
   }
+  // Removed the else block that was forcing a page reload
 }
 
 /**

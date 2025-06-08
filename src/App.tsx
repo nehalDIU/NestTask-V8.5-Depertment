@@ -199,9 +199,9 @@ export default function App() {
                   refreshTasks(true);
                 });
               } else {
-                // If connection failed, reload the page to reset everything
-                console.warn('Connection test failed on visibility change, reloading page');
-                window.location.reload();
+                // If connection failed, try to refresh data instead of reloading
+                console.warn('Connection test failed on visibility change, attempting to refresh data');
+                refreshTasks(true); // Force refresh with recovery mode
               }
             }).catch((error: any) => {
               console.error('Error testing connection:', error);

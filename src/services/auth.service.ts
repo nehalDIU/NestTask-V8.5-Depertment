@@ -629,38 +629,35 @@ export async function resetPassword(email: string): Promise<void> {
 
 export async function refreshUserRole(): Promise<boolean> {
   try {
-    showSuccessToast('Refreshing user role...');
-    
     // Get current user
-    const { data: { user }, error: userError } = await supabase.auth.getUser();
-    if (userError || !user) {
-      console.error('Error fetching current user:', userError);
-      showErrorToast('Could not fetch user information');
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) {
+      console.error('No user found when trying to refresh role');
+      showErrorToast('Error: No user found');
       return false;
     }
     
-    console.log('Current user metadata before refresh:', user.user_metadata);
-    
-    // Get user role from database
-    const { data: userData, error: dbError } = await supabase
+    // Get user data from database
+    const { data: userData, error } = await supabase
       .from('users')
       .select('role')
       .eq('id', user.id)
       .single();
-      
-    if (dbError) {
-      console.error('Error fetching user role from database:', dbError);
-      showErrorToast('Could not fetch role information');
+    
+    if (error) {
+      console.error('Error fetching user role:', error);
+      showErrorToast('Failed to fetch user role');
       return false;
     }
     
-    if (!userData?.role) {
-      console.warn('No role found in database for user');
-      showErrorToast('No role found in database');
+    if (!userData) {
+      console.error('No user data found in database');
+      showErrorToast('User not found in database');
       return false;
     }
     
-    console.log('Role found in database:', userData.role);
+    console.log('Current user role in metadata:', user.user_metadata?.role);
+    console.log('Database user role:', userData.role);
     
     // Update user metadata with role from database
     if (userData.role !== user.user_metadata?.role) {
@@ -678,13 +675,9 @@ export async function refreshUserRole(): Promise<boolean> {
       }
       
       console.log('Successfully updated user role in metadata to:', userData.role);
-      showSuccessToast(`Role updated to ${userData.role}. Reloading...`);
+      showSuccessToast(`Role updated to ${userData.role}`);
       
-      // Reload the page after a short delay to allow time for the toast to be seen
-      setTimeout(() => {
-        window.location.reload();
-      }, 1500);
-      
+      // Return success without reloading the page
       return true;
     } else {
       console.log('User role already matches database, no update needed');

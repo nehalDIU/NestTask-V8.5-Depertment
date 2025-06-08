@@ -107,7 +107,8 @@ export function useAuth() {
       document.cookie = c.replace(/^ +/, "").replace(/=.*/, "=;expires=" + new Date().toUTCString() + ";path=/");
     });
     
-    await forceCleanReload();
+    // Clear caches without page reload
+    forceCleanReload();
   };
 
   const updateUserState = async (authUser: any) => {
@@ -318,7 +319,8 @@ export function useAuth() {
       
       setUser(user);
       
-      setTimeout(() => forceCleanReload(), 1000);
+      // Clear caches without page reload
+      forceCleanReload();
       
       return user;
     } catch (err: any) {
@@ -391,7 +393,8 @@ export function useAuth() {
       
       console.log('Logout process completed');
       
-      setTimeout(() => forceCleanReload(), 500);
+      // Clear caches without page reload
+      forceCleanReload();
       
       return true;
     } catch (err: any) {

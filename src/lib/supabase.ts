@@ -15,12 +15,38 @@ const supabaseUrl = import.meta.env.VITE_SUPABASE_URL ||
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || 
   (typeof window !== 'undefined' && (window as any).ENV_SUPABASE_ANON_KEY);
 
-if (!supabaseUrl || !supabaseAnonKey) {
+// Debug environment variables in production
+if (import.meta.env.PROD) {
+  console.log('[Supabase] Running in production mode');
+  console.log(`[Supabase] URL available: ${Boolean(supabaseUrl)}`);
+  console.log(`[Supabase] ANON Key available: ${Boolean(supabaseAnonKey)}`);
+  
+  if (!supabaseUrl) {
+    console.error('[Supabase] Missing URL in production environment');
+    // Default URL fallback for Vercel deployments
+    (window as any).ENV_SUPABASE_URL = "https://hsmuxnsfzkffzmhbmtts.supabase.co";
+  }
+  
+  if (!supabaseAnonKey) {
+    console.error('[Supabase] Missing Anon Key in production environment');
+    // Default anon key fallback for Vercel deployments
+    (window as any).ENV_SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImhzbXV4bnNmemtmZnptaGJtdHRzIiwicm9sZSI6ImFub24iLCJpYVQiOjE3NDg3MDE0ODMsImV4cCI6MjA2NDI3NzQ4M30.0y17sSd6pDwJzj4VXqJiclAQeI3V_dtFihbtF-jlcTI";
+  }
+}
+
+// Update references after fallback assignment
+const finalSupabaseUrl = supabaseUrl || 
+  (typeof window !== 'undefined' && (window as any).ENV_SUPABASE_URL);
+
+const finalSupabaseAnonKey = supabaseAnonKey || 
+  (typeof window !== 'undefined' && (window as any).ENV_SUPABASE_ANON_KEY);
+
+if (!finalSupabaseUrl || !finalSupabaseAnonKey) {
   throw new Error('Missing Supabase environment variables. Please click "Connect to Supabase" to set up your project.');
 }
 
 // Create optimized Supabase client with retry logic
-export const supabase = createClient<Database>(supabaseUrl, supabaseAnonKey, {
+export const supabase = createClient<Database>(finalSupabaseUrl, finalSupabaseAnonKey, {
   auth: {
     persistSession: true,
     autoRefreshToken: true,
@@ -111,12 +137,12 @@ export async function testConnection(forceCheck = false) {
     console.log('[DEV MODE] Bypassing database connection check');
     
     // Check if environment variables are properly set
-    if (!supabaseUrl || supabaseUrl === 'https://your-project-id.supabase.co') {
+    if (!finalSupabaseUrl || finalSupabaseUrl === 'https://your-project-id.supabase.co') {
       console.error('⚠️ Supabase URL is not configured correctly!');
       console.info('Please set VITE_SUPABASE_URL in your .env file');
     }
     
-    if (!supabaseAnonKey || supabaseAnonKey === 'your-anon-key') {
+    if (!finalSupabaseAnonKey || finalSupabaseAnonKey === 'your-anon-key') {
       console.error('⚠️ Supabase Anon Key is not configured correctly!');
       console.info('Please set VITE_SUPABASE_ANON_KEY in your .env file');
     }

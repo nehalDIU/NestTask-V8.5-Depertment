@@ -66,6 +66,14 @@ self.addEventListener('fetch', (event) => {
     return;
   }
   
+  // Skip Supabase API requests for data tables - let them go directly to network
+  // This fixes issues with authentication and stale data
+  if (event.request.url.includes('supabase.co/rest/v1/') || 
+      event.request.url.includes('supabase.co/auth/')) {
+    // Pass through to network without caching
+    return;
+  }
+  
   // CSS, JS, and critical assets - cache first with network update
   if (event.request.url.match(/\.(css|js|woff2|woff|ttf|svg|png|jpg|jpeg|gif|webp)$/)) {
     event.respondWith(
@@ -74,8 +82,9 @@ self.addEventListener('fetch', (event) => {
           const fetchPromise = fetch(event.request)
             .then(networkResponse => {
               if (networkResponse.ok) {
-                const cache = caches.open(STATIC_CACHE_NAME)
-                  .then(cache => cache.put(event.request, networkResponse.clone()));
+                const clonedResponse = networkResponse.clone();
+                caches.open(STATIC_CACHE_NAME)
+                  .then(cache => cache.put(event.request, clonedResponse));
               }
               return networkResponse;
             });
@@ -86,14 +95,15 @@ self.addEventListener('fetch', (event) => {
     return;
   }
   
-  // API requests - network first with timeout fallback to cache
+  // API requests - network first without caching for Supabase
   if (event.request.url.includes('/api/')) {
     const TIMEOUT = 3000;
     event.respondWith(
       Promise.race([
         fetch(event.request.clone())
           .then(response => {
-            if (response.ok) {
+            // Only cache non-Supabase API responses
+            if (response.ok && !event.request.url.includes('supabase')) {
               const clonedResponse = response.clone();
               caches.open(DYNAMIC_CACHE_NAME)
                 .then(cache => cache.put(event.request, clonedResponse));

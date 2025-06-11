@@ -1,6 +1,6 @@
 {
   "version": 2,
-  "buildCommand": "node vercel-build.cjs",
+  "buildCommand": "node vercel-build-improved.cjs",
   "outputDirectory": "dist",
   "routes": [
     {

@@ -2,7 +2,6 @@ import React, { useMemo, useState, useEffect } from 'react';
 import { ListTodo, CheckCircle2, Clock, AlertCircle, Sparkles, CalendarDays } from 'lucide-react';
 import { TaskList } from '../components/TaskList';
 import { TaskCategories } from '../components/task/TaskCategories';
-import { FCMDebug } from '../components/FCMDebug';
 import { isOverdue } from '../utils/dateUtils';
 import { formatUpcomingDueDate } from '../utils/dateUtils';
 import type { Task, TaskCategory } from '../types/task';
@@ -140,13 +139,6 @@ export const HomePage: React.FC<HomePageProps> = ({
 
   return (
     <div className="space-y-8">
-      {/* FCM Debug - Only show in development */}
-      {import.meta.env.DEV && (
-        <div className="mb-6">
-          <FCMDebug />
-        </div>
-      )}
-
       {/* Welcome Section */}
       <div className="bg-gradient-to-r from-blue-600 to-indigo-600 rounded-2xl p-6 sm:p-8 text-white overflow-hidden">
         <div

@@ -30,7 +30,20 @@
     },
     {
       "src": "/service-worker.js",
-      "headers": { "cache-control": "public, max-age=0, must-revalidate" },
+      "headers": {
+        "cache-control": "public, max-age=0, must-revalidate",
+        "content-type": "application/javascript",
+        "service-worker-allowed": "/"
+      },
+      "continue": true
+    },
+    {
+      "src": "/firebase-messaging-sw.js",
+      "headers": {
+        "cache-control": "public, max-age=0, must-revalidate",
+        "content-type": "application/javascript",
+        "service-worker-allowed": "/"
+      },
       "continue": true
     },
     { "handle": "filesystem" },

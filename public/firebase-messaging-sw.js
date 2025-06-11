@@ -8,13 +8,13 @@ importScripts('https://www.gstatic.com/firebasejs/10.7.1/firebase-messaging-comp
 // Firebase configuration
 // Note: These should match your Firebase project configuration
 const firebaseConfig = {
-  apiKey: "your-firebase-api-key",
-  authDomain: "your-project-id.firebaseapp.com",
-  projectId: "your-project-id",
-  storageBucket: "your-project-id.appspot.com",
-  messagingSenderId: "your-sender-id",
-  appId: "your-app-id",
-  measurementId: "your-measurement-id"
+  apiKey: "AIzaSyACfcXjX0vNXWNduCRks1Z6LRa9XAY2pJ8",
+  authDomain: "nesttask-diu.firebaseapp.com",
+  projectId: "nesttask-diu",
+  storageBucket: "nesttask-diu.firebasestorage.app",
+  messagingSenderId: "743430115138",
+  appId: "1:743430115138:web:3cbbdc0c149def8f88c2db",
+  measurementId: "G-37LEQPKB3B"
 };
 
 // Initialize Firebase

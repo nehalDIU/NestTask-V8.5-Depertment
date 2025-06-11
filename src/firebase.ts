@@ -3,20 +3,39 @@ import { getMessaging, getToken, onMessage, isSupported } from 'firebase/messagi
 
 // Firebase configuration
 const firebaseConfig = {
-  apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
-  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
-  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
-  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
-  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
-  appId: import.meta.env.VITE_FIREBASE_APP_ID,
-  measurementId: import.meta.env.VITE_FIREBASE_MEASUREMENT_ID
+  apiKey: import.meta.env.VITE_FIREBASE_API_KEY || "AIzaSyACfcXjX0vNXWNduCRks1Z6LRa9XAY2pJ8",
+  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN || "nesttask-diu.firebaseapp.com",
+  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID || "nesttask-diu",
+  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET || "nesttask-diu.firebasestorage.app",
+  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID || "743430115138",
+  appId: import.meta.env.VITE_FIREBASE_APP_ID || "1:743430115138:web:3cbbdc0c149def8f88c2db",
+  measurementId: import.meta.env.VITE_FIREBASE_MEASUREMENT_ID || "G-37LEQPKB3B"
+};
+
+// Validate Firebase configuration
+const validateFirebaseConfig = () => {
+  const requiredFields = ['apiKey', 'authDomain', 'projectId', 'messagingSenderId', 'appId'];
+  const missingFields = requiredFields.filter(field => !firebaseConfig[field as keyof typeof firebaseConfig]);
+
+  if (missingFields.length > 0) {
+    console.error('Missing Firebase configuration fields:', missingFields);
+    return false;
+  }
+
+  console.log('✅ Firebase configuration validated successfully');
+  return true;
 };
 
 // VAPID key for FCM
-const VAPID_KEY = import.meta.env.VITE_FIREBASE_VAPID_KEY;
+const VAPID_KEY = import.meta.env.VITE_FIREBASE_VAPID_KEY || "BP0PQk228HtybCDJ7LkkRGd437hwZjbC0SAQYM4Pk2n5PyFRfbxKoRKq7ze6lFuTM1njp7f9y0oaWFM5D_k5TS4";
 
-// Initialize Firebase
+// Validate and initialize Firebase
+if (!validateFirebaseConfig()) {
+  console.error('❌ Firebase configuration validation failed');
+}
+
 const app = initializeApp(firebaseConfig);
+console.log('🔥 Firebase app initialized successfully');
 
 // Initialize Firebase Cloud Messaging and get a reference to the service
 let messaging: any = null;

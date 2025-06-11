@@ -3,7 +3,7 @@
   X-Content-Type-Options: nosniff
   Referrer-Policy: strict-origin-when-cross-origin
   Permissions-Policy: camera=(), microphone=(), geolocation=()
-  Content-Security-Policy: default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://tunwmqxygoutbrwkguap.supabase.co; connect-src 'self' https://tunwmqxygoutbrwkguap.supabase.co https://fonts.googleapis.com https://fonts.gstatic.com; img-src 'self' data: blob: https:; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; worker-src 'self' blob:; navigate-to 'self'
+  Content-Security-Policy: default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://tunwmqxygoutbrwkguap.supabase.co https://www.gstatic.com https://fcm.googleapis.com; connect-src 'self' https://tunwmqxygoutbrwkguap.supabase.co https://fonts.googleapis.com https://fonts.gstatic.com https://fcm.googleapis.com https://firebase.googleapis.com; img-src 'self' data: blob: https:; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; worker-src 'self' blob:; navigate-to 'self'
 
 /assets/*
   Cache-Control: public, max-age=31536000, immutable
@@ -17,6 +17,12 @@
 /service-worker.js
   Cache-Control: public, max-age=0, must-revalidate
   Service-Worker-Allowed: /
+  Content-Type: application/javascript
+
+/firebase-messaging-sw.js
+  Cache-Control: public, max-age=0, must-revalidate
+  Service-Worker-Allowed: /
+  Content-Type: application/javascript
 
 /sw.js
   Cache-Control: public, max-age=0, must-revalidate

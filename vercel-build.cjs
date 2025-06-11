@@ -141,6 +141,21 @@ if (fs.existsSync('_headers')) {
   }
 }
 
+// Ensure Firebase service worker is in dist
+if (fs.existsSync(path.join('public', 'firebase-messaging-sw.js'))) {
+  try {
+    fs.copyFileSync(
+      path.join('public', 'firebase-messaging-sw.js'),
+      path.join('dist', 'firebase-messaging-sw.js')
+    );
+    console.log('Successfully copied firebase-messaging-sw.js to dist directory');
+  } catch (error) {
+    console.error('Error copying firebase-messaging-sw.js:', error);
+  }
+} else {
+  console.warn('firebase-messaging-sw.js not found in public directory');
+}
+
 // Create 200.html from index.html for SPA routing
 try {
   if (fs.existsSync(path.join('dist', 'index.html'))) {

@@ -93,10 +93,12 @@ self.addEventListener('fetch', (event) => {
       Promise.race([
         fetch(event.request.clone())
           .then(response => {
+            // Only clone and cache if the response is ok
             if (response.ok) {
-              const clonedResponse = response.clone();
+              // Store a clone in cache before using the response
+              const responseToCache = response.clone();
               caches.open(DYNAMIC_CACHE_NAME)
-                .then(cache => cache.put(event.request, clonedResponse));
+                .then(cache => cache.put(event.request, responseToCache));
             }
             return response;
           }),
@@ -112,10 +114,12 @@ self.addEventListener('fetch', (event) => {
   event.respondWith(
     fetch(event.request)
       .then(networkResponse => {
+        // Only clone and cache if the response is ok
         if (networkResponse.ok) {
-          const clonedResponse = networkResponse.clone();
+          // Create a single clone that will be stored in the cache
+          const responseToCache = networkResponse.clone();
           caches.open(DYNAMIC_CACHE_NAME)
-            .then(cache => cache.put(event.request, clonedResponse));
+            .then(cache => cache.put(event.request, responseToCache));
         }
         return networkResponse;
       })

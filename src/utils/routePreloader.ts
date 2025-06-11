@@ -4,7 +4,6 @@ import { prefetchResources } from './prefetch';
 const importAdminDashboard = () => import('../pages/AdminDashboard').then(module => ({ default: module.AdminDashboard }));
 const importUpcomingPage = () => import('../pages/UpcomingPage').then(module => ({ default: module.UpcomingPage }));
 const importSearchPage = () => import('../pages/SearchPage').then(module => ({ default: module.SearchPage }));
-const importNotificationsPage = () => import('../pages/NotificationsPage').then(module => ({ default: module.NotificationsPage }));
 const importCoursePage = () => import('../pages/CoursePage').then(module => ({ default: module.CoursePage }));
 const importStudyMaterialsPage = () => import('../pages/StudyMaterialsPage').then(module => ({ default: module.StudyMaterialsPage }));
 const importRoutinePage = () => import('../pages/RoutinePage').then(module => ({ default: module.RoutinePage }));
@@ -14,7 +13,6 @@ const routeImports = {
   'admin': importAdminDashboard,
   'upcoming': importUpcomingPage,
   'search': importSearchPage,
-  'notifications': importNotificationsPage,
   'courses': importCoursePage,
   'study-materials': importStudyMaterialsPage,
   'routine': importRoutinePage
@@ -26,7 +24,6 @@ export const APP_ROUTES = [
   'admin',
   'upcoming',
   'search',
-  'notifications',
   'courses',
   'study-materials',
   'routine',

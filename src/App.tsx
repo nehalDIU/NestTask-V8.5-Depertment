@@ -7,7 +7,6 @@ import { AuthPage } from './pages/AuthPage';
 import { LoadingScreen } from './components/LoadingScreen';
 import { Navigation } from './components/Navigation';
 import { BottomNavigation } from './components/BottomNavigation';
-import { NotificationPanel } from './components/notifications/NotificationPanel';
 import { InstallPWA } from './components/InstallPWA';
 import { isSameDay } from './utils/dateUtils';
 import { InstantTransition } from './components/InstantTransition';
@@ -24,7 +23,6 @@ const importAdminDashboard = () => import('./pages/AdminDashboard').then(module 
 const importSuperAdminDashboard = () => import('./components/admin/super/SuperAdminDashboard').then(module => ({ default: module.SuperAdminDashboard }));
 const importUpcomingPage = () => import('./pages/UpcomingPage').then(module => ({ default: module.UpcomingPage }));
 const importSearchPage = () => import('./pages/SearchPage').then(module => ({ default: module.SearchPage }));
-const importNotificationsPage = () => import('./pages/NotificationsPage').then(module => ({ default: module.NotificationsPage }));
 const importCoursePage = () => import('./pages/CoursePage').then(module => ({ default: module.CoursePage }));
 const importStudyMaterialsPage = () => import('./pages/StudyMaterialsPage').then(module => ({ default: module.StudyMaterialsPage }));
 const importRoutinePage = () => import('./pages/RoutinePage').then(module => ({ default: module.RoutinePage }));
@@ -34,7 +32,6 @@ const AdminDashboard = lazy(importAdminDashboard);
 const SuperAdminDashboard = lazy(importSuperAdminDashboard);
 const UpcomingPage = lazy(importUpcomingPage);
 const SearchPage = lazy(importSearchPage);
-const NotificationsPage = lazy(importNotificationsPage);
 const CoursePage = lazy(importCoursePage);
 const StudyMaterialsPage = lazy(importStudyMaterialsPage);
 const RoutinePage = lazy(importRoutinePage);
@@ -129,7 +126,8 @@ export default function App() {
     return {
       total: totalTasks,
       inProgress: validTasks.filter(t => t.status === 'in-progress').length,
-      completed: validTasks.filter(t => t.status === 'completed').length
+      completed: validTasks.filter(t => t.status === 'completed').length,
+      overdue: 0 // Add the missing property
     };
   }, [tasks]);
 
@@ -249,17 +247,6 @@ export default function App() {
             <SearchPage tasks={tasks || []} />
           </Suspense>
         );
-      case 'notifications':
-        return (
-          <Suspense fallback={<LoadingScreen minimumLoadTime={300} />}>
-            <NotificationsPage
-              notifications={notifications}
-              onMarkAsRead={markAsRead}
-              onMarkAllAsRead={markAllAsRead}
-              onClear={clearNotification}
-            />
-          </Suspense>
-        );
       case 'courses':
         return (
           <Suspense fallback={<LoadingScreen minimumLoadTime={300} />}>
@@ -281,7 +268,7 @@ export default function App() {
       default:
         return (
           <HomePage
-            user={user}
+            user={user as User}
             tasks={tasks || []}
             selectedCategory={selectedCategory}
             setSelectedCategory={setSelectedCategory}
@@ -356,7 +343,7 @@ export default function App() {
   }
 
    // Add handling for section_admin role
-   if (user.role === 'section_admin') {
+   if (user.role === 'section-admin') {
     return (
       <Suspense fallback={<LoadingScreen minimumLoadTime={300} />}>
         <AdminDashboard
@@ -391,16 +378,6 @@ export default function App() {
         taskStats={taskStats}
         tasks={tasks}
       />
-      
-      {showNotifications && (
-        <NotificationPanel
-          notifications={notifications}
-          onClose={() => setShowNotifications(false)}
-          onMarkAsRead={markAsRead}
-          onMarkAllAsRead={markAllAsRead}
-          onClear={clearNotification}
-        />
-      )}
       
       <main className="max-w-7xl mx-auto px-4 py-20 pb-24">
         {tasksLoading ? (

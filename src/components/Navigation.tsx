@@ -1,6 +1,5 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
 import { ProfileMenu } from './profile/ProfileMenu';
-import { NotificationBadge } from './notifications/NotificationBadge';
 import { Moon, Sun, Calendar } from 'lucide-react';
 import { useTheme } from '../hooks/useTheme';
 import { MonthlyCalendar } from './MonthlyCalendar';

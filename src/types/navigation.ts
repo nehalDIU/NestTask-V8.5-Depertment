@@ -1,1 +1,1 @@
-export type NavPage = 'home' | 'upcoming' | 'notifications' | 'search' | 'study-materials' | 'courses' | 'admin' | 'routine';
+export type NavPage = 'home' | 'upcoming' | 'search' | 'study-materials' | 'courses' | 'admin' | 'routine';

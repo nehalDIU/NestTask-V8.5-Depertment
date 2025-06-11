@@ -523,16 +523,25 @@ export const createTask = async (
 
 async function sendPushNotifications(task: Task) {
   try {
-    // Get all FCM tokens
+    console.log('📤 Sending push notifications for task:', task.id);
+
+    // Get all active FCM tokens
     const { data: fcmTokens, error } = await supabase
       .from('fcm_tokens')
-      .select('fcm_token');
+      .select('fcm_token, user_id')
+      .eq('is_active', true);
 
-    if (error) throw error;
+    if (error) {
+      console.error('❌ Error fetching FCM tokens:', error);
+      throw error;
+    }
+
     if (!fcmTokens?.length) {
-      console.log('No FCM tokens found for notification');
+      console.log('⚠️ No active FCM tokens found for notification');
       return;
     }
+
+    console.log(`📱 Found ${fcmTokens.length} active FCM tokens`);
 
     // Extract tokens
     const tokens = fcmTokens.map(item => item.fcm_token);
@@ -554,11 +563,20 @@ async function sendPushNotifications(task: Task) {
     };
 
     // Send notification using the FCM Supabase Edge Function
-    const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/send-fcm-notification`, {
+    console.log('🚀 Calling FCM Edge Function...');
+
+    const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+    const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+
+    if (!supabaseUrl || !supabaseKey) {
+      throw new Error('Supabase configuration missing');
+    }
+
+    const response = await fetch(`${supabaseUrl}/functions/v1/send-fcm-notification`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`
+        'Authorization': `Bearer ${supabaseKey}`
       },
       body: JSON.stringify({
         tokens,
@@ -567,14 +585,23 @@ async function sendPushNotifications(task: Task) {
       })
     });
 
+    console.log('📡 FCM Edge Function response status:', response.status);
+
     if (!response.ok) {
-      const errorData = await response.json();
-      console.error('FCM notification failed:', errorData);
-      throw new Error('Failed to send FCM notification');
+      const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
+      console.error('❌ FCM notification failed:', {
+        status: response.status,
+        statusText: response.statusText,
+        error: errorData
+      });
+      throw new Error(`FCM notification failed: ${response.status} ${response.statusText}`);
     }
 
     const result = await response.json();
-    console.log('FCM notification sent successfully:', result);
+    console.log('✅ FCM notification sent successfully:', {
+      success: result.success,
+      resultCount: result.result?.results?.length || 0
+    });
 
   } catch (error) {
     console.error('Error sending FCM notifications:', error);

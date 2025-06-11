@@ -1,5 +1,5 @@
 import { requestNotificationPermission } from '../firebase';
-import { subscribeToPushNotifications } from '../utils/pushNotifications';
+import { subscribeToPushNotifications, testFCMDatabaseConnection } from '../utils/pushNotifications';
 
 // Simple toast functions (fallback if toast utility doesn't exist)
 const showSuccessToast = (message: string) => {
@@ -32,6 +32,18 @@ export async function requestNotificationPermissionOnLogin(
   const { showToast = true, autoSubscribe = true, silent = false } = options;
 
   try {
+    console.log('🔔 Starting notification permission request for user:', userId.substring(0, 8) + '...');
+
+    // Test database connection first
+    const dbConnected = await testFCMDatabaseConnection();
+    if (!dbConnected) {
+      console.error('❌ Database connection failed - cannot save FCM tokens');
+      if (showToast && !silent) {
+        showErrorToast('Database connection failed. Notifications may not work properly.');
+      }
+      // Continue anyway, but warn user
+    }
+
     // Check if we've already requested permission in this session
     if (permissionRequestedInSession) {
       console.log('🔔 Notification permission already requested in this session');

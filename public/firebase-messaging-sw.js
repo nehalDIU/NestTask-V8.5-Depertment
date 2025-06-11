@@ -1,6 +1,17 @@
 // Firebase Messaging Service Worker
 // This file handles background push notifications
 
+// Environment detection for service worker
+const isVercel = self.location.hostname.includes('vercel.app');
+const isDevelopment = self.location.hostname === 'localhost' || self.location.hostname === '127.0.0.1';
+
+console.log('[SW] 🌍 Environment:', {
+  isVercel,
+  isDevelopment,
+  hostname: self.location.hostname,
+  origin: self.location.origin
+});
+
 // Import Firebase scripts
 importScripts('https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js');
 importScripts('https://www.gstatic.com/firebasejs/10.7.1/firebase-messaging-compat.js');
@@ -26,35 +37,39 @@ const messaging = firebase.messaging();
 // Handle background messages
 messaging.onBackgroundMessage((payload) => {
   console.log('[firebase-messaging-sw.js] Received background message:', payload);
-  
-  // Customize notification here
-  const notificationTitle = payload.notification?.title || 'NestTask Notification';
-  const notificationOptions = {
-    body: payload.notification?.body || 'You have a new notification',
-    icon: '/icons/icon-192x192.png',
-    badge: '/icons/icon-192x192.png',
-    tag: 'nesttask-notification',
-    requireInteraction: true,
-    actions: [
-      {
-        action: 'open',
-        title: 'Open App',
-        icon: '/icons/icon-192x192.png'
-      },
-      {
-        action: 'dismiss',
-        title: 'Dismiss',
-        icon: '/icons/icon-192x192.png'
-      }
-    ],
-    data: {
-      url: payload.data?.url || '/',
-      ...payload.data
-    }
-  };
 
-  // Show notification
-  self.registration.showNotification(notificationTitle, notificationOptions);
+  try {
+    // Customize notification here
+    const notificationTitle = payload.notification?.title || 'NestTask Notification';
+    const notificationOptions = {
+      body: payload.notification?.body || 'You have a new notification',
+      icon: '/icons/icon-192x192.png',
+      badge: '/icons/icon-192x192.png',
+      tag: 'nesttask-notification',
+      requireInteraction: true,
+      actions: [
+        {
+          action: 'open',
+          title: 'Open App',
+          icon: '/icons/icon-192x192.png'
+        },
+        {
+          action: 'dismiss',
+          title: 'Dismiss',
+          icon: '/icons/icon-192x192.png'
+        }
+      ],
+      data: {
+        url: payload.data?.url || '/',
+        ...payload.data
+      }
+    };
+
+    // Show notification
+    return self.registration.showNotification(notificationTitle, notificationOptions);
+  } catch (error) {
+    console.error('[firebase-messaging-sw.js] Error showing notification:', error);
+  }
 });
 
 // Handle notification click

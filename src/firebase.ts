@@ -1,6 +1,13 @@
 import { initializeApp } from 'firebase/app';
 import { getMessaging, getToken, onMessage, isSupported } from 'firebase/messaging';
 
+// Environment detection
+const isProduction = import.meta.env.PROD;
+const isVercel = typeof window !== 'undefined' && window.location.hostname.includes('vercel.app');
+const isDevelopment = import.meta.env.DEV || window.location.hostname === 'localhost';
+
+console.log('🌍 Environment:', { isProduction, isVercel, isDevelopment });
+
 // Firebase configuration
 const firebaseConfig = {
   apiKey: import.meta.env.VITE_FIREBASE_API_KEY || "AIzaSyACfcXjX0vNXWNduCRks1Z6LRa9XAY2pJ8",
@@ -43,15 +50,29 @@ let messaging: any = null;
 // Check if messaging is supported
 const initializeMessaging = async () => {
   try {
-    const supported = await isSupported();
-    if (supported && typeof window !== 'undefined') {
-      messaging = getMessaging(app);
-      return messaging;
+    // Check if we're in a browser environment
+    if (typeof window === 'undefined') {
+      console.log('Not in browser environment, skipping Firebase Messaging');
+      return null;
     }
-    console.log('Firebase Messaging is not supported in this environment');
-    return null;
+
+    // Check if service workers are supported
+    if (!('serviceWorker' in navigator)) {
+      console.log('Service workers not supported, Firebase Messaging unavailable');
+      return null;
+    }
+
+    const supported = await isSupported();
+    if (supported) {
+      messaging = getMessaging(app);
+      console.log('✅ Firebase Messaging initialized successfully');
+      return messaging;
+    } else {
+      console.log('❌ Firebase Messaging is not supported in this environment');
+      return null;
+    }
   } catch (error) {
-    console.error('Error initializing Firebase Messaging:', error);
+    console.error('❌ Error initializing Firebase Messaging:', error);
     return null;
   }
 };
@@ -103,27 +124,45 @@ export const onForegroundMessage = (callback: (payload: any) => void) => {
   });
 };
 
-// Request notification permission
+// Request notification permission with better error handling
 export const requestNotificationPermission = async (): Promise<boolean> => {
   try {
-    if (!('Notification' in window)) {
-      console.log('This browser does not support notifications');
+    // Check if we're in a browser environment
+    if (typeof window === 'undefined') {
+      console.log('❌ Not in browser environment');
       return false;
     }
 
-    if (Notification.permission === 'granted') {
+    // Check if notifications are supported
+    if (!('Notification' in window)) {
+      console.log('❌ This browser does not support notifications');
+      return false;
+    }
+
+    // Check current permission status
+    const currentPermission = Notification.permission;
+    console.log('📋 Current notification permission:', currentPermission);
+
+    if (currentPermission === 'granted') {
+      console.log('✅ Notification permission already granted');
       return true;
     }
 
-    if (Notification.permission === 'denied') {
-      console.log('Notification permission denied');
+    if (currentPermission === 'denied') {
+      console.log('❌ Notification permission was denied. Please enable in browser settings.');
       return false;
     }
 
+    // Request permission (only works on user interaction)
+    console.log('🔔 Requesting notification permission...');
     const permission = await Notification.requestPermission();
-    return permission === 'granted';
+
+    const granted = permission === 'granted';
+    console.log(granted ? '✅ Notification permission granted' : '❌ Notification permission denied');
+
+    return granted;
   } catch (error) {
-    console.error('Error requesting notification permission:', error);
+    console.error('❌ Error requesting notification permission:', error);
     return false;
   }
 };

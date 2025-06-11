@@ -126,22 +126,39 @@ function initApp() {
   
   // Initialize PWA features
   if ('serviceWorker' in navigator) {
-    window.addEventListener('load', () => {
-      // Register main service worker
-      navigator.serviceWorker.register('/service-worker.js')
-        .then(() => {
-          // Initialize PWA features after service worker is registered
-          setTimeout(() => initPWA(), 1000);
-        })
-        .catch(error => console.error('SW registration failed:', error));
+    window.addEventListener('load', async () => {
+      try {
+        console.log('🔧 Starting service worker registration...');
 
-      // Register Firebase messaging service worker
-      navigator.serviceWorker.register('/firebase-messaging-sw.js')
-        .then((registration) => {
-          console.log('Firebase messaging SW registered:', registration);
-        })
-        .catch(error => console.error('Firebase messaging SW registration failed:', error));
+        // Register Firebase messaging service worker first (for notifications)
+        const messagingRegistration = await navigator.serviceWorker.register('/firebase-messaging-sw.js', {
+          scope: '/'
+        });
+        console.log('✅ Firebase messaging SW registered:', messagingRegistration);
+
+        // Initialize PWA features after Firebase SW is ready
+        setTimeout(() => {
+          console.log('🚀 Initializing PWA features...');
+          initPWA().then(() => {
+            console.log('✅ PWA initialization complete');
+          }).catch(error => {
+            console.error('❌ PWA initialization failed:', error);
+          });
+        }, 1000);
+
+      } catch (error) {
+        console.error('❌ Service worker registration failed:', error);
+
+        // Still try to initialize PWA features even if SW registration fails
+        setTimeout(() => {
+          initPWA().catch(error => {
+            console.error('❌ PWA initialization failed after SW error:', error);
+          });
+        }, 2000);
+      }
     });
+  } else {
+    console.warn('⚠️ Service workers not supported in this browser');
   }
 }
 

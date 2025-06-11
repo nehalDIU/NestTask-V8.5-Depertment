@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Service Worker Test</title>
+</head>
+<body>
+    <h1>Service Worker Test</h1>
+    <div id="status">Testing...</div>
+    <button onclick="testServiceWorker()">Test Service Worker</button>
+    
+    <script>
+        async function testServiceWorker() {
+            const statusDiv = document.getElementById('status');
+            
+            if ('serviceWorker' in navigator) {
+                try {
+                    // Test main service worker
+                    const registration = await navigator.serviceWorker.register('/sw.js', {
+                        scope: '/',
+                        type: 'classic'
+                    });
+                    
+                    statusDiv.innerHTML = `
+                        <p style="color: green;">✅ Service Worker registered successfully!</p>
+                        <p>Scope: ${registration.scope}</p>
+                        <p>State: ${registration.installing ? 'installing' : registration.waiting ? 'waiting' : registration.active ? 'active' : 'unknown'}</p>
+                    `;
+                    
+                    // Test Firebase messaging service worker
+                    try {
+                        const fcmRegistration = await navigator.serviceWorker.register('/firebase-messaging-sw.js');
+                        statusDiv.innerHTML += `<p style="color: green;">✅ Firebase messaging SW also registered!</p>`;
+                    } catch (fcmError) {
+                        statusDiv.innerHTML += `<p style="color: orange;">⚠️ Firebase messaging SW failed: ${fcmError.message}</p>`;
+                    }
+                    
+                } catch (error) {
+                    statusDiv.innerHTML = `
+                        <p style="color: red;">❌ Service Worker registration failed!</p>
+                        <p>Error: ${error.message}</p>
+                        <p>This might be due to MIME type issues or file not found.</p>
+                    `;
+                }
+            } else {
+                statusDiv.innerHTML = '<p style="color: red;">❌ Service Workers not supported in this browser</p>';
+            }
+        }
+        
+        // Auto-test on page load
+        window.addEventListener('load', testServiceWorker);
+    </script>
+</body>
+</html>

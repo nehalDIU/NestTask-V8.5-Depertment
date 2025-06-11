@@ -14,12 +14,19 @@
 /*.css
   Content-Type: text/css
 
-/service-worker.js
+/sw.js
+  Content-Type: application/javascript
   Cache-Control: public, max-age=0, must-revalidate
   Service-Worker-Allowed: /
 
-/sw.js
+/workbox-*.js
+  Content-Type: application/javascript
+  Cache-Control: public, max-age=31536000, immutable
+
+/firebase-messaging-sw.js
+  Content-Type: application/javascript
   Cache-Control: public, max-age=0, must-revalidate
+  Service-Worker-Allowed: /
 
 /manifest.json
   Content-Type: application/json 

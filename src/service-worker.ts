@@ -16,20 +16,38 @@ interface Client {
   postMessage(message: any): void;
 }
 
-// Import workbox modules with proper error handling
+// eslint-disable-next-line @typescript-eslint/ban-ts-comment
+// @ts-ignore
 import { precacheAndRoute, cleanupOutdatedCaches } from 'workbox-precaching';
-import { registerRoute } from 'workbox-routing';
-import { CacheFirst, StaleWhileRevalidate } from 'workbox-strategies';
+// eslint-disable-next-line @typescript-eslint/ban-ts-comment
+// @ts-ignore
+import { registerRoute, NavigationRoute, Route } from 'workbox-routing';
+// eslint-disable-next-line @typescript-eslint/ban-ts-comment
+// @ts-ignore
+import { CacheFirst, NetworkFirst, StaleWhileRevalidate, NetworkOnly } from 'workbox-strategies';
+// eslint-disable-next-line @typescript-eslint/ban-ts-comment
+// @ts-ignore
 import { ExpirationPlugin } from 'workbox-expiration';
+// eslint-disable-next-line @typescript-eslint/ban-ts-comment
+// @ts-ignore
 import { CacheableResponsePlugin } from 'workbox-cacheable-response';
+// eslint-disable-next-line @typescript-eslint/ban-ts-comment
+// @ts-ignore
+import { warmStrategyCache } from 'workbox-recipes';
+// eslint-disable-next-line @typescript-eslint/ban-ts-comment
+// @ts-ignore
+import { BackgroundSyncPlugin } from 'workbox-background-sync';
+// eslint-disable-next-line @typescript-eslint/ban-ts-comment
+// @ts-ignore
+import { Queue } from 'workbox-background-sync';
 
 // Cache names - use shorter names to save bytes
-const CACHE_NAME = 'nt-app-v5';
-const STATIC_CACHE = 'nt-static-v5';
-const IMG_CACHE = 'nt-img-v5';
-const API_CACHE = 'nt-api-v5';
-const FONT_CACHE = 'nt-font-v5';
-const METADATA_CACHE = 'nt-meta-v5';
+const CACHE_NAME = 'nt-app-v4';
+const STATIC_CACHE = 'nt-static-v4';
+const IMG_CACHE = 'nt-img-v4';
+const API_CACHE = 'nt-api-v4';
+const FONT_CACHE = 'nt-font-v4';
+const METADATA_CACHE = 'nt-meta-v4';
 const OFFLINE_URL = '/offline.html';
 
 // Track service worker activity
@@ -39,10 +57,8 @@ let lastActivityTime = Date.now();
 cleanupOutdatedCaches();
 
 // Precache only critical assets
-declare const self: ServiceWorkerGlobalScope & {
-  __WB_MANIFEST: Array<{ url: string; revision: string | null }>;
-};
-
+// eslint-disable-next-line @typescript-eslint/ban-ts-comment
+// @ts-ignore
 precacheAndRoute(self.__WB_MANIFEST);
 
 // Define minimal URLs to preload/warm up cache - only essential UI assets
@@ -61,20 +77,6 @@ const NEVER_CACHE_ROUTES = [
   '/signup',
   '/reset-password'
 ];
-
-// Utility function to safely clone a response
-function safeCloneResponse(response: Response): Response | null {
-  try {
-    if (response.bodyUsed) {
-      console.warn('Cannot clone response: body already used');
-      return null;
-    }
-    return response.clone();
-  } catch (error) {
-    console.warn('Failed to clone response:', error);
-    return null;
-  }
-}
 
 // Add a utility function to safely check if a URL can be cached
 function isValidCacheURL(url: string): boolean {
@@ -160,13 +162,10 @@ const staticAssetsStrategy = new CacheFirst({
   ],
 });
 
-// Preload critical assets into cache
-self.addEventListener('install', (event) => {
-  event.waitUntil(
-    caches.open(STATIC_CACHE).then(cache => {
-      return cache.addAll(STATIC_ASSETS);
-    })
-  );
+// Warm up the cache with critical assets
+warmStrategyCache({
+  urls: STATIC_ASSETS,
+  strategy: staticAssetsStrategy
 });
 
 // Cache images with a Cache First strategy - only essential UI images

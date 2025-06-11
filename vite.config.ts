@@ -8,22 +8,6 @@ import path from 'path';
 // Define algorithm type to avoid type errors
 type CompressionAlgorithm = 'gzip' | 'brotliCompress' | 'deflate' | 'deflateRaw';
 
-// Plugin to fix service worker MIME types in development
-const serviceWorkerMimeTypePlugin = () => {
-  return {
-    name: 'service-worker-mime-type',
-    configureServer(server: any) {
-      server.middlewares.use((req: any, res: any, next: any) => {
-        if (req.url?.endsWith('.js') && (req.url.includes('sw.js') || req.url.includes('service-worker') || req.url.includes('firebase-messaging'))) {
-          res.setHeader('Content-Type', 'application/javascript');
-          res.setHeader('Service-Worker-Allowed', '/');
-        }
-        next();
-      });
-    }
-  };
-};
-
 // https://vitejs.dev/config/
 export default defineConfig({
   resolve: {
@@ -36,13 +20,11 @@ export default defineConfig({
   },
   plugins: [
     react(),
-    serviceWorkerMimeTypePlugin(),
     VitePWA({
       registerType: 'autoUpdate',
-      strategies: 'generateSW',
       includeAssets: [
-        'favicon.ico',
-        'robots.txt',
+        'favicon.ico', 
+        'robots.txt', 
         'icons/*.png',
         'manifest.json',
         'offline.html'
@@ -52,10 +34,6 @@ export default defineConfig({
         short_name: 'NestTask',
         description: 'A modern task management application for teams and individuals',
         theme_color: '#0284c7',
-        background_color: '#ffffff',
-        display: 'standalone',
-        start_url: '/',
-        scope: '/',
         icons: [
           {
             src: '/icons/icon-192x192.png',
@@ -78,10 +56,6 @@ export default defineConfig({
       workbox: {
         clientsClaim: true,
         skipWaiting: true,
-        globPatterns: [
-          '**/*.{js,css,html,ico,png,svg,woff2}'
-        ],
-        maximumFileSizeToCacheInBytes: 3000000,
         runtimeCaching: [
           {
             urlPattern: /^https:\/\/fonts\.googleapis\.com\/.*/i,
@@ -110,40 +84,8 @@ export default defineConfig({
                 statuses: [0, 200]
               }
             }
-          },
-          {
-            urlPattern: /\.(?:png|jpg|jpeg|svg|gif|webp|ico)$/,
-            handler: 'CacheFirst',
-            options: {
-              cacheName: 'images-cache',
-              expiration: {
-                maxEntries: 50,
-                maxAgeSeconds: 60 * 60 * 24 * 30 // 30 days
-              },
-              cacheableResponse: {
-                statuses: [0, 200]
-              }
-            }
-          },
-          {
-            urlPattern: /\.(?:js|css)$/,
-            handler: 'StaleWhileRevalidate',
-            options: {
-              cacheName: 'static-resources',
-              expiration: {
-                maxEntries: 100,
-                maxAgeSeconds: 60 * 60 * 24 * 7 // 7 days
-              },
-              cacheableResponse: {
-                statuses: [0, 200]
-              }
-            }
           }
         ]
-      },
-      devOptions: {
-        enabled: false,
-        type: 'module'
       }
     }),
     compression({
@@ -276,11 +218,6 @@ export default defineConfig({
       "Cross-Origin-Embedder-Policy": "credentialless",
       "Cross-Origin-Opener-Policy": "same-origin",
       "Cross-Origin-Resource-Policy": "cross-origin"
-    },
-    // Configure MIME types for service workers
-    middlewareMode: false,
-    fs: {
-      strict: false
     }
   },
   // Improve preview server performance

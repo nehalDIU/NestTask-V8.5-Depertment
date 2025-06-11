@@ -108,7 +108,7 @@ VITE_SUPABASE_URL=https://hsmuxnsfzkffzmhbmtts.supabase.co`;
 // Run build
 try {
   console.log('Starting build process...');
-
+  
   // First, ensure all dependencies are installed, especially @radix-ui/react-dropdown-menu
   console.log('Ensuring all dependencies are installed...');
   try {
@@ -118,18 +118,12 @@ try {
     console.error('Error installing dependencies:', depError);
     // Continue with build anyway
   }
-
+  
   // Check for encoding issues in source files before building
   console.log('Checking for file encoding issues...');
   checkFilesForEncodingIssues('./src');
   console.log('Finished checking for encoding issues');
-
-  // Clean any existing dist directory
-  if (fs.existsSync('dist')) {
-    fs.rmSync('dist', { recursive: true, force: true });
-    console.log('Cleaned existing dist directory');
-  }
-
+  
   execSync('npm run build', { stdio: 'inherit' });
   console.log('Build completed successfully!');
 } catch (error) {

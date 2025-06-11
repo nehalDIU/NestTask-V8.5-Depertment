@@ -102,10 +102,31 @@ supabase db push
 ## Testing
 
 1. Start your development server
-2. Open the app in a browser
-3. Grant notification permissions when prompted
-4. Check the browser console for FCM token generation
-5. Create an admin task to test notifications
+2. Open the app in a browser (notification permission should NOT be requested automatically)
+3. Log in or sign up to your account
+4. After successful authentication, notification permission should be requested automatically
+5. Grant notification permissions when prompted
+6. Check the browser console for FCM token generation
+7. Create an admin task to test notifications
+
+### Notification Permission Optimization
+
+The app is optimized to only request notification permissions after successful user authentication:
+
+- ✅ **No automatic permission request on page load**
+- ✅ **Permission requested only after login/signup**
+- ✅ **User-friendly timing with delays to let UI settle**
+- ✅ **Session tracking to avoid multiple requests**
+- ✅ **Graceful handling of denied permissions**
+
+### Testing the Optimization
+
+You can use the test component to verify the optimization:
+
+1. Add the `NotificationTest` component to a route
+2. Load the page without being logged in - no permission request should appear
+3. Log in - permission request should appear after authentication
+4. Verify the test results in the component
 
 ## Troubleshooting
 

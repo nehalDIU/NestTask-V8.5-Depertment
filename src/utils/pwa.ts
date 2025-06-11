@@ -598,8 +598,7 @@ export async function initPWA() {
       await Promise.allSettled([
         Promise.resolve().then(checkInstallability),
         Promise.resolve().then(registerServiceWorker),
-        Promise.resolve().then(performMaintenanceIfNeeded),
-        Promise.resolve().then(initializeFCMFeatures)
+        Promise.resolve().then(performMaintenanceIfNeeded)
       ]);
     }
 
@@ -684,37 +683,33 @@ function setupOfflineDetection(): void {
   }
 }
 
-// Initialize FCM features
-async function initializeFCMFeatures(): Promise<void> {
+// Initialize FCM features for authenticated users only
+export async function initializeFCMForUser(userId: string): Promise<void> {
   if (isStackBlitzEnvironment()) {
     console.log('FCM features disabled in StackBlitz environment');
     return;
   }
 
   try {
-    // Initialize FCM
-    const fcmToken = await initializeFCM();
-    if (fcmToken) {
-      console.log('FCM initialized successfully');
+    console.log('🔔 Initializing FCM for authenticated user:', userId);
 
-      // Set up foreground message listener
-      onForegroundMessage((payload) => {
-        console.log('Foreground message received:', payload);
+    // Set up foreground message listener first (doesn't require permission)
+    onForegroundMessage((payload) => {
+      console.log('Foreground message received:', payload);
 
-        // Show notification if the app is in foreground
-        if (payload.notification) {
-          new Notification(payload.notification.title || 'NestTask', {
-            body: payload.notification.body,
-            icon: payload.notification.icon || '/icons/icon-192x192.png',
-            badge: '/icons/icon-192x192.png',
-            tag: payload.notification.tag || 'nesttask-foreground',
-            data: payload.data
-          });
-        }
-      });
-    } else {
-      console.log('FCM initialization failed or permission denied');
-    }
+      // Show notification if the app is in foreground and permission is granted
+      if (payload.notification && Notification.permission === 'granted') {
+        new Notification(payload.notification.title || 'NestTask', {
+          body: payload.notification.body,
+          icon: payload.notification.icon || '/icons/icon-192x192.png',
+          badge: '/icons/icon-192x192.png',
+          tag: payload.notification.tag || 'nesttask-foreground',
+          data: payload.data
+        });
+      }
+    });
+
+    console.log('✅ FCM foreground listener initialized');
   } catch (error) {
     console.error('Error initializing FCM features:', error);
   }

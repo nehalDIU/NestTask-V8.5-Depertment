@@ -1,17 +1,6 @@
 // Firebase Messaging Service Worker
 // This file handles background push notifications
 
-// Environment detection for service worker
-const isVercel = self.location.hostname.includes('vercel.app');
-const isDevelopment = self.location.hostname === 'localhost' || self.location.hostname === '127.0.0.1';
-
-console.log('[SW] 🌍 Environment:', {
-  isVercel,
-  isDevelopment,
-  hostname: self.location.hostname,
-  origin: self.location.origin
-});
-
 // Import Firebase scripts
 importScripts('https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js');
 importScripts('https://www.gstatic.com/firebasejs/10.7.1/firebase-messaging-compat.js');
@@ -19,13 +8,13 @@ importScripts('https://www.gstatic.com/firebasejs/10.7.1/firebase-messaging-comp
 // Firebase configuration
 // Note: These should match your Firebase project configuration
 const firebaseConfig = {
-  apiKey: "AIzaSyACfcXjX0vNXWNduCRks1Z6LRa9XAY2pJ8",
-  authDomain: "nesttask-diu.firebaseapp.com",
-  projectId: "nesttask-diu",
-  storageBucket: "nesttask-diu.firebasestorage.app",
-  messagingSenderId: "743430115138",
-  appId: "1:743430115138:web:3cbbdc0c149def8f88c2db",
-  measurementId: "G-37LEQPKB3B"
+  apiKey: "your-firebase-api-key",
+  authDomain: "your-project-id.firebaseapp.com",
+  projectId: "your-project-id",
+  storageBucket: "your-project-id.appspot.com",
+  messagingSenderId: "your-sender-id",
+  appId: "your-app-id",
+  measurementId: "your-measurement-id"
 };
 
 // Initialize Firebase
@@ -37,39 +26,35 @@ const messaging = firebase.messaging();
 // Handle background messages
 messaging.onBackgroundMessage((payload) => {
   console.log('[firebase-messaging-sw.js] Received background message:', payload);
-
-  try {
-    // Customize notification here
-    const notificationTitle = payload.notification?.title || 'NestTask Notification';
-    const notificationOptions = {
-      body: payload.notification?.body || 'You have a new notification',
-      icon: '/icons/icon-192x192.png',
-      badge: '/icons/icon-192x192.png',
-      tag: 'nesttask-notification',
-      requireInteraction: true,
-      actions: [
-        {
-          action: 'open',
-          title: 'Open App',
-          icon: '/icons/icon-192x192.png'
-        },
-        {
-          action: 'dismiss',
-          title: 'Dismiss',
-          icon: '/icons/icon-192x192.png'
-        }
-      ],
-      data: {
-        url: payload.data?.url || '/',
-        ...payload.data
+  
+  // Customize notification here
+  const notificationTitle = payload.notification?.title || 'NestTask Notification';
+  const notificationOptions = {
+    body: payload.notification?.body || 'You have a new notification',
+    icon: '/icons/icon-192x192.png',
+    badge: '/icons/icon-192x192.png',
+    tag: 'nesttask-notification',
+    requireInteraction: true,
+    actions: [
+      {
+        action: 'open',
+        title: 'Open App',
+        icon: '/icons/icon-192x192.png'
+      },
+      {
+        action: 'dismiss',
+        title: 'Dismiss',
+        icon: '/icons/icon-192x192.png'
       }
-    };
+    ],
+    data: {
+      url: payload.data?.url || '/',
+      ...payload.data
+    }
+  };
 
-    // Show notification
-    return self.registration.showNotification(notificationTitle, notificationOptions);
-  } catch (error) {
-    console.error('[firebase-messaging-sw.js] Error showing notification:', error);
-  }
+  // Show notification
+  self.registration.showNotification(notificationTitle, notificationOptions);
 });
 
 // Handle notification click

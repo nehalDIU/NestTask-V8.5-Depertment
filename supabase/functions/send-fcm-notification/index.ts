@@ -1,14 +1,8 @@
 import { serve } from 'https://deno.land/std@0.218.0/http/server.ts';
 
-// FCM Server Key - Get from Supabase environment variables
-const FCM_SERVER_KEY = Deno.env.get('FCM_SERVER_KEY');
+// FCM Server Key - Replace with your actual FCM server key
+const FCM_SERVER_KEY = Deno.env.get('FCM_SERVER_KEY') || 'your-fcm-server-key';
 const FCM_ENDPOINT = 'https://fcm.googleapis.com/fcm/send';
-
-// Validate FCM configuration
-if (!FCM_SERVER_KEY || FCM_SERVER_KEY === 'your-fcm-server-key') {
-  console.error('❌ FCM_SERVER_KEY not configured properly');
-  console.log('Please set FCM_SERVER_KEY in your Supabase project environment variables');
-}
 
 interface FCMPayload {
   to?: string;
@@ -29,7 +23,7 @@ interface FCMPayload {
   };
 }
 
-serve(async (req: Request) => {
+serve(async (req) => {
   // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
     return new Response(null, {
@@ -42,24 +36,6 @@ serve(async (req: Request) => {
   }
 
   try {
-    // Check if FCM is properly configured
-    if (!FCM_SERVER_KEY || FCM_SERVER_KEY === 'your-fcm-server-key') {
-      console.error('FCM_SERVER_KEY not configured');
-      return new Response(
-        JSON.stringify({
-          error: 'FCM not configured properly',
-          message: 'FCM_SERVER_KEY environment variable is missing or invalid'
-        }),
-        {
-          status: 500,
-          headers: {
-            'Content-Type': 'application/json',
-            'Access-Control-Allow-Origin': '*'
-          }
-        }
-      );
-    }
-
     const { tokens, notification, data } = await req.json();
 
     if (!tokens || (!Array.isArray(tokens) && typeof tokens !== 'string')) {
@@ -116,13 +92,6 @@ serve(async (req: Request) => {
       fcmPayload.registration_ids = tokens;
     }
 
-    // Log the request for debugging
-    console.log('📤 Sending FCM notification:', {
-      tokenCount: Array.isArray(tokens) ? tokens.length : 1,
-      title: notification?.title,
-      hasData: !!data
-    });
-
     // Send notification to FCM
     const response = await fetch(FCM_ENDPOINT, {
       method: 'POST',
@@ -135,21 +104,12 @@ serve(async (req: Request) => {
 
     const result = await response.json();
 
-    // Log the response for debugging
-    console.log('📥 FCM Response:', {
-      status: response.status,
-      success: result.success || 0,
-      failure: result.failure || 0,
-      results: result.results?.length || 0
-    });
-
     if (!response.ok) {
-      console.error('❌ FCM Error:', result);
+      console.error('FCM Error:', result);
       return new Response(
-        JSON.stringify({
+        JSON.stringify({ 
           error: 'Failed to send FCM notification',
-          details: result,
-          status: response.status
+          details: result 
         }),
         {
           status: response.status,
@@ -159,15 +119,6 @@ serve(async (req: Request) => {
           }
         }
       );
-    }
-
-    // Check for partial failures
-    if (result.failure > 0) {
-      console.warn('⚠️ Some FCM notifications failed:', {
-        success: result.success,
-        failure: result.failure,
-        results: result.results
-      });
     }
 
     return new Response(

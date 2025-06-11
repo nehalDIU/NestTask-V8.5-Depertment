@@ -2,10 +2,12 @@
  * Utility functions for handling PWA integration
  */
 
+import { initializeFCM, onForegroundMessage } from '../firebase';
+
 // Check if we're running in StackBlitz
 const isStackBlitz = Boolean(
-  typeof window !== 'undefined' && 
-  (window.location.hostname.includes('stackblitz.io') || 
+  typeof window !== 'undefined' &&
+  (window.location.hostname.includes('stackblitz.io') ||
    window.location.hostname.includes('.webcontainer.io'))
 );
 
@@ -596,10 +598,11 @@ export async function initPWA() {
       await Promise.allSettled([
         Promise.resolve().then(checkInstallability),
         Promise.resolve().then(registerServiceWorker),
-        Promise.resolve().then(performMaintenanceIfNeeded)
+        Promise.resolve().then(performMaintenanceIfNeeded),
+        Promise.resolve().then(initializeFCMFeatures)
       ]);
     }
-    
+
     return true;
   } catch (error) {
     console.error('Error during PWA initialization:', error);
@@ -678,5 +681,41 @@ function setupOfflineDetection(): void {
   // Initial offline check
   if (!navigator.onLine) {
     document.body.classList.add('offline');
+  }
+}
+
+// Initialize FCM features
+async function initializeFCMFeatures(): Promise<void> {
+  if (isStackBlitzEnvironment()) {
+    console.log('FCM features disabled in StackBlitz environment');
+    return;
+  }
+
+  try {
+    // Initialize FCM
+    const fcmToken = await initializeFCM();
+    if (fcmToken) {
+      console.log('FCM initialized successfully');
+
+      // Set up foreground message listener
+      onForegroundMessage((payload) => {
+        console.log('Foreground message received:', payload);
+
+        // Show notification if the app is in foreground
+        if (payload.notification) {
+          new Notification(payload.notification.title || 'NestTask', {
+            body: payload.notification.body,
+            icon: payload.notification.icon || '/icons/icon-192x192.png',
+            badge: '/icons/icon-192x192.png',
+            tag: payload.notification.tag || 'nesttask-foreground',
+            data: payload.data
+          });
+        }
+      });
+    } else {
+      console.log('FCM initialization failed or permission denied');
+    }
+  } catch (error) {
+    console.error('Error initializing FCM features:', error);
   }
 }

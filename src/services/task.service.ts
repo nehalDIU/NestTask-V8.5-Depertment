@@ -523,62 +523,61 @@ export const createTask = async (
 
 async function sendPushNotifications(task: Task) {
   try {
-    // Get all push subscriptions
-    const { data: subscriptions, error } = await supabase
-      .from('push_subscriptions')
-      .select('subscription');
+    // Get all FCM tokens
+    const { data: fcmTokens, error } = await supabase
+      .from('fcm_tokens')
+      .select('fcm_token');
 
     if (error) throw error;
-    if (!subscriptions?.length) return;
+    if (!fcmTokens?.length) {
+      console.log('No FCM tokens found for notification');
+      return;
+    }
+
+    // Extract tokens
+    const tokens = fcmTokens.map(item => item.fcm_token);
 
     // Prepare notification payload
-    const payload = {
+    const notification = {
       title: 'New Admin Task',
       body: `${task.name} - Due: ${new Date(task.dueDate).toLocaleDateString()}`,
+      icon: '/icons/icon-192x192.png',
+      badge: '/icons/icon-192x192.png',
       tag: `admin-task-${task.id}`,
-      data: {
-        url: '/',
-        taskId: task.id,
-        type: 'admin-task'
-      },
-      requireInteraction: true,
-      actions: [
-        {
-          action: 'view',
-          title: 'View Task'
-        }
-      ]
+      requireInteraction: true
     };
 
-    // Send push notification to each subscription
-    const notifications = subscriptions.map(async ({ subscription }) => {
-      try {
-        const parsedSubscription = JSON.parse(subscription);
-        
-        // Send notification using the Supabase Edge Function
-        const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/push-notification`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`
-          },
-          body: JSON.stringify({
-            subscription: parsedSubscription,
-            payload: JSON.stringify(payload)
-          })
-        });
+    const data = {
+      url: '/',
+      taskId: task.id,
+      type: 'admin-task'
+    };
 
-        if (!response.ok) {
-          throw new Error('Failed to send push notification');
-        }
-      } catch (error) {
-        console.error('Error sending push notification:', error);
-      }
+    // Send notification using the FCM Supabase Edge Function
+    const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/send-fcm-notification`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`
+      },
+      body: JSON.stringify({
+        tokens,
+        notification,
+        data
+      })
     });
 
-    await Promise.allSettled(notifications);
+    if (!response.ok) {
+      const errorData = await response.json();
+      console.error('FCM notification failed:', errorData);
+      throw new Error('Failed to send FCM notification');
+    }
+
+    const result = await response.json();
+    console.log('FCM notification sent successfully:', result);
+
   } catch (error) {
-    console.error('Error sending notifications:', error);
+    console.error('Error sending FCM notifications:', error);
   }
 }
 

@@ -4,18 +4,7 @@
 // Import Firebase scripts
 importScripts('https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js');
 importScripts('https://www.gstatic.com/firebasejs/10.7.1/firebase-messaging-compat.js');
-
-// Firebase configuration
-// Note: These should match your Firebase project configuration
-const firebaseConfig = {
-  apiKey: "your-firebase-api-key",
-  authDomain: "your-project-id.firebaseapp.com",
-  projectId: "your-project-id",
-  storageBucket: "your-project-id.appspot.com",
-  messagingSenderId: "your-sender-id",
-  appId: "your-app-id",
-  measurementId: "your-measurement-id"
-};
+importScripts('./firebase-config.js');
 
 // Initialize Firebase
 firebase.initializeApp(firebaseConfig);

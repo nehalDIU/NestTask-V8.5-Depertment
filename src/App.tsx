@@ -17,6 +17,7 @@ import type { Task } from './types/task';
 import type { User } from './types/user';
 import { ResetPasswordPage } from './pages/ResetPasswordPage';
 import { supabase, testConnection } from './lib/supabase';
+import { onForegroundMessage } from './firebase'; // Added for FCM foreground messages
 import { HomePage } from './pages/HomePage';
 
 // Page import functions
@@ -248,6 +249,45 @@ export default function App() {
       document.removeEventListener('visibilitychange', handleVisibilityChange);
     };
   }, [checkHashForRecovery, refreshTasks, user?.id]);
+
+  // Effect for handling foreground FCM messages
+  useEffect(() => {
+    // Only initialize foreground message handling if Firebase messaging is supported
+    // and permission has been granted.
+    if ('Notification' in window && Notification.permission === 'granted' && onForegroundMessage) {
+      const unsubscribe = onForegroundMessage((payload) => {
+        console.log('Foreground message received in App.tsx:', payload);
+
+        // Simple alert for now. Ideally, use a toast notification system.
+        if (payload.notification) {
+          alert(`New Notification: ${payload.notification.title}\n${payload.notification.body}`);
+        } else if (payload.data && payload.data.title && payload.data.body) {
+          // Fallback if notification structure is in data payload (less common for FCM display messages)
+           alert(`New Notification: ${payload.data.title}\n${payload.data.body}`);
+        } else {
+          alert('New foreground notification received.');
+        }
+
+        // TODO: Optionally, refresh relevant data or update UI based on payload.data
+        // For example, if it's a new announcement, maybe refresh announcements list.
+        if (payload.data) {
+          console.log('Notification data:', payload.data);
+          if (payload.data.type === 'new_announcement') {
+            console.log('New announcement received, consider refreshing announcements data.');
+            // Example: if you have a function to refresh announcements, call it here
+            // refreshAnnouncements?.();
+          }
+          // Add more conditions here for other data types like 'new_task', 'chat_message', etc.
+        }
+      });
+
+      return () => {
+        if (unsubscribe) {
+          unsubscribe(); // Clean up the listener
+        }
+      };
+    }
+  }, []); // Empty dependency array ensures this runs once on mount and cleans up on unmount
 
   const renderContent = () => {
     switch (activePage) {

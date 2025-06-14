@@ -1,10 +1,9 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from './useAuth';
-import {
-  requestNotificationPermission,
+import { 
+  requestNotificationPermission, 
   subscribeToPushNotifications,
-  unsubscribeFromPushNotifications,
-  checkFCMSubscription
+  unsubscribeFromPushNotifications
 } from '../utils/pushNotifications';
 
 export function usePushNotifications() {
@@ -25,15 +24,15 @@ export function usePushNotifications() {
 
   const checkSubscriptionStatus = async () => {
     try {
-      if (!user) {
-        setIsSubscribed(false);
+      if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
+        setError('Push notifications are not supported in this browser');
         setLoading(false);
         return;
       }
 
-      // Check if user has FCM token in database
-      const hasSubscription = await checkFCMSubscription(user.id);
-      setIsSubscribed(hasSubscription);
+      const registration = await navigator.serviceWorker.ready;
+      const subscription = await registration.pushManager.getSubscription();
+      setIsSubscribed(!!subscription);
     } catch (error: any) {
       console.error('Error checking subscription status:', error);
       setError(getNotificationErrorMessage(error));

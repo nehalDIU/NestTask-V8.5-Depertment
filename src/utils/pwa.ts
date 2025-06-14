@@ -2,12 +2,10 @@
  * Utility functions for handling PWA integration
  */
 
-import { initializeFCM, onForegroundMessage } from '../firebase';
-
 // Check if we're running in StackBlitz
 const isStackBlitz = Boolean(
-  typeof window !== 'undefined' &&
-  (window.location.hostname.includes('stackblitz.io') ||
+  typeof window !== 'undefined' && 
+  (window.location.hostname.includes('stackblitz.io') || 
    window.location.hostname.includes('.webcontainer.io'))
 );
 
@@ -601,7 +599,7 @@ export async function initPWA() {
         Promise.resolve().then(performMaintenanceIfNeeded)
       ]);
     }
-
+    
     return true;
   } catch (error) {
     console.error('Error during PWA initialization:', error);
@@ -680,37 +678,5 @@ function setupOfflineDetection(): void {
   // Initial offline check
   if (!navigator.onLine) {
     document.body.classList.add('offline');
-  }
-}
-
-// Initialize FCM features for authenticated users only
-export async function initializeFCMForUser(userId: string): Promise<void> {
-  if (isStackBlitzEnvironment()) {
-    console.log('FCM features disabled in StackBlitz environment');
-    return;
-  }
-
-  try {
-    console.log('🔔 Initializing FCM for authenticated user:', userId);
-
-    // Set up foreground message listener first (doesn't require permission)
-    onForegroundMessage((payload) => {
-      console.log('Foreground message received:', payload);
-
-      // Show notification if the app is in foreground and permission is granted
-      if (payload.notification && Notification.permission === 'granted') {
-        new Notification(payload.notification.title || 'NestTask', {
-          body: payload.notification.body,
-          icon: payload.notification.icon || '/icons/icon-192x192.png',
-          badge: '/icons/icon-192x192.png',
-          tag: payload.notification.tag || 'nesttask-foreground',
-          data: payload.data
-        });
-      }
-    });
-
-    console.log('✅ FCM foreground listener initialized');
-  } catch (error) {
-    console.error('Error initializing FCM features:', error);
   }
 }

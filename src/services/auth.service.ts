@@ -1,7 +1,5 @@
 import { supabase } from '../lib/supabase';
 import { getAuthErrorMessage } from '../utils/authErrors';
-import { requestNotificationPermissionOnLogin, resetNotificationPermissionSession } from './notificationPermission.service';
-import { initializeFCMForUser } from '../utils/pwa';
 import type { LoginCredentials, SignupCredentials, User } from '../types/auth';
 import type { Database } from '../types/supabase';
 import { showSuccessToast, showErrorToast } from '../utils/notifications';
@@ -308,32 +306,7 @@ export async function loginUser({ email, password }: LoginCredentials): Promise<
       return mapDbUserToUser(newProfile);
     }
 
-    const user = mapDbUserToUser(profile);
-
-    // Initialize FCM and request notification permission after successful login
-    try {
-      console.log('🔔 Setting up notifications for logged-in user:', user.id);
-
-      // Initialize FCM foreground listener
-      await initializeFCMForUser(user.id);
-
-      // Request notification permission (non-blocking)
-      setTimeout(() => {
-        requestNotificationPermissionOnLogin(user.id, {
-          showToast: true,
-          autoSubscribe: true,
-          silent: false
-        }).catch(error => {
-          console.error('Error requesting notification permission after login:', error);
-        });
-      }, 1500); // Small delay to let the login UI settle
-
-    } catch (error) {
-      console.error('Error setting up notifications after login:', error);
-      // Don't fail the login if notifications fail
-    }
-
-    return user;
+    return mapDbUserToUser(profile);
   } catch (error: any) {
     console.error('Login error:', error);
     // Enhanced error logging with more details
@@ -463,7 +436,7 @@ export async function signupUser({
     }
 
     // Return the user data with all related info
-    const user = {
+    return {
       id: userData.id,
       email: userData.email,
       name: userData.name,
@@ -479,31 +452,6 @@ export async function signupUser({
       sectionId: userData.sectionId,
       sectionName: userData.sectionName
     };
-
-    // Initialize FCM and request notification permission after successful signup
-    try {
-      console.log('🔔 Setting up notifications for new user:', user.id);
-
-      // Initialize FCM foreground listener
-      await initializeFCMForUser(user.id);
-
-      // Request notification permission (non-blocking)
-      setTimeout(() => {
-        requestNotificationPermissionOnLogin(user.id, {
-          showToast: true,
-          autoSubscribe: true,
-          silent: false
-        }).catch(error => {
-          console.error('Error requesting notification permission after signup:', error);
-        });
-      }, 2000); // Slightly longer delay for signup to let the UI settle
-
-    } catch (error) {
-      console.error('Error setting up notifications after signup:', error);
-      // Don't fail the signup if notifications fail
-    }
-
-    return user;
   } catch (error: any) {
     console.error('Signup error:', error);
     throw new Error(error.message || 'Failed to create account');
@@ -542,9 +490,6 @@ export async function logoutUser(): Promise<void> {
     localStorage.removeItem('nesttask_saved_email');
     localStorage.removeItem('supabase.auth.token');
     sessionStorage.removeItem('supabase.auth.token');
-
-    // Reset notification permission session
-    resetNotificationPermissionSession();
     
     // Clear IndexedDB storage
     try {

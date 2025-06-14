@@ -4,7 +4,6 @@ import { createBrowserRouter, RouterProvider } from 'react-router-dom';
 // Import CSS (Vite handles this correctly)
 import './index.css';
 import { MicroLoader } from './components/MicroLoader';
-import { ErrorBoundary } from './components/ErrorBoundary';
 import { initPWA } from './utils/pwa';
 import { supabase } from './lib/supabase';
 import type { LoginCredentials, SignupCredentials } from './types/auth';
@@ -14,34 +13,16 @@ const App = lazy(() => import('./App'));
 const ResetPasswordPage = lazy(() => import('./pages/ResetPasswordPage').then(module => ({ default: module.ResetPasswordPage })));
 const AuthPage = lazy(() => import('./pages/AuthPage').then(module => ({ default: module.AuthPage })));
 
-// Enhanced environment validation for production
+// Ensure environment variables are properly loaded in production
 if (import.meta.env.PROD) {
-  console.log('[Production] NestTask starting in production mode');
-  console.log('[Production] Build time:', import.meta.env.VITE_BUILD_TIME || 'Unknown');
-  console.log('[Production] Version:', import.meta.env.VITE_BUILD_VERSION || 'Unknown');
-
-  // Environment variable validation
-  const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || (window as any).ENV_SUPABASE_URL;
-  const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY || (window as any).ENV_SUPABASE_ANON_KEY;
-
-  if (!supabaseUrl) {
-    console.error('[Production Error] Missing Supabase URL in production environment');
-    console.error('[Production Error] Please set VITE_SUPABASE_URL in Vercel environment variables');
-  } else {
-    console.log('[Production] Supabase URL configured:', supabaseUrl.substring(0, 30) + '...');
+  console.log('[Debug] Running in production mode - checking environment variables');
+  // Check if we need to add environment variables to window for runtime access
+  if (!import.meta.env.VITE_SUPABASE_URL && !((window as any).ENV_SUPABASE_URL)) {
+    console.error('[Error] Missing Supabase URL in production environment');
   }
-
-  if (!supabaseKey) {
-    console.error('[Production Error] Missing Supabase Anon Key in production environment');
-    console.error('[Production Error] Please set VITE_SUPABASE_ANON_KEY in Vercel environment variables');
-  } else {
-    console.log('[Production] Supabase Anon Key configured:', supabaseKey.substring(0, 20) + '...');
+  if (!import.meta.env.VITE_SUPABASE_ANON_KEY && !((window as any).ENV_SUPABASE_ANON_KEY)) {
+    console.error('[Error] Missing Supabase Anon Key in production environment');
   }
-
-  // Log deployment environment info
-  console.log('[Production] Hostname:', window.location.hostname);
-  console.log('[Production] Protocol:', window.location.protocol);
-  console.log('[Production] User Agent:', navigator.userAgent.substring(0, 50) + '...');
 }
 
 // Conditionally import Analytics only in production
@@ -129,39 +110,29 @@ function initApp() {
   
   const reactRoot = createRoot(root);
   
-  // Render app with error boundary and minimal surrounding components
+  // Render app with minimal surrounding components
   reactRoot.render(
     <StrictMode>
-      <ErrorBoundary>
-        <Suspense fallback={<MicroLoader />}>
-          <RouterProvider router={router} />
-          {import.meta.env.PROD && (
-            <AnalyticsErrorBoundary>
-              <Suspense fallback={null}><Analytics /></Suspense>
-            </AnalyticsErrorBoundary>
-          )}
-        </Suspense>
-      </ErrorBoundary>
+      <Suspense fallback={<MicroLoader />}>
+        <RouterProvider router={router} />
+        {import.meta.env.PROD && (
+          <AnalyticsErrorBoundary>
+            <Suspense fallback={null}><Analytics /></Suspense>
+          </AnalyticsErrorBoundary>
+        )}
+      </Suspense>
     </StrictMode>
   );
   
   // Initialize PWA features
   if ('serviceWorker' in navigator) {
     window.addEventListener('load', () => {
-      // Register main service worker
       navigator.serviceWorker.register('/service-worker.js')
         .then(() => {
           // Initialize PWA features after service worker is registered
           setTimeout(() => initPWA(), 1000);
         })
         .catch(error => console.error('SW registration failed:', error));
-
-      // Register Firebase messaging service worker
-      navigator.serviceWorker.register('/firebase-messaging-sw.js')
-        .then((registration) => {
-          console.log('Firebase messaging SW registered:', registration);
-        })
-        .catch(error => console.error('Firebase messaging SW registration failed:', error));
     });
   }
 }

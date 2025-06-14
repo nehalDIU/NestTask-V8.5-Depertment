@@ -44,6 +44,5 @@
     }
   ],
   "categories": ["productivity"],
-  "prefer_related_applications": false,
-  "gcm_sender_id": "743430115138"
+  "prefer_related_applications": false
 }

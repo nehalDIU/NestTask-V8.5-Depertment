@@ -7,20 +7,9 @@ console.log('== Build Environment Info (CJS) ==');
 console.log(`Node version: ${process.version}`);
 console.log(`PWD: ${process.cwd()}`);
 console.log(`VERCEL: ${process.env.VERCEL || 'Not set'}`);
-console.log(`VERCEL_ENV: ${process.env.VERCEL_ENV || 'Not set'}`);
-console.log(`NODE_ENV: ${process.env.NODE_ENV || 'Not set'}`);
 console.log('== Environment Variables ==');
 console.log(`VITE_SUPABASE_URL set: ${process.env.VITE_SUPABASE_URL ? 'Yes' : 'No'}`);
 console.log(`VITE_SUPABASE_ANON_KEY set: ${process.env.VITE_SUPABASE_ANON_KEY ? 'Yes' : 'No'}`);
-console.log(`ENABLE_CONSOLE_LOGS: ${process.env.ENABLE_CONSOLE_LOGS || 'Not set'}`);
-
-// Log partial values for debugging (first 20 chars only for security)
-if (process.env.VITE_SUPABASE_URL) {
-  console.log(`VITE_SUPABASE_URL preview: ${process.env.VITE_SUPABASE_URL.substring(0, 30)}...`);
-}
-if (process.env.VITE_SUPABASE_ANON_KEY) {
-  console.log(`VITE_SUPABASE_ANON_KEY preview: ${process.env.VITE_SUPABASE_ANON_KEY.substring(0, 20)}...`);
-}
 
 // Function to recursively check files for encoding issues
 function checkFilesForEncodingIssues(dirPath, fileExtensions = ['.ts', '.tsx']) {

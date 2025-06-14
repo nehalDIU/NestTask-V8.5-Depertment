@@ -107,14 +107,9 @@ export default defineConfig({
     minify: 'terser',
     terserOptions: {
       compress: {
-        // Keep console logs for debugging deployment issues
-        // Only drop console in production if VERCEL_ENV is 'production'
-        drop_console: process.env.VERCEL_ENV === 'production' && process.env.ENABLE_CONSOLE_LOGS !== 'true',
+        drop_console: true,
         drop_debugger: true,
-        // Only remove specific console methods if console dropping is enabled
-        pure_funcs: process.env.VERCEL_ENV === 'production' && process.env.ENABLE_CONSOLE_LOGS !== 'true'
-          ? ['console.debug', 'console.info']
-          : [],
+        pure_funcs: ['console.log', 'console.debug', 'console.info'],
         passes: 2
       },
       mangle: {

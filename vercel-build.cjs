@@ -94,9 +94,9 @@ try {
     // Create .env file with hardcoded values as fallback
     if (!process.env.VITE_SUPABASE_URL || !process.env.VITE_SUPABASE_ANON_KEY) {
       console.log('Creating fallback .env file with hardcoded values');
-      const fallbackEnv = 
-`VITE_SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImhzbXV4bnNmemtmZnptaGJtdHRzIiwicm9sZSI6ImFub24iLCJpYVQiOjE3NDg3MDE0ODMsImV4cCI6MjA2NDI3NzQ4M30.0y17sSd6pDwJzj4VXqJiclAQeI3V_dtFihbtF-jlcTI
-VITE_SUPABASE_URL=https://hsmuxnsfzkffzmhbmtts.supabase.co`;
+      const fallbackEnv =
+`VITE_SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImpxcGRmdG1nZXJ0dnNncHdkdmd3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDkyOTY1MDUsImV4cCI6MjA2NDg3MjUwNX0.7XEAIhSBMqknx4jCQ5dTdUSfbhQpU2GoPybIHhnOcrA
+VITE_SUPABASE_URL=https://jqpdftmgertvsgpwdvgw.supabase.co`;
       fs.writeFileSync('.env', fallbackEnv);
       console.log('Fallback .env file created');
     }

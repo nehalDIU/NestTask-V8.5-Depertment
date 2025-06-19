@@ -5,6 +5,7 @@ import { createBrowserRouter, RouterProvider } from 'react-router-dom';
 import './index.css';
 import { MicroLoader } from './components/MicroLoader';
 import { initPWA } from './utils/pwa';
+import { initProductionDebug } from './utils/production-debug';
 import { supabase } from './lib/supabase';
 import type { LoginCredentials, SignupCredentials } from './types/auth';
 
@@ -91,6 +92,9 @@ const router = createBrowserRouter([
 
 // Initialize app with minimal operations
 function initApp() {
+  // Initialize production debugging first
+  initProductionDebug();
+
   // Add DNS prefetch for critical domains
   if (import.meta.env.VITE_SUPABASE_URL) {
     try {

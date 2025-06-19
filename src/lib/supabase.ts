@@ -105,22 +105,26 @@ export async function testConnection(forceCheck = false) {
   // Update last active time
   lastActiveTime = Date.now();
   
-  // In development mode, return true to bypass connection checks
-  // This is a temporary workaround for local development
-  if (import.meta.env.DEV) {
-    console.log('[DEV MODE] Bypassing database connection check');
-    
-    // Check if environment variables are properly set
-    if (!supabaseUrl || supabaseUrl === 'https://your-project-id.supabase.co') {
-      console.error('⚠️ Supabase URL is not configured correctly!');
-      console.info('Please set VITE_SUPABASE_URL in your .env file');
+  // Check if environment variables are properly set in all environments
+  if (!supabaseUrl || supabaseUrl === 'https://your-project-id.supabase.co') {
+    console.error('⚠️ Supabase URL is not configured correctly!');
+    console.info('Please set VITE_SUPABASE_URL in your .env file');
+    if (import.meta.env.PROD) {
+      throw new Error('Missing Supabase URL in production environment');
     }
-    
-    if (!supabaseAnonKey || supabaseAnonKey === 'your-anon-key') {
-      console.error('⚠️ Supabase Anon Key is not configured correctly!');
-      console.info('Please set VITE_SUPABASE_ANON_KEY in your .env file');
+  }
+
+  if (!supabaseAnonKey || supabaseAnonKey === 'your-anon-key') {
+    console.error('⚠️ Supabase Anon Key is not configured correctly!');
+    console.info('Please set VITE_SUPABASE_ANON_KEY in your .env file');
+    if (import.meta.env.PROD) {
+      throw new Error('Missing Supabase Anon Key in production environment');
     }
-    
+  }
+
+  // In development mode, return true to bypass connection checks only if env vars are set
+  if (import.meta.env.DEV && supabaseUrl && supabaseAnonKey) {
+    console.log('[DEV MODE] Environment variables validated, bypassing connection check');
     return true;
   }
   

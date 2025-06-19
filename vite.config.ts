@@ -107,9 +107,9 @@ export default defineConfig({
     minify: 'terser',
     terserOptions: {
       compress: {
-        drop_console: true,
+        drop_console: false, // Keep console logs for debugging production issues
         drop_debugger: true,
-        pure_funcs: ['console.log', 'console.debug', 'console.info'],
+        pure_funcs: ['console.debug'], // Only drop debug logs
         passes: 2
       },
       mangle: {

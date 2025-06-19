@@ -173,11 +173,13 @@ export async function loginUser({ email, password }: LoginCredentials): Promise<
     });
     
     if (authError) {
+      console.error('Authentication error:', authError.message);
+
       // If we're in development mode, allow any login with a fallback user
       if (isDevelopment) {
         console.warn('Development mode: Creating fallback user after failed login attempt');
         console.warn('Error from auth service:', authError.message);
-        
+
         // Return a mock user as fallback in development
         const fallbackUser = {
           id: `dev-fallback-${Math.random().toString(36).substring(2, 9)}`,
@@ -193,11 +195,11 @@ export async function loginUser({ email, password }: LoginCredentials): Promise<
           batchId: 'dev-batch-1',
           sectionId: 'dev-section-1'
         } as User;
-        
+
         // Store in localStorage for persistence
         localStorage.setItem('nesttask_demo_user', JSON.stringify(fallbackUser));
         localStorage.setItem('nesttask_auth_bypass', 'true');
-        
+
         return fallbackUser;
       }
       

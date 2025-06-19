@@ -176,6 +176,64 @@ self.addEventListener('push', (event) => {
   }
 });
 
+// Basic PWA caching functionality
+const CACHE_NAME = 'nesttask-fcm-v1';
+const OFFLINE_URL = '/offline.html';
+
+// Install event - basic caching
+self.addEventListener('install', (event) => {
+  event.waitUntil(
+    caches.open(CACHE_NAME)
+      .then((cache) => {
+        return cache.addAll([
+          '/',
+          '/index.html',
+          '/offline.html',
+          '/manifest.json',
+          '/icons/icon-192x192.png'
+        ]);
+      })
+      .then(() => self.skipWaiting())
+  );
+});
+
+// Activate event - cleanup and claim clients
+self.addEventListener('activate', (event) => {
+  event.waitUntil(
+    Promise.all([
+      caches.keys().then((keyList) => {
+        return Promise.all(keyList.map((key) => {
+          if (key !== CACHE_NAME) {
+            return caches.delete(key);
+          }
+        }));
+      }),
+      self.clients.claim()
+    ])
+  );
+});
+
+// Basic fetch handler for offline support
+self.addEventListener('fetch', (event) => {
+  // Only handle GET requests
+  if (event.request.method !== 'GET') return;
+
+  // Handle navigation requests
+  if (event.request.mode === 'navigate') {
+    event.respondWith(
+      fetch(event.request)
+        .catch(() => caches.match(OFFLINE_URL) || caches.match('/'))
+    );
+    return;
+  }
+
+  // For other requests, try network first, then cache
+  event.respondWith(
+    fetch(event.request)
+      .catch(() => caches.match(event.request))
+  );
+});
+
 // Keep the service worker alive
 self.addEventListener('message', (event) => {
   if (event.data && event.data.type === 'SKIP_WAITING') {
@@ -183,4 +241,4 @@ self.addEventListener('message', (event) => {
   }
 });
 
-console.log('Firebase messaging service worker loaded successfully');
+console.log('Firebase messaging service worker with PWA support loaded successfully');

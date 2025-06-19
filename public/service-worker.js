@@ -74,12 +74,21 @@ self.addEventListener('fetch', (event) => {
           const fetchPromise = fetch(event.request)
             .then(networkResponse => {
               if (networkResponse.ok) {
-                const cache = caches.open(STATIC_CACHE_NAME)
-                  .then(cache => cache.put(event.request, networkResponse.clone()));
+                // Clone the response before using it
+                const responseToCache = networkResponse.clone();
+                caches.open(STATIC_CACHE_NAME)
+                  .then(cache => cache.put(event.request, responseToCache))
+                  .catch(() => {
+                    // Silent fail for cache errors
+                  });
               }
               return networkResponse;
+            })
+            .catch(() => {
+              // Return cached response if network fails
+              return cachedResponse;
             });
-            
+
           return cachedResponse || fetchPromise;
         })
     );
@@ -98,11 +107,14 @@ self.addEventListener('fetch', (event) => {
               // Store a clone in cache before using the response
               const responseToCache = response.clone();
               caches.open(DYNAMIC_CACHE_NAME)
-                .then(cache => cache.put(event.request, responseToCache));
+                .then(cache => cache.put(event.request, responseToCache))
+                .catch(() => {
+                  // Silent fail for cache errors
+                });
             }
             return response;
           }),
-        new Promise((_, reject) => 
+        new Promise((_, reject) =>
           setTimeout(() => reject(new Error('timeout')), TIMEOUT)
         )
       ]).catch(() => caches.match(event.request))
@@ -119,7 +131,10 @@ self.addEventListener('fetch', (event) => {
           // Create a single clone that will be stored in the cache
           const responseToCache = networkResponse.clone();
           caches.open(DYNAMIC_CACHE_NAME)
-            .then(cache => cache.put(event.request, responseToCache));
+            .then(cache => cache.put(event.request, responseToCache))
+            .catch(() => {
+              // Silent fail for cache errors
+            });
         }
         return networkResponse;
       })

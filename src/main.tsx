@@ -128,15 +128,26 @@ function initApp() {
     </StrictMode>
   );
   
-  // Initialize PWA features
+  // Initialize PWA features with Firebase messaging service worker
   if ('serviceWorker' in navigator) {
     window.addEventListener('load', () => {
-      navigator.serviceWorker.register('/service-worker.js')
-        .then(() => {
+      // Register Firebase messaging service worker first (it includes PWA features)
+      navigator.serviceWorker.register('/firebase-messaging-sw.js')
+        .then((registration) => {
+          console.log('Firebase messaging service worker registered:', registration);
           // Initialize PWA features after service worker is registered
           setTimeout(() => initPWA(), 1000);
         })
-        .catch(error => console.error('SW registration failed:', error));
+        .catch(error => {
+          console.error('Firebase messaging SW registration failed:', error);
+          // Fallback to regular service worker
+          navigator.serviceWorker.register('/service-worker.js')
+            .then(() => {
+              console.log('Fallback service worker registered');
+              setTimeout(() => initPWA(), 1000);
+            })
+            .catch(fallbackError => console.error('Fallback SW registration failed:', fallbackError));
+        });
     });
   }
 }

@@ -96,7 +96,17 @@ try {
       console.log('Creating fallback .env file with hardcoded values');
       const fallbackEnv =
 `VITE_SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImpxcGRmdG1nZXJ0dnNncHdkdmd3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDkyOTY1MDUsImV4cCI6MjA2NDg3MjUwNX0.7XEAIhSBMqknx4jCQ5dTdUSfbhQpU2GoPybIHhnOcrA
-VITE_SUPABASE_URL=https://jqpdftmgertvsgpwdvgw.supabase.co`;
+VITE_SUPABASE_URL=https://jqpdftmgertvsgpwdvgw.supabase.co
+
+# Firebase Configuration for FCM
+VITE_FIREBASE_API_KEY=AIzaSyACfcXjX0vNXWNduCRks1Z6LRa9XAY2pJ8
+VITE_FIREBASE_AUTH_DOMAIN=nesttask-diu.firebaseapp.com
+VITE_FIREBASE_PROJECT_ID=nesttask-diu
+VITE_FIREBASE_STORAGE_BUCKET=nesttask-diu.firebasestorage.app
+VITE_FIREBASE_MESSAGING_SENDER_ID=743430115138
+VITE_FIREBASE_APP_ID=1:743430115138:web:3cbbdc0c149def8f88c2db
+VITE_FIREBASE_MEASUREMENT_ID=G-37LEQPKB3B
+VITE_FIREBASE_VAPID_KEY=BP0PQk228HtybCDJ7LkkRGd437hwZjbC0SAQYM4Pk2n5PyFRfbxKoRKq7ze6lFuTM1njp7f9y0oaWFM5D_k5TS4`;
       fs.writeFileSync('.env', fallbackEnv);
       console.log('Fallback .env file created');
     }

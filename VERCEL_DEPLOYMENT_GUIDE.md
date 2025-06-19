@@ -7,10 +7,13 @@ This guide addresses the main issues that were causing functions to fail in prod
 ### Issues Identified:
 
 1. **Environment Variable Mismatch** - Fixed ✅
-2. **Build Configuration Conflict** - Fixed ✅  
+2. **Build Configuration Conflict** - Fixed ✅
 3. **Console Logging Disabled in Production** - Fixed ✅
 4. **Development-Only Bypasses** - Fixed ✅
 5. **FCM Service Worker Issues** - Fixed ✅
+6. **Missing Firebase Environment Variables in Production** - Fixed ✅
+7. **Service Worker Response Clone Error** - Fixed ✅
+8. **Service Worker Conflict** - Fixed ✅
 
 ## 🔧 Required Vercel Environment Variables
 
@@ -81,10 +84,28 @@ Then refresh the page.
 ### Issue: "Missing Supabase environment variables"
 **Solution:** Ensure all environment variables are set in Vercel dashboard for all environments.
 
+### Issue: "Missing Firebase environment variables" error
+**Solution:**
+- All Firebase environment variables are now included in the build fallback
+- Verify environment variables are set in Vercel dashboard
+- Check console for "Missing VITE_FIREBASE_*" errors
+
+### Issue: "Failed to execute 'clone' on 'Response'" error
+**Solution:**
+- Fixed service worker response cloning issues
+- Enhanced error handling in service worker
+- Service worker now properly handles response streams
+
+### Issue: "Wrong service worker active" error
+**Solution:**
+- Unified service workers - Firebase messaging SW now includes PWA features
+- Eliminated conflict between multiple service workers
+- App now registers Firebase messaging service worker as primary
+
 ### Issue: "Invalid VAPID key configuration" error
 **Solution:**
-- Ensure VAPID key is exactly copied from Firebase Console
-- Verify no extra spaces or line breaks in environment variable
+- Improved VAPID key validation with fallback mechanism
+- Enhanced debugging information for VAPID key issues
 - VAPID key should be 87-88 characters and start with 'B'
 - Use the FCM diagnostics: `window.fcmDiagnostics.logFCMDiagnostics()`
 

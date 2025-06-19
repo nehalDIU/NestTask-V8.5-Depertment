@@ -17,8 +17,25 @@ export const VAPID_KEY = import.meta.env.VITE_FIREBASE_VAPID_KEY || "BP0PQk228Ht
 
 // Validate VAPID key format
 const validateVapidKey = (key: string): boolean => {
-  // VAPID keys should start with 'B' and be 88 characters long (base64url encoded)
-  return key.startsWith('B') && key.length === 88;
+  if (!key || typeof key !== 'string') return false;
+
+  // VAPID keys should start with 'B' and be 87-88 characters long (base64url encoded)
+  // Some keys might be 87 characters due to padding differences
+  const isValidLength = key.length >= 87 && key.length <= 88;
+  const startsWithB = key.startsWith('B');
+
+  // Additional check: should contain only valid base64url characters
+  const base64urlPattern = /^[A-Za-z0-9_-]+$/;
+  const hasValidChars = base64urlPattern.test(key);
+
+  console.log('🔍 VAPID Key validation details:', {
+    length: key.length,
+    startsWithB,
+    hasValidChars,
+    isValidLength
+  });
+
+  return startsWithB && isValidLength && hasValidChars;
 };
 
 // Log VAPID key validation
@@ -119,9 +136,20 @@ export const getFCMToken = async (): Promise<string | null> => {
     }
 
     // Validate VAPID key
-    if (!VAPID_KEY || !validateVapidKey(VAPID_KEY)) {
-      console.error('❌ Invalid VAPID key configuration');
+    if (!VAPID_KEY) {
+      console.error('❌ VAPID key is missing');
       return null;
+    }
+
+    const isValidVapid = validateVapidKey(VAPID_KEY);
+    if (!isValidVapid) {
+      console.warn('⚠️ VAPID key validation failed, but attempting to use it anyway');
+      console.log('VAPID key details:', {
+        key: VAPID_KEY.substring(0, 20) + '...',
+        length: VAPID_KEY.length,
+        startsWithB: VAPID_KEY.startsWith('B')
+      });
+      // Don't return null here - let Firebase handle the validation
     }
 
     console.log('🔑 Requesting FCM token with VAPID key...');

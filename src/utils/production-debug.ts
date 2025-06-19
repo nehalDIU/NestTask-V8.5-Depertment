@@ -34,6 +34,8 @@ export const collectDebugInfo = (): DebugInfo => {
     const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
     const firebaseApiKey = import.meta.env.VITE_FIREBASE_API_KEY;
     const vapidKey = import.meta.env.VITE_FIREBASE_VAPID_KEY;
+    const firebaseProjectId = import.meta.env.VITE_FIREBASE_PROJECT_ID;
+    const firebaseAuthDomain = import.meta.env.VITE_FIREBASE_AUTH_DOMAIN;
     
     // Validate VAPID key
     const validateVapidKey = (key: string): boolean => {
@@ -45,6 +47,8 @@ export const collectDebugInfo = (): DebugInfo => {
     if (!supabaseAnonKey) errors.push('Missing VITE_SUPABASE_ANON_KEY');
     if (!firebaseApiKey) errors.push('Missing VITE_FIREBASE_API_KEY');
     if (!vapidKey) errors.push('Missing VITE_FIREBASE_VAPID_KEY');
+    if (!firebaseProjectId) errors.push('Missing VITE_FIREBASE_PROJECT_ID');
+    if (!firebaseAuthDomain) errors.push('Missing VITE_FIREBASE_AUTH_DOMAIN');
     
     // Check browser support
     const browserSupport = {
@@ -72,7 +76,10 @@ export const collectDebugInfo = (): DebugInfo => {
       firebaseConfig: {
         hasApiKey: !!firebaseApiKey,
         hasVapidKey: !!vapidKey,
-        vapidKeyValid: vapidKey ? validateVapidKey(vapidKey) : false
+        vapidKeyValid: vapidKey ? validateVapidKey(vapidKey) : false,
+        hasProjectId: !!firebaseProjectId,
+        hasAuthDomain: !!firebaseAuthDomain,
+        vapidKeyLength: vapidKey ? vapidKey.length : 0
       },
       browserSupport,
       errors
@@ -106,7 +113,10 @@ export const logDebugInfo = (): void => {
   console.log('Supabase URL:', debugInfo.supabaseConfig.url ? '✅ Set' : '❌ Missing');
   console.log('Supabase Anon Key:', debugInfo.supabaseConfig.hasAnonKey ? '✅ Set' : '❌ Missing');
   console.log('Firebase API Key:', debugInfo.firebaseConfig.hasApiKey ? '✅ Set' : '❌ Missing');
+  console.log('Firebase Project ID:', debugInfo.firebaseConfig.hasProjectId ? '✅ Set' : '❌ Missing');
+  console.log('Firebase Auth Domain:', debugInfo.firebaseConfig.hasAuthDomain ? '✅ Set' : '❌ Missing');
   console.log('Firebase VAPID Key:', debugInfo.firebaseConfig.hasVapidKey ? '✅ Set' : '❌ Missing');
+  console.log('VAPID Key Length:', debugInfo.firebaseConfig.vapidKeyLength);
   console.log('VAPID Key Valid:', debugInfo.firebaseConfig.vapidKeyValid ? '✅ Valid' : '❌ Invalid');
   console.groupEnd();
   
@@ -134,7 +144,14 @@ export const initProductionDebug = (): void => {
   if (import.meta.env.PROD || localStorage.getItem('nesttask_debug') === 'true') {
     console.log('🚀 NestTask Production Debug Mode');
     logDebugInfo();
-    
+
+    // Also run FCM diagnostics if available
+    import('./fcm-troubleshoot').then(({ logFCMDiagnostics }) => {
+      logFCMDiagnostics().catch(console.error);
+    }).catch(() => {
+      // FCM troubleshoot module not available
+    });
+
     // Also log any unhandled errors
     window.addEventListener('error', (event) => {
       console.error('🚨 Unhandled Error:', {
@@ -145,7 +162,7 @@ export const initProductionDebug = (): void => {
         error: event.error
       });
     });
-    
+
     // Log unhandled promise rejections
     window.addEventListener('unhandledrejection', (event) => {
       console.error('🚨 Unhandled Promise Rejection:', event.reason);

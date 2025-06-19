@@ -51,6 +51,9 @@ In the browser console, you can run:
 // Get comprehensive debug information
 window.nestTaskDebug.logDebugInfo();
 
+// Run FCM-specific diagnostics
+window.fcmDiagnostics.logFCMDiagnostics();
+
 // Export debug info for support
 console.log(window.nestTaskDebug.exportDebugInfo());
 ```
@@ -78,11 +81,19 @@ Then refresh the page.
 ### Issue: "Missing Supabase environment variables"
 **Solution:** Ensure all environment variables are set in Vercel dashboard for all environments.
 
+### Issue: "Invalid VAPID key configuration" error
+**Solution:**
+- Ensure VAPID key is exactly copied from Firebase Console
+- Verify no extra spaces or line breaks in environment variable
+- VAPID key should be 87-88 characters and start with 'B'
+- Use the FCM diagnostics: `window.fcmDiagnostics.logFCMDiagnostics()`
+
 ### Issue: FCM not working in production
-**Solution:** 
+**Solution:**
 - Verify HTTPS is enabled (automatic on Vercel)
 - Check VAPID key is correctly set
 - Ensure service worker is registered
+- Run FCM diagnostics for detailed troubleshooting
 
 ### Issue: Authentication failures
 **Solution:**

@@ -1,14 +1,21 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from './useAuth';
-import { 
-  requestNotificationPermission, 
+import { useNotificationPreferences } from './useNotificationPreferences';
+import {
+  requestNotificationPermission,
   subscribeToPushNotifications,
   unsubscribeFromPushNotifications
 } from '../utils/pushNotifications';
 
 export function usePushNotifications() {
   const { user } = useAuth();
-  const [isSubscribed, setIsSubscribed] = useState(false);
+  const {
+    isFullyEnabled,
+    permissionStatus,
+    fcmSupported,
+    requestPermission,
+    disableNotifications
+  } = useNotificationPreferences(user?.id);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -24,15 +31,15 @@ export function usePushNotifications() {
 
   const checkSubscriptionStatus = async () => {
     try {
-      if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
+      if (!fcmSupported) {
         setError('Push notifications are not supported in this browser');
         setLoading(false);
         return;
       }
 
-      const registration = await navigator.serviceWorker.ready;
-      const subscription = await registration.pushManager.getSubscription();
-      setIsSubscribed(!!subscription);
+      // The subscription status is now handled by useNotificationPreferences
+      // We just need to check if there are any errors
+      setError(null);
     } catch (error: any) {
       console.error('Error checking subscription status:', error);
       setError(getNotificationErrorMessage(error));
@@ -48,19 +55,13 @@ export function usePushNotifications() {
       setError(null);
       setLoading(true);
 
-      const permissionGranted = await requestNotificationPermission();
-      if (!permissionGranted) {
+      // Use the new notification preferences system
+      const success = await requestPermission();
+      if (!success) {
         setError('Please allow notifications in your browser settings to receive updates');
         return false;
       }
 
-      const subscription = await subscribeToPushNotifications(user.id);
-      if (!subscription) {
-        setError('Failed to subscribe to notifications. Please try again.');
-        return false;
-      }
-
-      setIsSubscribed(true);
       return true;
     } catch (error: any) {
       console.error('Error subscribing to notifications:', error);
@@ -78,8 +79,8 @@ export function usePushNotifications() {
       setError(null);
       setLoading(true);
 
-      const success = await unsubscribeFromPushNotifications(user.id);
-      setIsSubscribed(!success);
+      // Use the new notification preferences system
+      const success = await disableNotifications();
       return success;
     } catch (error: any) {
       console.error('Error unsubscribing from notifications:', error);
@@ -101,10 +102,12 @@ export function usePushNotifications() {
   };
 
   return {
-    isSubscribed,
+    isSubscribed: isFullyEnabled(),
     loading,
     error,
     subscribe,
-    unsubscribe
+    unsubscribe,
+    permissionStatus,
+    fcmSupported
   };
 }

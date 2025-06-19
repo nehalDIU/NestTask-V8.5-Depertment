@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { supabase, testConnection } from '../lib/supabase';
 import { loginUser, signupUser, logoutUser, resetPassword } from '../services/auth.service';
 import { forceCleanReload, updateAuthStatus } from '../utils/auth';
+import { refreshFCMToken, updateTokenLastUsed } from '../services/fcm.service';
 import type { User, LoginCredentials, SignupCredentials } from '../types/auth';
 
 const REMEMBER_ME_KEY = 'nesttask_remember_me';
@@ -81,6 +82,15 @@ export function useAuth() {
     if (session?.user) {
       try {
         await updateUserState(session.user);
+
+        // Refresh FCM token on auth state change
+        try {
+          await refreshFCMToken(session.user.id);
+          await updateTokenLastUsed(session.user.id);
+          console.log('FCM token refreshed on auth state change');
+        } catch (fcmError) {
+          console.warn('Failed to refresh FCM token on auth state change:', fcmError);
+        }
       } catch (err) {
         console.error('Error updating user state:', err);
         await handleInvalidSession();

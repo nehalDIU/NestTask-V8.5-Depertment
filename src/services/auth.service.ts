@@ -3,6 +3,7 @@ import { getAuthErrorMessage } from '../utils/authErrors';
 import type { LoginCredentials, SignupCredentials, User } from '../types/auth';
 import type { Database } from '../types/supabase';
 import { showSuccessToast, showErrorToast } from '../utils/notifications';
+import { registerFCMToken, deactivateFCMToken, requestNotificationPermission } from './fcm.service';
 
 type DbUser = Database['public']['Tables']['users']['Row'];
 type DbUserInsert = Database['public']['Tables']['users']['Insert'];
@@ -306,7 +307,22 @@ export async function loginUser({ email, password }: LoginCredentials): Promise<
       return mapDbUserToUser(newProfile);
     }
 
-    return mapDbUserToUser(profile);
+    const user = mapDbUserToUser(profile);
+
+    // Register FCM token after successful login
+    try {
+      // Request notification permission and register FCM token
+      const permissionGranted = await requestNotificationPermission();
+      if (permissionGranted) {
+        await registerFCMToken(user.id);
+        console.log('FCM token registered successfully after login');
+      }
+    } catch (fcmError) {
+      // Don't fail login if FCM registration fails
+      console.warn('Failed to register FCM token after login:', fcmError);
+    }
+
+    return user;
   } catch (error: any) {
     console.error('Login error:', error);
     // Enhanced error logging with more details
@@ -436,7 +452,7 @@ export async function signupUser({
     }
 
     // Return the user data with all related info
-    return {
+    const user = {
       id: userData.id,
       email: userData.email,
       name: userData.name,
@@ -452,6 +468,21 @@ export async function signupUser({
       sectionId: userData.sectionId,
       sectionName: userData.sectionName
     };
+
+    // Register FCM token after successful signup
+    try {
+      // Request notification permission and register FCM token
+      const permissionGranted = await requestNotificationPermission();
+      if (permissionGranted) {
+        await registerFCMToken(user.id);
+        console.log('FCM token registered successfully after signup');
+      }
+    } catch (fcmError) {
+      // Don't fail signup if FCM registration fails
+      console.warn('Failed to register FCM token after signup:', fcmError);
+    }
+
+    return user;
   } catch (error: any) {
     console.error('Signup error:', error);
     throw new Error(error.message || 'Failed to create account');
@@ -461,7 +492,20 @@ export async function signupUser({
 export async function logoutUser(): Promise<void> {
   try {
     console.log('Starting logoutUser in auth.service...');
-    
+
+    // Get current user before logout for FCM cleanup
+    const { data: { user } } = await supabase.auth.getUser();
+
+    // Deactivate FCM tokens for this user/device
+    if (user) {
+      try {
+        await deactivateFCMToken(user.id);
+        console.log('FCM tokens deactivated successfully');
+      } catch (fcmError) {
+        console.warn('Failed to deactivate FCM tokens during logout:', fcmError);
+      }
+    }
+
     // Clear any existing refresh intervals
     const intervalId = localStorage.getItem('nesttask_refresh_interval');
     if (intervalId) {

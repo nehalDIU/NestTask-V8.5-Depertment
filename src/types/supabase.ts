@@ -1,6 +1,44 @@
 export interface Database {
   public: {
     Tables: {
+      fcm_tokens: {
+        Row: {
+          id: string;
+          user_id: string;
+          fcm_token: string;
+          device_type: string;
+          platform?: string;
+          device_id?: string;
+          is_active: boolean;
+          last_used_at: string;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          user_id: string;
+          fcm_token: string;
+          device_type?: string;
+          platform?: string;
+          device_id?: string;
+          is_active?: boolean;
+          last_used_at?: string;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          user_id?: string;
+          fcm_token?: string;
+          device_type?: string;
+          platform?: string;
+          device_id?: string;
+          is_active?: boolean;
+          last_used_at?: string;
+          created_at?: string;
+          updated_at?: string;
+        };
+      };
       tasks: {
         Row: {
           id: string;

@@ -510,8 +510,7 @@ export const createTask = async (
     
     // Send notifications if it's an admin task
     if (newTask.isAdminTask) {
-      await sendPushNotifications(newTask);
-      await sendTaskNotification(newTask);
+      await sendTaskNotificationFCM(newTask);
     }
     
     return newTask;
@@ -521,65 +520,29 @@ export const createTask = async (
   }
 };
 
-async function sendPushNotifications(task: Task) {
+// New FCM-based notification function
+async function sendTaskNotificationFCM(task: Task) {
   try {
-    // Get all push subscriptions
-    const { data: subscriptions, error } = await supabase
-      .from('push_subscriptions')
-      .select('subscription');
+    // Import the notification service
+    const { sendTaskNotification } = await import('./notification.service');
 
-    if (error) throw error;
-    if (!subscriptions?.length) return;
+    // Send notification using the new FCM service
+    const result = await sendTaskNotification(task);
 
-    // Prepare notification payload
-    const payload = {
-      title: 'New Admin Task',
-      body: `${task.name} - Due: ${new Date(task.dueDate).toLocaleDateString()}`,
-      tag: `admin-task-${task.id}`,
-      data: {
-        url: '/',
-        taskId: task.id,
-        type: 'admin-task'
-      },
-      requireInteraction: true,
-      actions: [
-        {
-          action: 'view',
-          title: 'View Task'
-        }
-      ]
-    };
-
-    // Send push notification to each subscription
-    const notifications = subscriptions.map(async ({ subscription }) => {
-      try {
-        const parsedSubscription = JSON.parse(subscription);
-        
-        // Send notification using the Supabase Edge Function
-        const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/push-notification`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`
-          },
-          body: JSON.stringify({
-            subscription: parsedSubscription,
-            payload: JSON.stringify(payload)
-          })
-        });
-
-        if (!response.ok) {
-          throw new Error('Failed to send push notification');
-        }
-      } catch (error) {
-        console.error('Error sending push notification:', error);
-      }
-    });
-
-    await Promise.allSettled(notifications);
+    if (result.success) {
+      console.log('Task notification sent successfully:', result);
+    } else {
+      console.error('Failed to send task notification:', result.error);
+    }
   } catch (error) {
-    console.error('Error sending notifications:', error);
+    console.error('Error sending task notification:', error);
   }
+}
+
+// Legacy function for backward compatibility
+async function sendPushNotifications(task: Task) {
+  console.warn('sendPushNotifications is deprecated, use sendTaskNotificationFCM instead');
+  return sendTaskNotificationFCM(task);
 }
 
 export async function updateTask(taskId: string, updates: Partial<Task>) {

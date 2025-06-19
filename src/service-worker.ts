@@ -41,6 +41,15 @@ import { BackgroundSyncPlugin } from 'workbox-background-sync';
 // @ts-ignore
 import { Queue } from 'workbox-background-sync';
 
+// Firebase Messaging imports for FCM support
+declare const importScripts: (url: string) => void;
+
+// Import Firebase scripts for FCM
+if (typeof importScripts === 'function') {
+  importScripts('https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js');
+  importScripts('https://www.gstatic.com/firebasejs/10.7.1/firebase-messaging-compat.js');
+}
+
 // Cache names - use shorter names to save bytes
 const CACHE_NAME = 'nt-app-v4';
 const STATIC_CACHE = 'nt-static-v4';
@@ -52,6 +61,68 @@ const OFFLINE_URL = '/offline.html';
 
 // Track service worker activity
 let lastActivityTime = Date.now();
+
+// Firebase configuration for FCM
+const firebaseConfig = {
+  apiKey: "your-api-key", // Will be replaced with actual values
+  authDomain: "your-project.firebaseapp.com",
+  projectId: "your-project-id",
+  storageBucket: "your-project.appspot.com",
+  messagingSenderId: "your-sender-id",
+  appId: "your-app-id"
+};
+
+// Initialize Firebase in service worker context
+let messaging: any = null;
+
+// Initialize Firebase Messaging
+const initializeFirebaseMessaging = () => {
+  try {
+    // Check if Firebase is available
+    if (typeof firebase !== 'undefined') {
+      firebase.initializeApp(firebaseConfig);
+      messaging = firebase.messaging();
+
+      // Handle background messages
+      messaging.onBackgroundMessage((payload: any) => {
+        console.log('Received background message:', payload);
+
+        const notificationTitle = payload.notification?.title || payload.data?.title || 'NestTask Notification';
+        const notificationOptions = {
+          body: payload.notification?.body || payload.data?.body || 'You have a new notification',
+          icon: '/icons/icon-192x192.png',
+          badge: '/icons/icon-192x192.png',
+          tag: payload.data?.tag || 'nesttask-notification',
+          data: {
+            url: payload.data?.url || '/',
+            taskId: payload.data?.taskId,
+            type: payload.data?.type || 'general',
+            timestamp: Date.now()
+          },
+          requireInteraction: payload.data?.requireInteraction === 'true',
+          actions: payload.data?.actions ? JSON.parse(payload.data.actions) : [
+            {
+              action: 'view',
+              title: 'View'
+            },
+            {
+              action: 'dismiss',
+              title: 'Dismiss'
+            }
+          ]
+        };
+
+        // Show notification
+        return self.registration.showNotification(notificationTitle, notificationOptions);
+      });
+    }
+  } catch (error) {
+    console.error('Error initializing Firebase Messaging:', error);
+  }
+};
+
+// Initialize Firebase Messaging when service worker loads
+initializeFirebaseMessaging();
 
 // Clean up outdated caches
 cleanupOutdatedCaches();
@@ -294,6 +365,56 @@ self.addEventListener('message', (event: any) => {
         );
       });
       break;
+  }
+});
+
+// Handle notification click events
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+self.addEventListener('notificationclick', (event: any) => {
+  console.log('Notification clicked:', event);
+
+  event.notification.close();
+
+  const action = event.action;
+  const data = event.notification.data;
+
+  if (action === 'dismiss') {
+    return;
+  }
+
+  // Default action or 'view' action
+  const urlToOpen = data?.url || '/';
+
+  event.waitUntil(
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (self as any).clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clientList: any[]) => {
+      // Check if there's already a window/tab open with the target URL
+      for (const client of clientList) {
+        if (client.url === urlToOpen && 'focus' in client) {
+          return client.focus();
+        }
+      }
+
+      // If no existing window/tab, open a new one
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      if ((self as any).clients.openWindow) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        return (self as any).clients.openWindow(urlToOpen);
+      }
+    })
+  );
+});
+
+// Handle notification close events
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+self.addEventListener('notificationclose', (event: any) => {
+  console.log('Notification closed:', event);
+
+  // Track notification dismissal if needed
+  const data = event.notification.data;
+  if (data?.type) {
+    // Could send analytics or tracking data here
+    console.log(`Notification of type ${data.type} was dismissed`);
   }
 });
 

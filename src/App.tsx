@@ -8,7 +8,6 @@ import { LoadingScreen } from './components/LoadingScreen';
 import { Navigation } from './components/Navigation';
 import { BottomNavigation } from './components/BottomNavigation';
 import { InstallPWA } from './components/InstallPWA';
-import { DeploymentDiagnostics } from './components/DeploymentDiagnostics';
 import { isSameDay } from './utils/dateUtils';
 import { InstantTransition } from './components/InstantTransition';
 import type { NavPage } from './types/navigation';
@@ -92,7 +91,6 @@ export default function App() {
   const [statFilter, setStatFilter] = useState<StatFilter>('all');
   const [isLoading, setIsLoading] = useState(true);
   const [isResetPasswordFlow, setIsResetPasswordFlow] = useState(false);
-  const [showDiagnostics, setShowDiagnostics] = useState(false);
 
   // Calculate today's task count - always compute this value regardless of rendering path
   const todayTaskCount = useMemo(() => {
@@ -146,20 +144,6 @@ export default function App() {
     }
   }, []);
   
-  // Add keyboard shortcut to open diagnostics (Ctrl+Shift+D) - MUST be with other hooks
-  useEffect(() => {
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.ctrlKey && event.shiftKey && event.key === 'D') {
-        event.preventDefault();
-        setShowDiagnostics(true);
-        console.log('[Diagnostics] Opening deployment diagnostics panel');
-      }
-    };
-
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, []);
-
   // Check hash on initial load and when it changes
   useEffect(() => {
     // Reduce artificial loading delay to improve perceived performance
@@ -169,7 +153,7 @@ export default function App() {
 
     // Check hash on initial load
     checkHashForRecovery();
-
+    
     // Also listen for hash changes
     const handleHashChange = () => {
       checkHashForRecovery();
@@ -411,12 +395,6 @@ export default function App() {
       />
 
       <InstallPWA />
-
-      {/* Deployment Diagnostics Panel */}
-      <DeploymentDiagnostics
-        isVisible={showDiagnostics}
-        onClose={() => setShowDiagnostics(false)}
-      />
     </div>
   );
 }

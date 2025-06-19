@@ -74,19 +74,12 @@ self.addEventListener('fetch', (event) => {
           const fetchPromise = fetch(event.request)
             .then(networkResponse => {
               if (networkResponse.ok) {
-                // Clone the response before using it
-                const responseToCache = networkResponse.clone();
-                caches.open(STATIC_CACHE_NAME)
-                  .then(cache => cache.put(event.request, responseToCache))
-                  .catch(error => console.warn('Cache put failed:', error));
+                const cache = caches.open(STATIC_CACHE_NAME)
+                  .then(cache => cache.put(event.request, networkResponse.clone()));
               }
               return networkResponse;
-            })
-            .catch(error => {
-              console.warn('Network fetch failed:', error);
-              throw error;
             });
-
+            
           return cachedResponse || fetchPromise;
         })
     );
@@ -105,16 +98,11 @@ self.addEventListener('fetch', (event) => {
               // Store a clone in cache before using the response
               const responseToCache = response.clone();
               caches.open(DYNAMIC_CACHE_NAME)
-                .then(cache => cache.put(event.request, responseToCache))
-                .catch(error => console.warn('Cache put failed for API request:', error));
+                .then(cache => cache.put(event.request, responseToCache));
             }
             return response;
-          })
-          .catch(error => {
-            console.warn('API fetch failed:', error);
-            throw error;
           }),
-        new Promise((_, reject) =>
+        new Promise((_, reject) => 
           setTimeout(() => reject(new Error('timeout')), TIMEOUT)
         )
       ]).catch(() => caches.match(event.request))
@@ -131,15 +119,11 @@ self.addEventListener('fetch', (event) => {
           // Create a single clone that will be stored in the cache
           const responseToCache = networkResponse.clone();
           caches.open(DYNAMIC_CACHE_NAME)
-            .then(cache => cache.put(event.request, responseToCache))
-            .catch(error => console.warn('Cache put failed for general request:', error));
+            .then(cache => cache.put(event.request, responseToCache));
         }
         return networkResponse;
       })
-      .catch(error => {
-        console.warn('General fetch failed:', error);
-        return caches.match(event.request);
-      })
+      .catch(() => caches.match(event.request))
   );
 });
 

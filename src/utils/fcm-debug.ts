@@ -320,6 +320,95 @@ export const checkFCMPrerequisites = () => {
   return checks;
 };
 
+// Function to check token management
+export const debugTokenManagement = async () => {
+  try {
+    console.log('🔍 Debugging FCM token management...');
+
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) {
+      console.error('❌ No authenticated user');
+      return;
+    }
+
+    // Import token management functions
+    const {
+      getTokenStatistics,
+      cleanupDuplicateTokens,
+      getUserFCMTokens
+    } = await import('../services/fcm.service');
+
+    // Get current tokens for user
+    console.log('📊 Current tokens for user:');
+    const userTokens = await getUserFCMTokens(user.id);
+    console.table(userTokens.map(token => ({
+      id: token.id,
+      token_preview: token.fcm_token.substring(0, 30) + '...',
+      is_active: token.is_active,
+      created_at: token.created_at,
+      updated_at: token.updated_at
+    })));
+
+    // Get statistics
+    console.log('📈 Token statistics for user:');
+    const userStats = await getTokenStatistics(user.id);
+    console.log(userStats);
+
+    // Check for duplicates
+    const activeDuplicates = userTokens.filter(t => t.is_active).length;
+    if (activeDuplicates > 1) {
+      console.warn(`⚠️ Found ${activeDuplicates} active tokens (potential duplicates)`);
+      console.log('🧹 Running duplicate cleanup...');
+      await cleanupDuplicateTokens(user.id);
+
+      // Check again after cleanup
+      const tokensAfterCleanup = await getUserFCMTokens(user.id);
+      const activeAfterCleanup = tokensAfterCleanup.filter(t => t.is_active).length;
+      console.log(`✅ After cleanup: ${activeAfterCleanup} active tokens`);
+    } else {
+      console.log('✅ No duplicate tokens found');
+    }
+
+  } catch (error) {
+    console.error('❌ Token management debug error:', error);
+  }
+};
+
+// Function to simulate logout/login cycle
+export const simulateLogoutLogin = async () => {
+  try {
+    console.log('🔄 Simulating logout/login cycle...');
+
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) {
+      console.error('❌ No authenticated user');
+      return;
+    }
+
+    // Import functions
+    const { deactivateFCMTokensForUser, registerFCMToken } = await import('../services/fcm.service');
+
+    console.log('1️⃣ Simulating logout - deactivating tokens...');
+    await deactivateFCMTokensForUser(user.id);
+
+    console.log('2️⃣ Simulating login - registering new token...');
+    const newToken = await registerFCMToken(user.id);
+
+    if (newToken) {
+      console.log('✅ Logout/login simulation completed successfully');
+      console.log('🎫 New token:', newToken.substring(0, 30) + '...');
+    } else {
+      console.error('❌ Failed to register token during simulation');
+    }
+
+    // Show final state
+    await debugTokenManagement();
+
+  } catch (error) {
+    console.error('❌ Logout/login simulation error:', error);
+  }
+};
+
 // Make functions available globally for console testing
 if (typeof window !== 'undefined') {
   (window as any).debugFCMTokens = debugFCMTokens;
@@ -329,4 +418,6 @@ if (typeof window !== 'undefined') {
   (window as any).testServiceWorker = testServiceWorker;
   (window as any).testFCMTokenGeneration = testFCMTokenGeneration;
   (window as any).checkFCMPrerequisites = checkFCMPrerequisites;
+  (window as any).debugTokenManagement = debugTokenManagement;
+  (window as any).simulateLogoutLogin = simulateLogoutLogin;
 }

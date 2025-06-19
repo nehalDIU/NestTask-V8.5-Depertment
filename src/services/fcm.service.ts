@@ -72,7 +72,56 @@ export const requestNotificationPermission = async (): Promise<NotificationPermi
   return permission;
 };
 
-// Register FCM token for a user
+// Check if FCM token already exists for user
+export const getExistingFCMToken = async (userId: string): Promise<string | null> => {
+  try {
+    const { data, error } = await supabase
+      .from('fcm_tokens')
+      .select('fcm_token')
+      .eq('user_id', userId)
+      .eq('is_active', true)
+      .order('updated_at', { ascending: false })
+      .limit(1)
+      .single();
+
+    if (error && error.code !== 'PGRST116') { // PGRST116 = no rows returned
+      console.error('Error checking existing FCM token:', error);
+      return null;
+    }
+
+    return data?.fcm_token || null;
+  } catch (error) {
+    console.error('Error in getExistingFCMToken:', error);
+    return null;
+  }
+};
+
+// Deactivate all FCM tokens for a user
+export const deactivateFCMTokensForUser = async (userId: string): Promise<boolean> => {
+  try {
+    const { error } = await supabase
+      .from('fcm_tokens')
+      .update({
+        is_active: false,
+        updated_at: new Date().toISOString()
+      })
+      .eq('user_id', userId)
+      .eq('is_active', true);
+
+    if (error) {
+      console.error('Error deactivating FCM tokens for user:', error);
+      throw error;
+    }
+
+    console.log('✅ All FCM tokens deactivated for user:', userId);
+    return true;
+  } catch (error) {
+    console.error('Error deactivating FCM tokens for user:', error);
+    return false;
+  }
+};
+
+// Register FCM token for a user with smart deduplication
 export const registerFCMToken = async (userId: string): Promise<string | null> => {
   try {
     console.log('🔥 Starting FCM token registration for user:', userId);
@@ -104,7 +153,47 @@ export const registerFCMToken = async (userId: string): Promise<string | null> =
     }
     console.log('✅ FCM token obtained:', token.substring(0, 20) + '...');
 
-    // Save token to database
+    // Check if this exact token already exists for this user
+    console.log('🔍 Checking for existing token...');
+    const { data: existingToken, error: checkError } = await supabase
+      .from('fcm_tokens')
+      .select('id, is_active')
+      .eq('user_id', userId)
+      .eq('fcm_token', token)
+      .single();
+
+    if (checkError && checkError.code !== 'PGRST116') {
+      console.error('Error checking existing token:', checkError);
+    }
+
+    if (existingToken) {
+      console.log('🔄 Token already exists, updating...');
+      // Token exists, just reactivate and update timestamp
+      const { data, error } = await supabase
+        .from('fcm_tokens')
+        .update({
+          is_active: true,
+          updated_at: new Date().toISOString(),
+          device_info: getDeviceInfo()
+        })
+        .eq('id', existingToken.id)
+        .select()
+        .single();
+
+      if (error) {
+        console.error('❌ Error updating existing FCM token:', error);
+        throw error;
+      }
+
+      console.log('✅ Existing FCM token reactivated:', data);
+      return token;
+    }
+
+    // Deactivate any other active tokens for this user to prevent duplicates
+    console.log('🧹 Deactivating other active tokens for user...');
+    await deactivateFCMTokensForUser(userId);
+
+    // Create new token entry
     const deviceInfo = getDeviceInfo();
     const tokenData: FCMTokenInsert = {
       user_id: userId,
@@ -114,7 +203,7 @@ export const registerFCMToken = async (userId: string): Promise<string | null> =
       is_active: true
     };
 
-    console.log('💾 Saving FCM token to database...', {
+    console.log('💾 Creating new FCM token entry...', {
       user_id: userId,
       device_type: 'web',
       token_preview: token.substring(0, 20) + '...'
@@ -122,10 +211,7 @@ export const registerFCMToken = async (userId: string): Promise<string | null> =
 
     const { data, error } = await supabase
       .from('fcm_tokens')
-      .upsert(tokenData, {
-        onConflict: 'user_id,fcm_token',
-        ignoreDuplicates: false
-      })
+      .insert(tokenData)
       .select()
       .single();
 
@@ -140,7 +226,7 @@ export const registerFCMToken = async (userId: string): Promise<string | null> =
       throw error;
     }
 
-    console.log('✅ FCM token registered successfully in database:', data);
+    console.log('✅ New FCM token registered successfully in database:', data);
     return token;
   } catch (error) {
     console.error('❌ Error registering FCM token:', error);
@@ -318,18 +404,112 @@ export const setupForegroundMessageListener = (callback: (payload: any) => void)
   });
 };
 
+// Clean up duplicate tokens for a user (keep only the most recent active one)
+export const cleanupDuplicateTokens = async (userId: string): Promise<void> => {
+  try {
+    console.log('🧹 Cleaning up duplicate tokens for user:', userId);
+
+    // Get all active tokens for the user, ordered by most recent first
+    const { data: tokens, error: fetchError } = await supabase
+      .from('fcm_tokens')
+      .select('id, fcm_token, created_at')
+      .eq('user_id', userId)
+      .eq('is_active', true)
+      .order('created_at', { ascending: false });
+
+    if (fetchError) {
+      console.error('Error fetching tokens for cleanup:', fetchError);
+      return;
+    }
+
+    if (!tokens || tokens.length <= 1) {
+      console.log('✅ No duplicate tokens to clean up');
+      return;
+    }
+
+    // Keep the most recent token, deactivate the rest
+    const tokensToDeactivate = tokens.slice(1); // Skip the first (most recent) token
+    const idsToDeactivate = tokensToDeactivate.map(t => t.id);
+
+    console.log(`🗑️ Deactivating ${idsToDeactivate.length} duplicate tokens`);
+
+    const { error: updateError } = await supabase
+      .from('fcm_tokens')
+      .update({
+        is_active: false,
+        updated_at: new Date().toISOString()
+      })
+      .in('id', idsToDeactivate);
+
+    if (updateError) {
+      console.error('Error deactivating duplicate tokens:', updateError);
+      return;
+    }
+
+    console.log('✅ Duplicate tokens cleaned up successfully');
+  } catch (error) {
+    console.error('Error during duplicate token cleanup:', error);
+  }
+};
+
 // Cleanup expired tokens (utility function)
 export const cleanupExpiredTokens = async (): Promise<void> => {
   try {
-    const { error } = await supabase.rpc('cleanup_inactive_fcm_tokens');
+    // Clean up tokens older than 90 days
+    const ninetyDaysAgo = new Date();
+    ninetyDaysAgo.setDate(ninetyDaysAgo.getDate() - 90);
+
+    const { error } = await supabase
+      .from('fcm_tokens')
+      .delete()
+      .lt('updated_at', ninetyDaysAgo.toISOString());
 
     if (error) {
       console.error('Error cleaning up expired FCM tokens:', error);
       throw error;
     }
 
-    console.log('Expired FCM tokens cleaned up successfully');
+    console.log('✅ Expired FCM tokens cleaned up successfully');
   } catch (error) {
     console.error('Error during FCM token cleanup:', error);
+  }
+};
+
+// Get token statistics for debugging
+export const getTokenStatistics = async (userId?: string): Promise<any> => {
+  try {
+    let query = supabase
+      .from('fcm_tokens')
+      .select('user_id, device_type, is_active, created_at');
+
+    if (userId) {
+      query = query.eq('user_id', userId);
+    }
+
+    const { data, error } = await query;
+
+    if (error) {
+      console.error('Error getting token statistics:', error);
+      return null;
+    }
+
+    const stats = {
+      total: data?.length || 0,
+      active: data?.filter(t => t.is_active).length || 0,
+      inactive: data?.filter(t => !t.is_active).length || 0,
+      byDeviceType: data?.reduce((acc, token) => {
+        acc[token.device_type] = (acc[token.device_type] || 0) + 1;
+        return acc;
+      }, {} as Record<string, number>) || {},
+      byUser: userId ? undefined : data?.reduce((acc, token) => {
+        acc[token.user_id] = (acc[token.user_id] || 0) + 1;
+        return acc;
+      }, {} as Record<string, number>) || {}
+    };
+
+    return stats;
+  } catch (error) {
+    console.error('Error getting token statistics:', error);
+    return null;
   }
 };

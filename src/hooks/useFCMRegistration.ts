@@ -1,5 +1,10 @@
 import { useEffect, useState, useCallback } from 'react';
-import { registerFCMToken, isFCMSupported } from '../services/fcm.service';
+import {
+  registerFCMToken,
+  isFCMSupported,
+  cleanupDuplicateTokens,
+  getExistingFCMToken
+} from '../services/fcm.service';
 import { initializeMessaging } from '../firebase';
 
 interface FCMRegistrationState {
@@ -43,6 +48,27 @@ export const useFCMRegistration = (userId?: string) => {
         throw new Error('FCM is not supported in this browser');
       }
 
+      // Clean up any duplicate tokens first
+      console.log('🧹 Cleaning up duplicate tokens...');
+      await cleanupDuplicateTokens(userId);
+
+      // Check if we already have a valid token
+      if (!forceRegister) {
+        console.log('🔍 Checking for existing valid token...');
+        const existingToken = await getExistingFCMToken(userId);
+        if (existingToken) {
+          console.log('✅ Found existing valid FCM token, reusing it');
+          setState(prev => ({
+            ...prev,
+            isRegistering: false,
+            isRegistered: true,
+            token: existingToken,
+            error: null
+          }));
+          return;
+        }
+      }
+
       // Initialize messaging first
       console.log('🚀 Initializing FCM messaging...');
       await initializeMessaging();
@@ -53,7 +79,7 @@ export const useFCMRegistration = (userId?: string) => {
         console.log('✅ Service worker is ready');
       }
 
-      // Register FCM token
+      // Register FCM token (this now handles deduplication internally)
       console.log('🎫 Registering FCM token...');
       const token = await registerFCMToken(userId);
 

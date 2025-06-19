@@ -1,20 +1,31 @@
 -- Run this SQL in your Supabase SQL Editor to create the FCM tokens table
 
--- Create fcm_tokens table
+-- Create fcm_tokens table with enhanced token management
 CREATE TABLE IF NOT EXISTS fcm_tokens (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id uuid NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
   fcm_token text NOT NULL,
   device_type text NOT NULL DEFAULT 'web' CHECK (device_type IN ('web', 'android', 'ios')),
   device_info jsonb DEFAULT '{}'::jsonb,
+  browser_info jsonb DEFAULT '{}'::jsonb,
   is_active boolean DEFAULT true,
+  last_used_at timestamptz DEFAULT now(),
   created_at timestamptz DEFAULT now(),
-  updated_at timestamptz DEFAULT now()
+  updated_at timestamptz DEFAULT now(),
+
+  -- Add constraints for better token management
+  CONSTRAINT fcm_token_not_empty CHECK (length(fcm_token) > 0),
+  CONSTRAINT fcm_token_valid_length CHECK (length(fcm_token) > 50) -- FCM tokens are typically much longer
 );
 
--- Create unique constraint to prevent duplicate tokens per user
-CREATE UNIQUE INDEX IF NOT EXISTS fcm_tokens_user_token_unique 
+-- Create unique constraint to prevent duplicate tokens
+CREATE UNIQUE INDEX IF NOT EXISTS fcm_tokens_user_token_unique
 ON fcm_tokens(user_id, fcm_token);
+
+-- Create partial unique index to ensure only one active token per user per device type
+CREATE UNIQUE INDEX IF NOT EXISTS fcm_tokens_user_device_active_unique
+ON fcm_tokens(user_id, device_type)
+WHERE is_active = true;
 
 -- Create index for faster lookups by user_id
 CREATE INDEX IF NOT EXISTS fcm_tokens_user_id_idx ON fcm_tokens(user_id);

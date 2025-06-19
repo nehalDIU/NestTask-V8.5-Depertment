@@ -498,10 +498,13 @@ export async function logoutUser(): Promise<void> {
     // Clean up FCM tokens before logout
     if (userId) {
       try {
-        await deleteFCMToken(userId);
-        console.log('FCM tokens cleaned up for user:', userId);
+        // Instead of deleting all tokens, just mark them as inactive
+        // This preserves token history while preventing duplicate notifications
+        const { deactivateFCMTokensForUser } = await import('./fcm.service');
+        await deactivateFCMTokensForUser(userId);
+        console.log('FCM tokens deactivated for user:', userId);
       } catch (fcmError) {
-        console.warn('Failed to cleanup FCM tokens:', fcmError);
+        console.warn('Failed to deactivate FCM tokens:', fcmError);
         // Don't fail the logout if FCM cleanup fails
       }
     }

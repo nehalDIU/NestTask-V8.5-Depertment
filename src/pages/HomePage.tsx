@@ -2,6 +2,7 @@ import React, { useMemo, useState, useEffect } from 'react';
 import { ListTodo, CheckCircle2, Clock, AlertCircle, Sparkles, CalendarDays } from 'lucide-react';
 import { TaskList } from '../components/TaskList';
 import { TaskCategories } from '../components/task/TaskCategories';
+import { FCMRegistrationButton } from '../components/FCMRegistrationButton';
 import { isOverdue } from '../utils/dateUtils';
 import { formatUpcomingDueDate } from '../utils/dateUtils';
 import type { Task, TaskCategory } from '../types/task';
@@ -265,6 +266,11 @@ export const HomePage: React.FC<HomePageProps> = ({
           <p className="text-sm text-gray-500 dark:text-gray-400">Completed</p>
         </button>
       </div>
+
+      {/* FCM Registration Button - Only show in development */}
+      {import.meta.env.DEV && (
+        <FCMRegistrationButton userId={user.id} />
+      )}
 
       {/* Task Categories */}
       <TaskCategories

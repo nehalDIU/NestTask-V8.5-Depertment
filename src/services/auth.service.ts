@@ -311,19 +311,8 @@ export async function loginUser({ email, password }: LoginCredentials): Promise<
 
     const user = mapDbUserToUser(profile);
 
-    // Register FCM token after successful login
-    try {
-      console.log('🔥 Attempting FCM token registration after login for user:', user.id);
-      const fcmToken = await registerFCMToken(user.id);
-      if (fcmToken) {
-        console.log('✅ FCM token registered successfully for user:', user.id);
-      } else {
-        console.warn('⚠️ FCM token registration returned null for user:', user.id);
-      }
-    } catch (fcmError) {
-      console.error('❌ Failed to register FCM token:', fcmError);
-      // Don't fail the login if FCM registration fails
-    }
+    // FCM token registration is now handled by useFCMRegistration hook in App.tsx
+    console.log('✅ User logged in successfully:', user.id);
 
     return user;
   } catch (error: any) {

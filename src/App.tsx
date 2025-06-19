@@ -17,7 +17,7 @@ import type { User } from './types/user';
 import { ResetPasswordPage } from './pages/ResetPasswordPage';
 import { supabase, testConnection } from './lib/supabase';
 import { HomePage } from './pages/HomePage';
-import { initializeMessaging } from './firebase';
+import { useFCMRegistration } from './hooks/useFCMRegistration';
 import './utils/fcm-debug'; // Import FCM debug utilities
 
 // Page import functions
@@ -146,17 +146,20 @@ export default function App() {
     }
   }, []);
   
-  // Initialize FCM when user is authenticated
+  // Use FCM registration hook
+  const fcmRegistration = useFCMRegistration(user?.id);
+
+  // Log FCM registration status
   useEffect(() => {
     if (user?.id) {
-      // Initialize Firebase Cloud Messaging
-      initializeMessaging().then(() => {
-        console.log('FCM initialized for user:', user.id);
-      }).catch((error) => {
-        console.warn('FCM initialization failed:', error);
+      console.log('🔥 FCM Registration Status for user:', user.id, {
+        isRegistering: fcmRegistration.isRegistering,
+        isRegistered: fcmRegistration.isRegistered,
+        error: fcmRegistration.error,
+        hasToken: !!fcmRegistration.token
       });
     }
-  }, [user?.id]);
+  }, [user?.id, fcmRegistration]);
 
   // Check hash on initial load and when it changes
   useEffect(() => {

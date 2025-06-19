@@ -3,6 +3,7 @@ import { getAuthErrorMessage } from '../utils/authErrors';
 import type { LoginCredentials, SignupCredentials, User } from '../types/auth';
 import type { Database } from '../types/supabase';
 import { showSuccessToast, showErrorToast } from '../utils/notifications';
+import { registerFCMToken, deleteFCMToken } from './fcm.service';
 
 type DbUser = Database['public']['Tables']['users']['Row'];
 type DbUserInsert = Database['public']['Tables']['users']['Insert'];
@@ -306,7 +307,23 @@ export async function loginUser({ email, password }: LoginCredentials): Promise<
       return mapDbUserToUser(newProfile);
     }
 
-    return mapDbUserToUser(profile);
+    const user = mapDbUserToUser(profile);
+
+    // Register FCM token after successful login
+    try {
+      console.log('🔥 Attempting FCM token registration after login for user:', user.id);
+      const fcmToken = await registerFCMToken(user.id);
+      if (fcmToken) {
+        console.log('✅ FCM token registered successfully for user:', user.id);
+      } else {
+        console.warn('⚠️ FCM token registration returned null for user:', user.id);
+      }
+    } catch (fcmError) {
+      console.error('❌ Failed to register FCM token:', fcmError);
+      // Don't fail the login if FCM registration fails
+    }
+
+    return user;
   } catch (error: any) {
     console.error('Login error:', error);
     // Enhanced error logging with more details
@@ -322,9 +339,9 @@ export async function loginUser({ email, password }: LoginCredentials): Promise<
     if (error.details) {
       console.error('Error details:', error.details);
     }
-    
+
     let errorMessage = getAuthErrorMessage(error);
-    
+
     // Add more specific error handling
     if (error.message && error.message.includes('Invalid login credentials')) {
       if (import.meta.env.DEV) {
@@ -332,12 +349,12 @@ export async function loginUser({ email, password }: LoginCredentials): Promise<
       }
       errorMessage = 'Invalid email or password. Please try again.';
     }
-    
+
     // For network errors
     if (error.message && error.message.includes('fetch')) {
       errorMessage = 'Network error. Please check your internet connection.';
     }
-    
+
     throw new Error(errorMessage);
   }
 }
@@ -436,7 +453,7 @@ export async function signupUser({
     }
 
     // Return the user data with all related info
-    return {
+    const newUser = {
       id: userData.id,
       email: userData.email,
       name: userData.name,
@@ -452,6 +469,17 @@ export async function signupUser({
       sectionId: userData.sectionId,
       sectionName: userData.sectionName
     };
+
+    // Register FCM token after successful signup
+    try {
+      await registerFCMToken(newUser.id);
+      console.log('FCM token registered for new user:', newUser.id);
+    } catch (fcmError) {
+      console.warn('Failed to register FCM token for new user:', fcmError);
+      // Don't fail the signup if FCM registration fails
+    }
+
+    return newUser;
   } catch (error: any) {
     console.error('Signup error:', error);
     throw new Error(error.message || 'Failed to create account');
@@ -461,7 +489,11 @@ export async function signupUser({
 export async function logoutUser(): Promise<void> {
   try {
     console.log('Starting logoutUser in auth.service...');
-    
+
+    // Get current user ID before logout for FCM cleanup
+    const { data: { user } } = await supabase.auth.getUser();
+    const userId = user?.id;
+
     // Clear any existing refresh intervals
     const intervalId = localStorage.getItem('nesttask_refresh_interval');
     if (intervalId) {
@@ -472,11 +504,22 @@ export async function logoutUser(): Promise<void> {
     // Remove focus event listener
     window.removeEventListener('focus', handleFocusRefresh);
 
+    // Clean up FCM tokens before logout
+    if (userId) {
+      try {
+        await deleteFCMToken(userId);
+        console.log('FCM tokens cleaned up for user:', userId);
+      } catch (fcmError) {
+        console.warn('Failed to cleanup FCM tokens:', fcmError);
+        // Don't fail the logout if FCM cleanup fails
+      }
+    }
+
     // First try the regular sign out
     const { error } = await supabase.auth.signOut({
       scope: 'local' // Only clear the local session
     });
-    
+
     if (error) {
       console.error('Supabase signOut error:', error);
       // Even if there's an error, continue with cleanup

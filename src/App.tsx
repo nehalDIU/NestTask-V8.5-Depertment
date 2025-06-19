@@ -17,6 +17,8 @@ import type { User } from './types/user';
 import { ResetPasswordPage } from './pages/ResetPasswordPage';
 import { supabase, testConnection } from './lib/supabase';
 import { HomePage } from './pages/HomePage';
+import { initializeMessaging } from './firebase';
+import './utils/fcm-debug'; // Import FCM debug utilities
 
 // Page import functions
 const importAdminDashboard = () => import('./pages/AdminDashboard').then(module => ({ default: module.AdminDashboard }));
@@ -144,6 +146,18 @@ export default function App() {
     }
   }, []);
   
+  // Initialize FCM when user is authenticated
+  useEffect(() => {
+    if (user?.id) {
+      // Initialize Firebase Cloud Messaging
+      initializeMessaging().then(() => {
+        console.log('FCM initialized for user:', user.id);
+      }).catch((error) => {
+        console.warn('FCM initialization failed:', error);
+      });
+    }
+  }, [user?.id]);
+
   // Check hash on initial load and when it changes
   useEffect(() => {
     // Reduce artificial loading delay to improve perceived performance

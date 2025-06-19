@@ -523,15 +523,26 @@ export const createTask = async (
 
 async function sendPushNotifications(task: Task) {
   try {
+    // Import FCM notification service dynamically to avoid circular dependencies
+    const { sendAdminTaskNotification } = await import('./fcm-notifications.service');
+
+    // Send FCM notification
+    await sendAdminTaskNotification(task);
+    console.log('FCM notification sent for admin task:', task.id);
+
+    // Keep the existing Web Push API as fallback
     // Get all push subscriptions
     const { data: subscriptions, error } = await supabase
       .from('push_subscriptions')
       .select('subscription');
 
     if (error) throw error;
-    if (!subscriptions?.length) return;
+    if (!subscriptions?.length) {
+      console.log('No Web Push subscriptions found, FCM notification sent');
+      return;
+    }
 
-    // Prepare notification payload
+    // Prepare notification payload for Web Push
     const payload = {
       title: 'New Admin Task',
       body: `${task.name} - Due: ${new Date(task.dueDate).toLocaleDateString()}`,
@@ -550,11 +561,11 @@ async function sendPushNotifications(task: Task) {
       ]
     };
 
-    // Send push notification to each subscription
+    // Send Web Push notification to each subscription as fallback
     const notifications = subscriptions.map(async ({ subscription }) => {
       try {
         const parsedSubscription = JSON.parse(subscription);
-        
+
         // Send notification using the Supabase Edge Function
         const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/push-notification`, {
           method: 'POST',
@@ -569,16 +580,17 @@ async function sendPushNotifications(task: Task) {
         });
 
         if (!response.ok) {
-          throw new Error('Failed to send push notification');
+          throw new Error('Failed to send Web Push notification');
         }
       } catch (error) {
-        console.error('Error sending push notification:', error);
+        console.error('Error sending Web Push notification:', error);
       }
     });
 
     await Promise.allSettled(notifications);
+    console.log('Web Push notifications sent as fallback');
   } catch (error) {
-    console.error('Error sending notifications:', error);
+    console.error('Error in sendPushNotifications:', error);
   }
 }
 

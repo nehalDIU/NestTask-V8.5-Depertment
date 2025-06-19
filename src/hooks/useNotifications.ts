@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
 import type { Task } from '../types';
 import type { Announcement } from '../types/announcement';
+import { setupForegroundMessageListener } from '../services/fcm.service';
 
 export interface Notification {
   id: string;
@@ -124,9 +125,33 @@ export function useNotifications(userId: string | undefined) {
       )
       .subscribe();
 
+    // Setup FCM foreground message listener
+    const unsubscribeFCM = setupForegroundMessageListener((payload) => {
+      console.log('FCM foreground message received:', payload);
+
+      // Create notification from FCM payload
+      const fcmNotification: Notification = {
+        id: crypto.randomUUID(),
+        title: payload.notification?.title || payload.data?.title || 'New Notification',
+        message: payload.notification?.body || payload.data?.body || 'You have a new notification',
+        timestamp: new Date(),
+        read: false,
+        taskId: payload.data?.taskId,
+        announcementId: payload.data?.announcementId,
+        isAdminTask: payload.data?.type === 'admin-task',
+        isAnnouncement: payload.data?.type === 'announcement'
+      };
+
+      setNotifications(prev => sortNotifications([fcmNotification, ...prev]));
+      setUnreadCount(prev => prev + 1);
+    });
+
     return () => {
       taskSubscription.unsubscribe();
       announcementSubscription.unsubscribe();
+      if (unsubscribeFCM) {
+        unsubscribeFCM();
+      }
     };
   }, [userId]);
 

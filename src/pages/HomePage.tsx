@@ -2,6 +2,7 @@ import React, { useMemo, useState, useEffect } from 'react';
 import { ListTodo, CheckCircle2, Clock, AlertCircle, Sparkles, CalendarDays } from 'lucide-react';
 import { TaskList } from '../components/TaskList';
 import { TaskCategories } from '../components/task/TaskCategories';
+
 import { FCMRegistrationButton } from '../components/FCMRegistrationButton';
 import { isOverdue } from '../utils/dateUtils';
 import { formatUpcomingDueDate } from '../utils/dateUtils';
@@ -272,47 +273,36 @@ export const HomePage: React.FC<HomePageProps> = ({
         <FCMRegistrationButton userId={user.id} />
       )}
 
-      {/* Task Categories */}
-      <TaskCategories
-        onCategorySelect={(category) => {
-          setSelectedCategory(category);
-          setStatFilter('all');
-        }}
-        selectedCategory={selectedCategory}
-        categoryCounts={categoryCounts}
-      />
-
-      {/* Task List */}
+      {/* Task List with Integrated Categories */}
       <div>
-        <div className="flex items-center justify-between mb-4 sm:mb-6">
-          <h2 className="text-lg sm:text-xl font-bold text-gray-900 dark:text-white">
-            {getStatTitle()}
-          </h2>
-          {statFilter !== 'all' && (
+        {statFilter !== 'all' && (
+          <div className="flex items-center justify-between mb-4">
             <button
               onClick={() => setStatFilter('all')}
               className="px-2 py-1 text-xs sm:text-sm text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 rounded-md"
             >
-              View All Tasks
+              ← Back to All Tasks
             </button>
-          )}
-        </div>
-        {getFilteredTasks().length > 0 ? (
-          <TaskList
-            tasks={getFilteredTasks()}
-            showDeleteButton={false}
-          />
-        ) : (
-          <div className="text-center py-10 bg-white dark:bg-gray-800 rounded-xl shadow-sm">
-            <ListTodo className="mx-auto h-12 w-12 text-gray-400 dark:text-gray-500" />
-            <h3 className="mt-2 text-sm font-medium text-gray-900 dark:text-white">No tasks</h3>
-            <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-              {selectedCategory || statFilter !== 'all'
-                ? "No tasks match your current filters."
-                : "You don't have any tasks yet. Get started by adding one!"}
-            </p>
           </div>
         )}
+
+        <TaskList
+          tasks={getFilteredTasks()}
+          showDeleteButton={false}
+          title={getStatTitle()}
+          selectedCategory={selectedCategory}
+          onCategorySelect={(category) => {
+            setSelectedCategory(category);
+            setStatFilter('all');
+          }}
+          categoryCounts={categoryCounts}
+          showCategories={statFilter === 'all'}
+          emptyStateMessage={
+            selectedCategory || statFilter !== 'all'
+              ? "No tasks match your current filters."
+              : "You don't have any tasks yet. Get started by adding one!"
+          }
+        />
       </div>
     </div>
   );

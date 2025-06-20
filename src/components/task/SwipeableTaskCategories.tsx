@@ -47,14 +47,14 @@ const SCROLL_AMOUNT = 200;
 
 // Optimized CSS classes - mobile-first approach
 const CSS_CLASSES = {
-  container: "py-1 sm:py-2 md:py-3",
+  container: "py-3 sm:py-4 md:py-5",
   toggleButton: "text-xs sm:text-sm font-medium text-blue-600 dark:text-blue-400 active:text-blue-700 dark:active:text-blue-300 sm:hover:text-blue-700 sm:dark:hover:text-blue-300 transition-colors duration-150 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-1 rounded-md px-2 py-1 min-h-[32px] flex items-center",
-  content: "transition-all duration-300 ease-in-out mt-0.5 sm:mt-1",
-  gridView: "grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2 sm:gap-3 py-1 sm:py-1.5 md:py-2 animate-fadeIn",
-  scrollView: "flex gap-2 overflow-x-auto no-scrollbar py-1 sm:py-1.5 md:py-2 touch-manipulation scroll-smooth px-1 sm:gap-3 sm:px-0",
+  content: "transition-all duration-300 ease-in-out mt-1 sm:mt-2",
+  gridView: "grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2 sm:gap-3 py-2 sm:py-3 md:py-4 animate-fadeIn",
+  scrollView: "flex gap-2 overflow-x-auto no-scrollbar py-2 sm:py-3 md:py-4 touch-manipulation scroll-smooth px-1 sm:gap-3 sm:px-0",
   categoryButtonBase: "transition-colors duration-150 ease-out focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-1",
   categoryButtonGrid: "flex items-center gap-2 sm:gap-3 p-2 sm:p-3 rounded-lg sm:rounded-xl hover:shadow-md hover:-translate-y-0.5",
-  categoryButtonPill: "flex-shrink-0 flex items-center justify-center px-3 py-1.5 text-xs rounded-full whitespace-nowrap font-medium min-w-[60px] my-0.5 sm:px-4 sm:py-2 sm:text-sm sm:min-w-[80px] sm:my-0.5 md:px-5 md:py-2.5 md:text-base md:min-w-[100px] md:my-1",
+  categoryButtonPill: "flex-shrink-0 flex items-center justify-center px-3 py-2 text-xs rounded-full whitespace-nowrap font-medium min-w-[60px] my-1 sm:px-4 sm:py-2.5 sm:text-sm sm:min-w-[80px] sm:my-1.5 md:px-5 md:py-3 md:text-base md:min-w-[100px] md:my-2",
   iconContainer: "p-1.5 sm:p-2 rounded-md sm:rounded-lg transition-colors duration-200",
   countBadge: "text-xs px-1 sm:px-1.5 py-0.5 rounded-full min-w-[16px] sm:min-w-[20px] text-center"
 } as const;
@@ -209,7 +209,7 @@ const SwipeableTaskCategoriesComponent = ({
   return (
     <section className={CSS_CLASSES.container} aria-labelledby="task-list-heading">
       {/* Combined Title and See All Button */}
-      <div className="flex items-center justify-between mb-1 sm:mb-2 md:mb-2">
+      <div className="flex items-center justify-between mb-2 sm:mb-3 md:mb-4">
         <h2
           id="task-list-heading"
           className="text-base sm:text-lg md:text-xl font-bold text-gray-900 dark:text-white"

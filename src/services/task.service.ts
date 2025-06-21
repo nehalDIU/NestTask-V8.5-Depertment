@@ -466,7 +466,7 @@ export const createTask = async (
 
     // Determine correct section_id based on role and available data
     // Section admin: Always set section_id to their section
-    if ((userRole === 'section_admin' || userRole === 'section-admin') && userSectionId) {
+    if (userRole === 'section_admin' && userSectionId) {
       taskInsertData.section_id = userSectionId;
       console.log('[Debug] Section admin creating task for section:', userSectionId);
       

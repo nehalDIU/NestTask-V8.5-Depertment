@@ -4,7 +4,7 @@ export interface User {
   name: string;
   phone?: string;
   studentId?: string;
-  role: 'user' | 'admin' | 'super-admin' | 'section-admin';
+  role: 'user' | 'admin' | 'super-admin' | 'section_admin';
   createdAt: string;
   lastActive?: string;
   avatar?: string;

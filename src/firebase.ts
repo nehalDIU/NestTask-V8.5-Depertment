@@ -17,25 +17,8 @@ export const VAPID_KEY = import.meta.env.VITE_FIREBASE_VAPID_KEY || "BP0PQk228Ht
 
 // Validate VAPID key format
 const validateVapidKey = (key: string): boolean => {
-  if (!key || typeof key !== 'string') return false;
-
-  // VAPID keys should start with 'B' and be 87-88 characters long (base64url encoded)
-  // Some keys might be 87 characters due to padding differences
-  const isValidLength = key.length >= 87 && key.length <= 88;
-  const startsWithB = key.startsWith('B');
-
-  // Additional check: should contain only valid base64url characters
-  const base64urlPattern = /^[A-Za-z0-9_-]+$/;
-  const hasValidChars = base64urlPattern.test(key);
-
-  console.log('🔍 VAPID Key validation details:', {
-    length: key.length,
-    startsWithB,
-    hasValidChars,
-    isValidLength
-  });
-
-  return startsWithB && isValidLength && hasValidChars;
+  // VAPID keys should start with 'B' and be 88 characters long (base64url encoded)
+  return key.startsWith('B') && key.length === 88;
 };
 
 // Log VAPID key validation
@@ -56,30 +39,16 @@ const registerServiceWorker = async () => {
   if ('serviceWorker' in navigator) {
     try {
       console.log('🔧 Registering FCM service worker...');
-
-      // Check if we're in production and ensure HTTPS
-      if (import.meta.env.PROD && location.protocol !== 'https:') {
-        console.error('❌ FCM requires HTTPS in production');
-        return null;
-      }
-
       const registration = await navigator.serviceWorker.register('/firebase-messaging-sw.js', {
         scope: '/'
       });
       console.log('✅ FCM Service worker registered:', registration);
-
-      // Wait for the service worker to be ready
-      await registration.update();
-      console.log('✅ FCM Service worker updated');
-
       return registration;
     } catch (error) {
       console.error('❌ FCM Service worker registration failed:', error);
-      console.error('Error details:', error);
       return null;
     }
   }
-  console.warn('❌ Service Worker not supported in this browser');
   return null;
 };
 
@@ -119,12 +88,6 @@ export const getFCMToken = async (): Promise<string | null> => {
   try {
     console.log('🎫 Starting FCM token generation...');
 
-    // Check environment requirements
-    if (import.meta.env.PROD && location.protocol !== 'https:') {
-      console.error('❌ FCM requires HTTPS in production environment');
-      return null;
-    }
-
     if (!messaging) {
       console.log('🔧 Messaging not initialized, initializing now...');
       messaging = await initializeMessaging();
@@ -135,23 +98,6 @@ export const getFCMToken = async (): Promise<string | null> => {
       return null;
     }
 
-    // Validate VAPID key
-    if (!VAPID_KEY) {
-      console.error('❌ VAPID key is missing');
-      return null;
-    }
-
-    const isValidVapid = validateVapidKey(VAPID_KEY);
-    if (!isValidVapid) {
-      console.warn('⚠️ VAPID key validation failed, but attempting to use it anyway');
-      console.log('VAPID key details:', {
-        key: VAPID_KEY.substring(0, 20) + '...',
-        length: VAPID_KEY.length,
-        startsWithB: VAPID_KEY.startsWith('B')
-      });
-      // Don't return null here - let Firebase handle the validation
-    }
-
     console.log('🔑 Requesting FCM token with VAPID key...');
     console.log('🔑 VAPID key:', VAPID_KEY.substring(0, 20) + '...');
 
@@ -159,11 +105,6 @@ export const getFCMToken = async (): Promise<string | null> => {
     if ('serviceWorker' in navigator) {
       const registration = await navigator.serviceWorker.ready;
       console.log('✅ Service worker ready for FCM token generation');
-
-      // Verify the service worker is actually our FCM service worker
-      if (registration.active && !registration.active.scriptURL.includes('firebase-messaging-sw.js')) {
-        console.warn('⚠️ Active service worker is not the FCM service worker');
-      }
     }
 
     const token = await getToken(messaging, {
@@ -180,7 +121,6 @@ export const getFCMToken = async (): Promise<string | null> => {
       console.log('  - Service worker not properly registered');
       console.log('  - VAPID key configuration issue');
       console.log('  - Browser not supporting FCM');
-      console.log('  - Network connectivity issues');
       return null;
     }
   } catch (error) {

@@ -284,7 +284,7 @@ export function useAuth() {
         console.log('User data from database after login:', userData);
         if (userData) {
           if (userData.role) {
-            user.role = userData.role as 'user' | 'admin' | 'super-admin' | 'section-admin';
+            user.role = userData.role as 'user' | 'admin' | 'super-admin' | 'section_admin';
             console.log('Updated user role from database:', user.role);
           }
           

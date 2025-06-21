@@ -470,7 +470,7 @@ export function AdminDashboard({
   // Handle user promotion with memoization
   const handlePromoteUser = useCallback(async (userId: string) => {
     try {
-      await promoteUser(userId, 'section-admin');
+      await promoteUser(userId, 'section_admin');
       showSuccessToast('User promoted to section admin');
       await refreshUsers();
     } catch (error: any) {

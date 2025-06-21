@@ -26,7 +26,7 @@ export function UserList({
   const [searchTerm, setSearchTerm] = useState('');
 
   // Helper function to check if a user is a section admin
-  const isSectionAdminRole = (role: string) => role === 'section-admin' || role === 'section_admin';
+  const isSectionAdminRole = (role: string) => role === 'section_admin';
 
   const handleDeleteClick = (user: User) => {
     // Check if section admin is trying to delete user from different section

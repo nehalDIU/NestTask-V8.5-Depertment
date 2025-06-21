@@ -25,7 +25,7 @@ export interface FCMSendResult {
   tokenInvalid?: boolean;
 }
 
-// Send FCM notification to specific tokens using Firebase Admin SDK
+// Send FCM notification using Supabase Edge Function
 export const sendFCMNotification = async (
   tokens: string[],
   payload: FCMNotificationPayload
@@ -41,110 +41,146 @@ export const sendFCMNotification = async (
   console.log('📧 Notification payload:', payload);
 
   try {
-    // For now, let's use a direct approach with Firebase REST API
-    // This is a temporary solution until we set up the proper Edge Function
+    // Use Supabase Edge Function for sending FCM notifications
+    const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/push`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`
+      },
+      body: JSON.stringify({
+        tokens,
+        notification: {
+          title: payload.title,
+          body: payload.body,
+          icon: payload.icon || '/icons/icon-192x192.png',
+          badge: payload.badge || '/icons/icon-192x192.png',
+          tag: payload.tag || 'nesttask-notification',
+          requireInteraction: payload.requireInteraction || false,
+          actions: payload.actions || []
+        },
+        data: {
+          url: payload.data?.url || '/',
+          ...payload.data
+        }
+      })
+    });
 
-    for (const token of tokens) {
-      try {
-        console.log('📤 Sending notification to token:', token.substring(0, 20) + '...');
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
 
-        // Use Firebase REST API directly
-        const firebaseResponse = await fetch(`https://fcm.googleapis.com/fcm/send`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `key=${import.meta.env.VITE_FIREBASE_SERVER_KEY || 'YOUR_SERVER_KEY_HERE'}`
+    const result = await response.json();
+    console.log('✅ FCM Edge Function response:', result);
+
+    // Process results from edge function
+    if (result.results) {
+      Object.assign(results, result.results);
+    } else {
+      // Fallback: assume all succeeded if no detailed results
+      tokens.forEach(token => {
+        results[token] = { success: true };
+      });
+    }
+
+    return results;
+  } catch (error) {
+    console.error('❌ Error sending FCM notifications via Edge Function:', error);
+
+    // Fallback: try direct Firebase API if edge function fails
+    console.log('🔄 Falling back to direct Firebase API...');
+    return await sendFCMNotificationDirect(tokens, payload);
+  }
+};
+
+// Fallback direct Firebase API method
+const sendFCMNotificationDirect = async (
+  tokens: string[],
+  payload: FCMNotificationPayload
+): Promise<Record<string, FCMSendResult>> => {
+  const results: Record<string, FCMSendResult> = {};
+
+  for (const token of tokens) {
+    try {
+      console.log('📤 Sending notification directly to token:', token.substring(0, 20) + '...');
+
+      const firebaseResponse = await fetch(`https://fcm.googleapis.com/fcm/send`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `key=${import.meta.env.VITE_FIREBASE_SERVER_KEY || 'YOUR_SERVER_KEY_HERE'}`
+        },
+        body: JSON.stringify({
+          to: token,
+          notification: {
+            title: payload.title,
+            body: payload.body,
+            icon: payload.icon || '/icons/icon-192x192.png',
+            badge: payload.badge || '/icons/icon-192x192.png',
+            tag: payload.tag || 'nesttask-notification',
+            requireInteraction: payload.requireInteraction || false
           },
-          body: JSON.stringify({
-            to: token,
+          data: {
+            ...payload.data,
+            click_action: payload.data?.url || '/'
+          },
+          webpush: {
             notification: {
               title: payload.title,
               body: payload.body,
               icon: payload.icon || '/icons/icon-192x192.png',
               badge: payload.badge || '/icons/icon-192x192.png',
               tag: payload.tag || 'nesttask-notification',
-              requireInteraction: payload.requireInteraction || false
-            },
-            data: {
-              ...payload.data,
-              click_action: payload.data?.url || '/'
-            },
-            webpush: {
-              notification: {
-                title: payload.title,
-                body: payload.body,
-                icon: payload.icon || '/icons/icon-192x192.png',
-                badge: payload.badge || '/icons/icon-192x192.png',
-                tag: payload.tag || 'nesttask-notification',
-                requireInteraction: payload.requireInteraction || false,
-                actions: payload.actions || []
-              }
-            }
-          })
-        });
-
-        if (firebaseResponse.ok) {
-          const result = await firebaseResponse.json();
-          console.log('✅ FCM notification sent successfully:', result);
-          results[token] = {
-            success: true,
-            messageId: result.message_id
-          };
-        } else {
-          const errorResult = await firebaseResponse.json();
-          console.error('❌ FCM notification failed:', errorResult);
-
-          // Check if token is invalid
-          const isTokenInvalid = errorResult.error === 'InvalidRegistration' ||
-                                errorResult.error === 'NotRegistered';
-
-          results[token] = {
-            success: false,
-            error: errorResult.error || 'Unknown error',
-            tokenInvalid: isTokenInvalid
-          };
-
-          // If token is invalid, mark it as inactive
-          if (isTokenInvalid) {
-            console.warn('🗑️ Invalid FCM token detected, deactivating:', token.substring(0, 20) + '...');
-            try {
-              const { data: tokenData } = await supabase
-                .from('fcm_tokens')
-                .select('user_id')
-                .eq('fcm_token', token)
-                .single();
-
-              if (tokenData) {
-                await deactivateFCMToken(tokenData.user_id, token);
-              }
-            } catch (error) {
-              console.error('Error deactivating invalid token:', error);
+              requireInteraction: payload.requireInteraction || false,
+              actions: payload.actions || []
             }
           }
-        }
-      } catch (tokenError) {
-        console.error('❌ Error sending to individual token:', tokenError);
+        })
+      });
+
+      if (firebaseResponse.ok) {
+        const result = await firebaseResponse.json();
+        results[token] = {
+          success: true,
+          messageId: result.message_id
+        };
+      } else {
+        const errorResult = await firebaseResponse.json();
+        const isTokenInvalid = errorResult.error === 'InvalidRegistration' ||
+                              errorResult.error === 'NotRegistered';
+
         results[token] = {
           success: false,
-          error: tokenError instanceof Error ? tokenError.message : 'Unknown error'
+          error: errorResult.error || 'Unknown error',
+          tokenInvalid: isTokenInvalid
         };
+
+        // If token is invalid, mark it as inactive
+        if (isTokenInvalid) {
+          try {
+            const { data: tokenData } = await supabase
+              .from('fcm_tokens')
+              .select('user_id')
+              .eq('fcm_token', token)
+              .single();
+
+            if (tokenData) {
+              await deactivateFCMToken(tokenData.user_id, token);
+            }
+          } catch (error) {
+            console.error('Error deactivating invalid token:', error);
+          }
+        }
       }
-    }
-
-    return results;
-  } catch (error) {
-    console.error('❌ Error in sendFCMNotification:', error);
-
-    // Return error results for all tokens
-    tokens.forEach(token => {
+    } catch (tokenError) {
       results[token] = {
         success: false,
-        error: error instanceof Error ? error.message : 'Unknown error'
+        error: tokenError instanceof Error ? tokenError.message : 'Unknown error'
       };
-    });
-
-    return results;
+    }
   }
+
+  return results;
 };
 
 // Send notification for new admin task
@@ -253,7 +289,7 @@ export const sendAnnouncementNotification = async (announcement: Announcement): 
   }
 };
 
-// Send notification to specific users
+// Send notification to specific users using Edge Function
 export const sendNotificationToUsers = async (
   userIds: string[],
   payload: FCMNotificationPayload
@@ -264,9 +300,46 @@ export const sendNotificationToUsers = async (
       return;
     }
 
-    // Get FCM tokens for specific users
+    console.log('🚀 Sending notification to users via Edge Function:', userIds.length, 'users');
+
+    // Use Edge Function with user IDs directly
+    const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/push`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`
+      },
+      body: JSON.stringify({
+        userIds,
+        notification: {
+          title: payload.title,
+          body: payload.body,
+          icon: payload.icon || '/icons/icon-192x192.png',
+          badge: payload.badge || '/icons/icon-192x192.png',
+          tag: payload.tag || 'nesttask-notification',
+          requireInteraction: payload.requireInteraction || false,
+          actions: payload.actions || []
+        },
+        data: {
+          url: payload.data?.url || '/',
+          ...payload.data
+        }
+      })
+    });
+
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+
+    const result = await response.json();
+    console.log('✅ User notification sent via Edge Function:', result.summary);
+  } catch (error) {
+    console.error('❌ Error sending notification to users via Edge Function:', error);
+
+    // Fallback to the old method
+    console.log('🔄 Falling back to token-based method...');
     const tokens = await getFCMTokensForUsers(userIds);
-    
+
     if (!tokens.length) {
       console.warn('No active FCM tokens found for specified users');
       return;
@@ -278,10 +351,8 @@ export const sendNotificationToUsers = async (
     // Log results
     const successCount = Object.values(results).filter(r => r.success).length;
     const failureCount = Object.values(results).filter(r => !r.success).length;
-    
-    console.log(`User notification sent: ${successCount} success, ${failureCount} failures`);
-  } catch (error) {
-    console.error('Error sending notification to users:', error);
+
+    console.log(`User notification sent (fallback): ${successCount} success, ${failureCount} failures`);
   }
 };
 

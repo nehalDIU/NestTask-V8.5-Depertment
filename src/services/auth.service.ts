@@ -602,7 +602,7 @@ function setupTokenRefresh(refreshToken: string) {
 }
 
 // Helper function to normalize role values
-function normalizeRole(role: string): 'user' | 'admin' | 'super-admin' | 'section-admin' {
+function normalizeRole(role: string): 'user' | 'admin' | 'super-admin' | 'section_admin' {
   switch (role) {
     case 'admin':
       return 'admin';
@@ -611,7 +611,7 @@ function normalizeRole(role: string): 'user' | 'admin' | 'super-admin' | 'sectio
       return 'super-admin';
     case 'section-admin':
     case 'section_admin':
-      return 'section-admin';
+      return 'section_admin';
     default:
       return 'user';
   }

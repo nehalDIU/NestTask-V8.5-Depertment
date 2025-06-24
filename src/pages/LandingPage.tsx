@@ -293,7 +293,7 @@ export function LandingPage({ onGetStarted, onLogin }: LandingPageProps) {
 
               <p className="text-xl sm:text-2xl text-gray-300 mb-12 max-w-4xl mx-auto leading-relaxed">
                 Experience the future of university task management with our
-                <span className="text-blue-400 font-semibold"> AI-powered platform</span> designed
+                <span className="text-blue-400 font-semibold"> NestTask platform</span> designed
                 for the modern academic environment.
               </p>
 

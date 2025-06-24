@@ -30,7 +30,24 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
     <meta name="theme-color" content="#0284c7" />
-    <meta name="description" content="NestTask - A modern task management application for teams and individuals" />
+    <title>NestTask - Academic Task Management Made Simple</title>
+    <meta name="description" content="NestTask - Modern academic task management system for universities. Role-based access, real-time collaboration, and PWA support for students and educators." />
+    <meta name="keywords" content="task management, university, academic, students, education, PWA, collaboration, assignments, deadlines" />
+    <meta name="author" content="NestTask Team" />
+
+    <!-- Open Graph / Facebook -->
+    <meta property="og:type" content="website" />
+    <meta property="og:url" content="https://nesttask.vercel.app/" />
+    <meta property="og:title" content="NestTask - Academic Task Management Made Simple" />
+    <meta property="og:description" content="Modern, role-based task management system designed specifically for university environments. Streamline academic workflows with real-time collaboration." />
+    <meta property="og:image" content="/icons/icon-512x512.png" />
+
+    <!-- Twitter -->
+    <meta property="twitter:card" content="summary_large_image" />
+    <meta property="twitter:url" content="https://nesttask.vercel.app/" />
+    <meta property="twitter:title" content="NestTask - Academic Task Management Made Simple" />
+    <meta property="twitter:description" content="Modern, role-based task management system designed specifically for university environments. Streamline academic workflows with real-time collaboration." />
+    <meta property="twitter:image" content="/icons/icon-512x512.png" />
     <base href="/" />
     
     <!-- Resource hints for faster loading -->
@@ -267,6 +284,35 @@
           });
         }
       });
+    </script>
+
+    <!-- Debug script for deployment issues -->
+    <script>
+      // Only run debug in production
+      if (window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1') {
+        console.log('=== NestTask Deployment Debug ===');
+        console.log('Environment:', 'production');
+        console.log('URL:', window.location.href);
+        console.log('User Agent:', navigator.userAgent);
+
+        // Check for any JavaScript errors
+        window.addEventListener('error', (e) => {
+          console.error('JavaScript Error:', e.error);
+        });
+
+        // Check for unhandled promise rejections
+        window.addEventListener('unhandledrejection', (e) => {
+          console.error('Unhandled Promise Rejection:', e.reason);
+        });
+
+        // Log when DOM is ready
+        document.addEventListener('DOMContentLoaded', () => {
+          console.log('DOM Content Loaded');
+          console.log('Root element:', document.getElementById('root'));
+        });
+
+        console.log('=== Debug Script Loaded ===');
+      }
     </script>
   </body>
 </html>

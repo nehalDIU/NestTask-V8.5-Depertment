@@ -9,14 +9,23 @@ interface AuthPageProps {
   onSignup: (credentials: SignupCredentials) => Promise<void>;
   onForgotPassword: (email: string) => Promise<void>;
   error?: string;
+  onBackToLanding?: () => void;
 }
 
-export function AuthPage({ onLogin, onSignup, onForgotPassword, error }: AuthPageProps) {
+export function AuthPage({ onLogin, onSignup, onForgotPassword, error, onBackToLanding }: AuthPageProps) {
   const [authState, setAuthState] = useState<'login' | 'signup' | 'forgot-password'>('login');
 
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col justify-center py-12 sm:px-6 lg:px-8">
       <div className="sm:mx-auto sm:w-full sm:max-w-md">
+        {onBackToLanding && (
+          <button
+            onClick={onBackToLanding}
+            className="mb-4 text-blue-600 hover:text-blue-800 text-sm font-medium"
+          >
+            ← Back to Landing Page
+          </button>
+        )}
         <h1 className="text-center text-3xl font-extrabold text-gray-900 mb-8">
           NestTask
         </h1>

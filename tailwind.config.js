@@ -40,24 +40,38 @@ export default {
           700: '#0369a1',
           800: '#075985',
           900: '#0c4a6e',
+        },
+        gray: {
+          50: '#f9fafb',
+          100: '#f3f4f6',
+          200: '#e5e7eb',
+          300: '#d1d5db',
+          400: '#9ca3af',
+          500: '#6b7280',
+          600: '#4b5563',
+          700: '#374151',
+          800: '#1f2937',
+          900: '#111827',
+          950: '#030712',
         }
       }
     },
   },
   plugins: [],
-  // Add purge options for production
-  purge: {
-    enabled: process.env.NODE_ENV === 'production',
-    content: ['./index.html', './src/**/*.{js,ts,jsx,tsx}'],
-    options: {
-      safelist: [
-        'dark',
-        /^bg-/,
-        /^text-/,
-        /^border-/,
-        /^hover:/,
-        /^dark:/
-      ]
-    }
-  }
+  safelist: [
+    'dark',
+    'bg-gradient-to-r',
+    'bg-gradient-to-br',
+    'from-blue-600',
+    'to-cyan-600',
+    'from-purple-600',
+    'to-pink-600',
+    'text-blue-400',
+    'text-purple-400',
+    'text-cyan-400',
+    'shadow-blue-500/25',
+    'shadow-purple-500/20',
+    'backdrop-blur-xl',
+    'backdrop-blur-sm'
+  ]
 };

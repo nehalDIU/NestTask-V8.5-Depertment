@@ -4,6 +4,7 @@ import { useTasks } from './hooks/useTasks';
 import { useUsers } from './hooks/useUsers';
 import { useNotifications } from './hooks/useNotifications';
 import { AuthPage } from './pages/AuthPage';
+import { LandingPage } from './pages/LandingPage';
 import { LoadingScreen } from './components/LoadingScreen';
 import { Navigation } from './components/Navigation';
 import { BottomNavigation } from './components/BottomNavigation';
@@ -41,6 +42,9 @@ const RoutinePage = lazy(importRoutinePage);
 type StatFilter = 'all' | 'overdue' | 'in-progress' | 'completed';
 
 export default function App() {
+  // State to control landing page vs auth page
+  const [showLandingPage, setShowLandingPage] = useState(true);
+
   // Always call all hooks first, regardless of any conditions
   const { user, loading: authLoading, error: authError, login, signup, logout, forgotPassword } = useAuth();
   
@@ -317,6 +321,15 @@ export default function App() {
   }
 
   if (!user) {
+    if (showLandingPage) {
+      return (
+        <LandingPage
+          onGetStarted={() => setShowLandingPage(false)}
+          onLogin={() => setShowLandingPage(false)}
+        />
+      );
+    }
+
     return (
       <AuthPage
         onLogin={(credentials, rememberMe = false) => login(credentials, rememberMe)}

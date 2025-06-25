@@ -43,36 +43,18 @@ type StatFilter = 'all' | 'overdue' | 'in-progress' | 'completed';
 
 export default function App() {
   // State to control landing page vs auth page
-<<<<<<< Updated upstream
-  // Check URL parameters to determine initial state
-  const [showLandingPage, setShowLandingPage] = useState(() => {
-    // Check if there's a URL parameter or hash that indicates auth page
-    const urlParams = new URLSearchParams(window.location.search);
-    const hash = window.location.hash;
-    return !urlParams.has('auth') && !hash.includes('auth') && !hash.includes('access_token');
-  });
-=======
   const [showLandingPage, setShowLandingPage] = useState(true);
->>>>>>> Stashed changes
 
   // Always call all hooks first, regardless of any conditions
   const { user, loading: authLoading, error: authError, login, signup, logout, forgotPassword } = useAuth();
   
-  // Debug user role and landing page state
+  // Debug user role
   useEffect(() => {
-    console.log('App state:', {
-      user: !!user,
-      authLoading,
-      showLandingPage,
-      userRole: user?.role,
-      url: window.location.href
-    });
-
     if (user) {
       console.log('Current user role:', user.role);
       console.log('Complete user object:', user);
     }
-  }, [user, authLoading, showLandingPage]);
+  }, [user]);
   
   const { users, loading: usersLoading, deleteUser } = useUsers();
   const { 
@@ -357,7 +339,6 @@ export default function App() {
         }}
         onForgotPassword={forgotPassword}
         error={authError || undefined}
-        onBackToLanding={() => setShowLandingPage(true)}
       />
     );
   }

@@ -166,47 +166,12 @@ try {
   console.error('Error creating 200.html:', error);
 }
 
-// Add cache busting to HTML files
-try {
-  const timestamp = Date.now();
-  const buildId = process.env.VERCEL_GIT_COMMIT_SHA || timestamp.toString();
-
-  // Add build metadata to index.html
-  if (fs.existsSync(path.join('dist', 'index.html'))) {
-    let indexContent = fs.readFileSync(path.join('dist', 'index.html'), 'utf8');
-
-    // Add build timestamp meta tag
-    const metaTag = `<meta name="build-time" content="${timestamp}">
-    <meta name="build-id" content="${buildId}">
-    <meta name="cache-bust" content="${timestamp}">`;
-
-    indexContent = indexContent.replace('<head>', `<head>\n    ${metaTag}`);
-
-    fs.writeFileSync(path.join('dist', 'index.html'), indexContent);
-    console.log(`Added cache busting metadata to index.html (build: ${buildId})`);
-  }
-
-  // Do the same for 200.html
-  if (fs.existsSync(path.join('dist', '200.html'))) {
-    let content200 = fs.readFileSync(path.join('dist', '200.html'), 'utf8');
-    const metaTag = `<meta name="build-time" content="${timestamp}">
-    <meta name="build-id" content="${buildId}">
-    <meta name="cache-bust" content="${timestamp}">`;
-
-    content200 = content200.replace('<head>', `<head>\n    ${metaTag}`);
-    fs.writeFileSync(path.join('dist', '200.html'), content200);
-    console.log('Added cache busting metadata to 200.html');
-  }
-} catch (error) {
-  console.error('Error adding cache busting metadata:', error);
-}
-
 // Check dist directory
 try {
   const distFiles = fs.readdirSync('dist');
   console.log('== Dist Directory Contents ==');
   console.log(distFiles);
-
+  
   // Check if index.html exists
   if (distFiles.includes('index.html')) {
     console.log('index.html found in dist directory');
@@ -217,4 +182,4 @@ try {
   }
 } catch (error) {
   console.error('Error checking dist directory:', error);
-}
+} 

@@ -30,24 +30,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
     <meta name="theme-color" content="#0284c7" />
-    <title>NestTask - Academic Task Management Made Simple</title>
-    <meta name="description" content="NestTask - Modern academic task management system for universities. Role-based access, real-time collaboration, and PWA support for students and educators." />
-    <meta name="keywords" content="task management, university, academic, students, education, PWA, collaboration, assignments, deadlines" />
-    <meta name="author" content="NestTask Team" />
-
-    <!-- Open Graph / Facebook -->
-    <meta property="og:type" content="website" />
-    <meta property="og:url" content="https://nesttask.vercel.app/" />
-    <meta property="og:title" content="NestTask - Academic Task Management Made Simple" />
-    <meta property="og:description" content="Modern, role-based task management system designed specifically for university environments. Streamline academic workflows with real-time collaboration." />
-    <meta property="og:image" content="/icons/icon-512x512.png" />
-
-    <!-- Twitter -->
-    <meta property="twitter:card" content="summary_large_image" />
-    <meta property="twitter:url" content="https://nesttask.vercel.app/" />
-    <meta property="twitter:title" content="NestTask - Academic Task Management Made Simple" />
-    <meta property="twitter:description" content="Modern, role-based task management system designed specifically for university environments. Streamline academic workflows with real-time collaboration." />
-    <meta property="twitter:image" content="/icons/icon-512x512.png" />
+    <meta name="description" content="NestTask - A modern task management application for teams and individuals" />
     <base href="/" />
     
     <!-- Resource hints for faster loading -->
@@ -284,87 +267,6 @@
           });
         }
       });
-    </script>
-
-    <!-- Production deployment fix script -->
-    <script>
-      // Enhanced production debugging and fixes
-      if (window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1') {
-        console.log('🚀 NestTask Production Deployment Fix');
-
-        // Environment detection
-        const isVercelProduction = window.location.hostname === 'nesttask.vercel.app' ||
-                                  window.location.hostname.includes('your-production-domain');
-        const isVercelPreview = window.location.hostname.includes('vercel.app') && !isVercelProduction;
-
-        console.log('Environment:', {
-          isVercelProduction,
-          isVercelPreview,
-          hostname: window.location.hostname,
-          href: window.location.href
-        });
-
-        // Production-specific cache busting
-        if (isVercelProduction) {
-          const metaTag = document.createElement('meta');
-          metaTag.httpEquiv = 'cache-control';
-          metaTag.content = 'no-cache, no-store, must-revalidate';
-          document.head.appendChild(metaTag);
-
-          // Add timestamp for cache busting
-          window.NESTTASK_CACHE_BUST = Date.now();
-          console.log('🔧 Cache busting applied:', window.NESTTASK_CACHE_BUST);
-        }
-
-        // Enhanced error tracking
-        let errorCount = 0;
-        window.addEventListener('error', (e) => {
-          errorCount++;
-          console.error(`❌ JS Error #${errorCount}:`, {
-            message: e.message,
-            filename: e.filename,
-            lineno: e.lineno,
-            error: e.error
-          });
-        });
-
-        window.addEventListener('unhandledrejection', (e) => {
-          console.error('❌ Promise Rejection:', e.reason);
-        });
-
-        // Check React mounting
-        document.addEventListener('DOMContentLoaded', () => {
-          console.log('📋 DOM loaded');
-
-          setTimeout(() => {
-            const root = document.getElementById('root');
-            if (!root || root.children.length === 0) {
-              console.error('❌ React app not mounted properly');
-
-              // Emergency fix: force reload with landing page parameter
-              if (!window.location.search.includes('landing=true')) {
-                console.log('🔄 Applying emergency fix...');
-                window.location.href = window.location.origin + '/?landing=true&cache=' + Date.now();
-              }
-            } else {
-              console.log('✅ React app mounted successfully');
-            }
-          }, 2000);
-        });
-
-        console.log('🛠️ Production fix script loaded');
-      }
-    </script>
-
-    <!-- Production verification script (only in production) -->
-    <script>
-      if (window.location.hostname === 'nesttask.vercel.app' || window.location.hostname.includes('vercel.app')) {
-        // Load verification script for production/preview environments
-        const script = document.createElement('script');
-        script.src = '/verify-production-fix.js';
-        script.async = true;
-        document.head.appendChild(script);
-      }
     </script>
   </body>
 </html>

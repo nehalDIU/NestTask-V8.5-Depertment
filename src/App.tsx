@@ -43,12 +43,34 @@ type StatFilter = 'all' | 'overdue' | 'in-progress' | 'completed';
 
 export default function App() {
   // State to control landing page vs auth page
-  // Check URL parameters to determine initial state
+  // Check URL parameters and environment to determine initial state
   const [showLandingPage, setShowLandingPage] = useState(() => {
-    // Check if there's a URL parameter or hash that indicates auth page
-    const urlParams = new URLSearchParams(window.location.search);
-    const hash = window.location.hash;
-    return !urlParams.has('auth') && !hash.includes('auth') && !hash.includes('access_token');
+    try {
+      // Check if there's a URL parameter or hash that indicates auth page
+      const urlParams = new URLSearchParams(window.location.search);
+      const hash = window.location.hash;
+
+      // Force landing page for production domain root
+      const isProductionRoot = window.location.pathname === '/' &&
+                              !urlParams.has('auth') &&
+                              !hash.includes('auth') &&
+                              !hash.includes('access_token') &&
+                              !hash.includes('error');
+
+      // Check for stored auth state (but prioritize URL parameters)
+      const hasStoredAuth = localStorage.getItem('supabase.auth.token') ||
+                           sessionStorage.getItem('supabase.auth.token');
+
+      // Show landing page if:
+      // 1. It's the root path without auth parameters
+      // 2. No stored authentication
+      // 3. Not coming from an auth redirect
+      return isProductionRoot && !hasStoredAuth;
+    } catch (error) {
+      console.error('Error determining landing page state:', error);
+      // Default to showing landing page on error
+      return true;
+    }
   });
 
   // Always call all hooks first, regardless of any conditions
@@ -56,12 +78,21 @@ export default function App() {
   
   // Debug user role and landing page state
   useEffect(() => {
+    const isProduction = window.location.hostname !== 'localhost' &&
+                        window.location.hostname !== '127.0.0.1' &&
+                        !window.location.hostname.includes('vercel.app');
+
     console.log('App state:', {
       user: !!user,
       authLoading,
       showLandingPage,
       userRole: user?.role,
-      url: window.location.href
+      url: window.location.href,
+      hostname: window.location.hostname,
+      isProduction,
+      pathname: window.location.pathname,
+      search: window.location.search,
+      hash: window.location.hash
     });
 
     if (user) {
@@ -69,6 +100,21 @@ export default function App() {
       console.log('Complete user object:', user);
     }
   }, [user, authLoading, showLandingPage]);
+
+  // Force landing page for production domain root visits
+  useEffect(() => {
+    const isProductionDomain = window.location.hostname.includes('.vercel.app') ||
+                              window.location.hostname.includes('nesttask');
+    const isRootPath = window.location.pathname === '/';
+    const hasAuthParams = window.location.search.includes('auth') ||
+                         window.location.hash.includes('auth') ||
+                         window.location.hash.includes('access_token');
+
+    if (isProductionDomain && isRootPath && !hasAuthParams && !user && authLoading === false) {
+      console.log('Forcing landing page for production domain');
+      setShowLandingPage(true);
+    }
+  }, [user, authLoading]);
   
   const { users, loading: usersLoading, deleteUser } = useUsers();
   const { 

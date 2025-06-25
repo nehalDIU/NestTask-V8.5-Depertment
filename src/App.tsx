@@ -43,6 +43,7 @@ type StatFilter = 'all' | 'overdue' | 'in-progress' | 'completed';
 
 export default function App() {
   // State to control landing page vs auth page
+<<<<<<< Updated upstream
   // Check URL parameters to determine initial state
   const [showLandingPage, setShowLandingPage] = useState(() => {
     // Check if there's a URL parameter or hash that indicates auth page
@@ -50,6 +51,9 @@ export default function App() {
     const hash = window.location.hash;
     return !urlParams.has('auth') && !hash.includes('auth') && !hash.includes('access_token');
   });
+=======
+  const [showLandingPage, setShowLandingPage] = useState(true);
+>>>>>>> Stashed changes
 
   // Always call all hooks first, regardless of any conditions
   const { user, loading: authLoading, error: authError, login, signup, logout, forgotPassword } = useAuth();

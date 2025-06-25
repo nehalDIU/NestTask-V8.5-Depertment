@@ -4,12 +4,18 @@ export function useSmoothScroll() {
   const scrollToSection = useCallback((sectionId: string) => {
     const element = document.getElementById(sectionId);
     if (element) {
+<<<<<<< Updated upstream
       const navHeight = 80; // Account for fixed navigation
       const elementPosition = element.offsetTop - navHeight;
       
       window.scrollTo({
         top: elementPosition,
         behavior: 'smooth',
+=======
+      element.scrollIntoView({
+        behavior: 'smooth',
+        block: 'start',
+>>>>>>> Stashed changes
       });
     }
   }, []);

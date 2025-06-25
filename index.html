@@ -286,32 +286,73 @@
       });
     </script>
 
-    <!-- Debug script for deployment issues -->
+    <!-- Production deployment fix script -->
     <script>
-      // Only run debug in production
+      // Enhanced production debugging and fixes
       if (window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1') {
-        console.log('=== NestTask Deployment Debug ===');
-        console.log('Environment:', 'production');
-        console.log('URL:', window.location.href);
-        console.log('User Agent:', navigator.userAgent);
+        console.log('🚀 NestTask Production Deployment Fix');
 
-        // Check for any JavaScript errors
+        // Environment detection
+        const isVercelProduction = window.location.hostname === 'nesttask.vercel.app' ||
+                                  window.location.hostname.includes('your-production-domain');
+        const isVercelPreview = window.location.hostname.includes('vercel.app') && !isVercelProduction;
+
+        console.log('Environment:', {
+          isVercelProduction,
+          isVercelPreview,
+          hostname: window.location.hostname,
+          href: window.location.href
+        });
+
+        // Production-specific cache busting
+        if (isVercelProduction) {
+          const metaTag = document.createElement('meta');
+          metaTag.httpEquiv = 'cache-control';
+          metaTag.content = 'no-cache, no-store, must-revalidate';
+          document.head.appendChild(metaTag);
+
+          // Add timestamp for cache busting
+          window.NESTTASK_CACHE_BUST = Date.now();
+          console.log('🔧 Cache busting applied:', window.NESTTASK_CACHE_BUST);
+        }
+
+        // Enhanced error tracking
+        let errorCount = 0;
         window.addEventListener('error', (e) => {
-          console.error('JavaScript Error:', e.error);
+          errorCount++;
+          console.error(`❌ JS Error #${errorCount}:`, {
+            message: e.message,
+            filename: e.filename,
+            lineno: e.lineno,
+            error: e.error
+          });
         });
 
-        // Check for unhandled promise rejections
         window.addEventListener('unhandledrejection', (e) => {
-          console.error('Unhandled Promise Rejection:', e.reason);
+          console.error('❌ Promise Rejection:', e.reason);
         });
 
-        // Log when DOM is ready
+        // Check React mounting
         document.addEventListener('DOMContentLoaded', () => {
-          console.log('DOM Content Loaded');
-          console.log('Root element:', document.getElementById('root'));
+          console.log('📋 DOM loaded');
+
+          setTimeout(() => {
+            const root = document.getElementById('root');
+            if (!root || root.children.length === 0) {
+              console.error('❌ React app not mounted properly');
+
+              // Emergency fix: force reload with landing page parameter
+              if (!window.location.search.includes('landing=true')) {
+                console.log('🔄 Applying emergency fix...');
+                window.location.href = window.location.origin + '/?landing=true&cache=' + Date.now();
+              }
+            } else {
+              console.log('✅ React app mounted successfully');
+            }
+          }, 2000);
         });
 
-        console.log('=== Debug Script Loaded ===');
+        console.log('🛠️ Production fix script loaded');
       }
     </script>
   </body>

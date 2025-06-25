@@ -355,5 +355,16 @@
         console.log('🛠️ Production fix script loaded');
       }
     </script>
+
+    <!-- Production verification script (only in production) -->
+    <script>
+      if (window.location.hostname === 'nesttask.vercel.app' || window.location.hostname.includes('vercel.app')) {
+        // Load verification script for production/preview environments
+        const script = document.createElement('script');
+        script.src = '/verify-production-fix.js';
+        script.async = true;
+        document.head.appendChild(script);
+      }
+    </script>
   </body>
 </html>

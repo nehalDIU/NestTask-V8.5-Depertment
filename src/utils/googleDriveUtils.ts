@@ -147,9 +147,9 @@ export function validateGoogleDriveUrls(urls: string[]): {
 }
 
 /**
- * Creates a preview URL for a Google Drive file (for thumbnails)
+ * Creates a preview URL for a Google Drive file (for embedding)
  * @param url - The Google Drive URL
- * @returns Preview URL or null if not applicable
+ * @returns Embeddable preview URL or null if not applicable
  */
 export function getGoogleDrivePreviewUrl(url: string): string | null {
   const fileId = extractGoogleDriveId(url);
@@ -157,7 +157,37 @@ export function getGoogleDrivePreviewUrl(url: string): string | null {
     return null;
   }
 
-  // Only create preview URLs for files, not folders or forms
+  // Handle different Google Drive resource types
+  if (url.includes('docs.google.com/document')) {
+    return `https://docs.google.com/document/d/${fileId}/preview`;
+  } else if (url.includes('docs.google.com/spreadsheets')) {
+    return `https://docs.google.com/spreadsheets/d/${fileId}/preview`;
+  } else if (url.includes('docs.google.com/presentation')) {
+    return `https://docs.google.com/presentation/d/${fileId}/preview`;
+  } else if (url.includes('/folders/')) {
+    // Folders can't be previewed in iframe
+    return null;
+  } else if (url.includes('docs.google.com/forms')) {
+    // Forms can't be previewed in iframe
+    return null;
+  } else {
+    // For regular files, use the preview URL
+    return `https://drive.google.com/file/d/${fileId}/preview`;
+  }
+}
+
+/**
+ * Creates a thumbnail URL for a Google Drive file
+ * @param url - The Google Drive URL
+ * @returns Thumbnail URL or null if not applicable
+ */
+export function getGoogleDriveThumbnailUrl(url: string): string | null {
+  const fileId = extractGoogleDriveId(url);
+  if (!fileId) {
+    return null;
+  }
+
+  // Only create thumbnail URLs for files, not folders or forms
   if (url.includes('/folders/') || url.includes('docs.google.com/forms')) {
     return null;
   }

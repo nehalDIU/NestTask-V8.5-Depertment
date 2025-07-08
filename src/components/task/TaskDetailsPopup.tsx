@@ -1,6 +1,6 @@
-import { X, Calendar, Tag, Clock, Crown, Download, CheckCircle2, Clipboard, Copy, Link, ExternalLink } from 'lucide-react';
+import { X, Calendar, Tag, Clock, Crown, Download, CheckCircle2, Clipboard, Copy, Link, ExternalLink, Eye, FileText, FileSpreadsheet, Presentation, FileImage, Folder, AlertCircle, Loader2 } from 'lucide-react';
 import { parseLinks } from '../../utils/linkParser';
-import { getGoogleDriveResourceType } from '../../utils/googleDriveUtils';
+import { getGoogleDriveResourceType, extractGoogleDriveId, getGoogleDrivePreviewUrl } from '../../utils/googleDriveUtils';
 import type { Task } from '../../types';
 import type { TaskStatus } from '../../types/task';
 import { useState, useEffect } from 'react';
@@ -12,6 +12,8 @@ interface TaskDetailsPopupProps {
   isUpdating?: boolean;
 }
 
+
+
 export function TaskDetailsPopup({ 
   task, 
   onClose,
@@ -19,7 +21,9 @@ export function TaskDetailsPopup({
   isUpdating = false
 }: TaskDetailsPopupProps) {
   const [copied, setCopied] = useState(false);
-  
+  const [downloadingLinks, setDownloadingLinks] = useState<Set<string>>(new Set());
+  const [downloadErrors, setDownloadErrors] = useState<Map<string, string>>(new Map());
+
   // Reset copied state after 2 seconds
   useEffect(() => {
     let timer: NodeJS.Timeout;
@@ -115,6 +119,88 @@ export function TaskDetailsPopup({
     return null;
   };
 
+  // Google Drive utility functions
+  const getGoogleDriveIcon = (url: string) => {
+    const resourceType = getGoogleDriveResourceType(url).toLowerCase();
+    if (resourceType.includes('document')) return FileText;
+    if (resourceType.includes('spreadsheet')) return FileSpreadsheet;
+    if (resourceType.includes('presentation')) return Presentation;
+    if (resourceType.includes('folder')) return Folder;
+    if (resourceType.includes('image')) return FileImage;
+    return Link;
+  };
+
+  const handleGoogleDriveDownload = async (url: string) => {
+    const fileId = extractGoogleDriveId(url);
+    if (!fileId) {
+      setDownloadErrors(prev => new Map(prev.set(url, 'Invalid Google Drive URL')));
+      return;
+    }
+
+    setDownloadingLinks(prev => new Set(prev.add(url)));
+    setDownloadErrors(prev => {
+      const newMap = new Map(prev);
+      newMap.delete(url);
+      return newMap;
+    });
+
+    try {
+      // For Google Drive files, we'll attempt to use the export/download URL
+      const resourceType = getGoogleDriveResourceType(url);
+      let downloadUrl = '';
+
+      if (resourceType.includes('Document')) {
+        downloadUrl = `https://docs.google.com/document/d/${fileId}/export?format=pdf`;
+      } else if (resourceType.includes('Spreadsheet')) {
+        downloadUrl = `https://docs.google.com/spreadsheets/d/${fileId}/export?format=xlsx`;
+      } else if (resourceType.includes('Presentation')) {
+        downloadUrl = `https://docs.google.com/presentation/d/${fileId}/export?format=pptx`;
+      } else {
+        // For regular files, try the direct download
+        downloadUrl = `https://drive.google.com/uc?export=download&id=${fileId}`;
+      }
+
+      // Open download URL in new tab (user will need to be signed in to Google)
+      window.open(downloadUrl, '_blank', 'noopener,noreferrer');
+
+      // Clear loading state after a short delay
+      setTimeout(() => {
+        setDownloadingLinks(prev => {
+          const newSet = new Set(prev);
+          newSet.delete(url);
+          return newSet;
+        });
+      }, 2000);
+
+    } catch (error) {
+      console.error('Error downloading Google Drive file:', error);
+      setDownloadErrors(prev => new Map(prev.set(url, 'Download failed. Please try opening the link directly.')));
+      setDownloadingLinks(prev => {
+        const newSet = new Set(prev);
+        newSet.delete(url);
+        return newSet;
+      });
+    }
+  };
+
+  const handleSimplePreview = (url: string) => {
+    // Get the preview URL for better viewing experience
+    const previewUrl = getGoogleDrivePreviewUrl(url);
+
+    // Open in new tab - use preview URL if available, otherwise use original URL
+    const urlToOpen = previewUrl || url;
+
+    console.log('Opening simple preview:', {
+      originalUrl: url,
+      previewUrl: previewUrl,
+      opening: urlToOpen
+    });
+
+    window.open(urlToOpen, '_blank', 'noopener,noreferrer');
+  };
+
+
+
   const copyTaskToClipboard = () => {
     // Format the task information
     const formattedDate = new Date(task.dueDate).toLocaleDateString('en-US', {
@@ -122,7 +208,7 @@ export function TaskDetailsPopup({
       month: 'short',
       day: 'numeric'
     });
-    
+
     const formattedTask = `
 📋 TASK: ${task.name}
 📅 Due Date: ${formattedDate}${overdue ? ' (Overdue)' : ''}
@@ -377,44 +463,130 @@ ${regularDescription}
             </div>
           )}
 
-          {/* Google Drive Links - Only show if there are links */}
+          {/* Google Drive Links - Professional Clean Design */}
           {task.googleDriveLinks && task.googleDriveLinks.length > 0 && (
-            <div className="mt-4 sm:mt-6">
-              <h3 className="text-base sm:text-lg font-medium text-gray-900 dark:text-white mb-2 sm:mb-3 flex items-center gap-2">
-                <Link className="w-4 h-4 sm:w-5 sm:h-5 text-blue-500" />
-                Google Drive Links
-              </h3>
-              <div className="space-y-2">
-                {task.googleDriveLinks.map((link, index) => (
-                  <div key={index} className="flex items-center justify-between p-2 sm:p-3 rounded-lg bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800/30">
-                    <div className="flex items-center gap-2 truncate max-w-[65%] sm:max-w-[70%]">
-                      <Link className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-blue-500 dark:text-blue-400 flex-shrink-0" />
-                      <div className="flex flex-col min-w-0">
-                        <span className="text-xs sm:text-sm font-medium text-blue-700 dark:text-blue-300 truncate">
-                          {getGoogleDriveResourceType(link)}
-                        </span>
-                        <span className="text-xs text-blue-600 dark:text-blue-400 truncate">
-                          {link.length > 50 ? `${link.substring(0, 50)}...` : link}
-                        </span>
+            <div className="mt-6 sm:mt-8">
+              {/* Clean Header */}
+              <div className="flex items-center justify-between mb-4 pb-3 border-b border-gray-200 dark:border-gray-700">
+                <div className="flex items-center gap-3">
+                  <div className="flex items-center justify-center w-6 h-6 rounded-md bg-blue-100 dark:bg-blue-900/30">
+                    <Link className="w-4 h-4 text-blue-600 dark:text-blue-400" />
+                  </div>
+                  <div>
+                    <h3 className="text-base font-semibold text-gray-900 dark:text-white">
+                      Attachments
+                    </h3>
+                  </div>
+                </div>
+                <span className="text-xs font-medium text-gray-500 dark:text-gray-400 bg-gray-100 dark:bg-gray-800 px-2 py-1 rounded-full">
+                  {task.googleDriveLinks.length} {task.googleDriveLinks.length === 1 ? 'file' : 'files'}
+                </span>
+              </div>
+
+              <div className="space-y-3">
+                {task.googleDriveLinks.map((link, index) => {
+                  const IconComponent = getGoogleDriveIcon(link);
+                  const resourceType = getGoogleDriveResourceType(link);
+                  const isDownloading = downloadingLinks.has(link);
+                  const downloadError = downloadErrors.get(link);
+
+                  return (
+                    <div
+                      key={index}
+                      className="group relative bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg hover:border-gray-300 dark:hover:border-gray-600 hover:shadow-sm transition-all duration-200"
+                    >
+                      <div className="p-4">
+                        <div className="flex items-center justify-between">
+                          {/* Left side - File info */}
+                          <div className="flex items-center gap-3 flex-1 min-w-0">
+                            {/* File type icon */}
+                            <div className="flex items-center justify-center w-8 h-8 rounded-md bg-gray-50 dark:bg-gray-700 flex-shrink-0">
+                              <IconComponent className="w-4 h-4 text-gray-600 dark:text-gray-400" />
+                            </div>
+
+                            {/* File details */}
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-2 mb-1">
+                                <h4 className="text-sm font-medium text-gray-900 dark:text-white truncate">
+                                  {resourceType}
+                                </h4>
+                                <span className="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 flex-shrink-0">
+                                  Google Drive
+                                </span>
+                              </div>
+                              <p className="text-xs text-gray-500 dark:text-gray-400 truncate">
+                                {link.replace('https://', '').length > 50
+                                  ? `${link.replace('https://', '').substring(0, 50)}...`
+                                  : link.replace('https://', '')
+                                }
+                              </p>
+
+                              {/* Error Message */}
+                              {downloadError && (
+                                <div className="flex items-center gap-1 mt-1 text-xs text-red-600 dark:text-red-400">
+                                  <AlertCircle className="w-3 h-3 flex-shrink-0" />
+                                  <span>{downloadError}</span>
+                                </div>
+                              )}
+                            </div>
+                          </div>
+
+                          {/* Right side - Action buttons */}
+                          <div className="flex items-center gap-1 flex-shrink-0">
+                            {/* Preview Button */}
+                            <button
+                              onClick={() => handleSimplePreview(link)}
+                              className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium text-blue-700 dark:text-blue-300 hover:bg-blue-50 dark:hover:bg-blue-900/30 rounded-md transition-colors focus:outline-none focus:ring-1 focus:ring-blue-500"
+                              aria-label={`Preview ${resourceType}`}
+                              title="Preview file in new tab"
+                            >
+                              <Eye className="w-3.5 h-3.5" />
+                              <span className="hidden sm:inline">Preview</span>
+                            </button>
+
+                            {/* Download Button */}
+                            <button
+                              onClick={() => handleGoogleDriveDownload(link)}
+                              disabled={isDownloading}
+                              className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium text-green-700 dark:text-green-300 hover:bg-green-50 dark:hover:bg-green-900/30 rounded-md transition-colors focus:outline-none focus:ring-1 focus:ring-green-500 disabled:opacity-50 disabled:cursor-not-allowed"
+                              aria-label={`Download ${resourceType}`}
+                              title={isDownloading ? 'Downloading...' : 'Download file'}
+                            >
+                              {isDownloading ? (
+                                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                              ) : (
+                                <Download className="w-3.5 h-3.5" />
+                              )}
+                              <span className="hidden sm:inline">
+                                {isDownloading ? 'Downloading...' : 'Download'}
+                              </span>
+                            </button>
+
+                            {/* Open Button */}
+                            <button
+                              onClick={() => window.open(link, '_blank', 'noopener,noreferrer')}
+                              className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 rounded-md transition-colors focus:outline-none focus:ring-1 focus:ring-gray-500"
+                              aria-label={`Open ${resourceType} in new tab`}
+                              title="Open in Google Drive"
+                            >
+                              <ExternalLink className="w-3.5 h-3.5" />
+                              <span className="hidden sm:inline">Open</span>
+                            </button>
+                          </div>
+                        </div>
                       </div>
                     </div>
-                    <button
-                      onClick={() => window.open(link, '_blank', 'noopener,noreferrer')}
-                      className="p-1.5 sm:p-2 rounded-md text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 hover:bg-blue-100 dark:hover:bg-blue-900/50 transition-colors active:bg-blue-200 dark:active:bg-blue-900/70 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-opacity-50 touch-manipulation"
-                      aria-label={`Open ${getGoogleDriveResourceType(link)} in new tab`}
-                    >
-                      <ExternalLink className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
-                    </button>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
-              <div className="mt-2 text-xs text-gray-500 dark:text-gray-400">
-                <p>Google Drive links attached by section administrator</p>
-              </div>
+
+
             </div>
           )}
         </div>
       </div>
+
+
     </>
   );
 }

@@ -138,7 +138,7 @@ export const HomePage: React.FC<HomePageProps> = ({
   };
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-6 sm:space-y-8">
       {/* Welcome Section */}
       <div className="bg-gradient-to-r from-blue-600 to-indigo-600 rounded-2xl p-6 sm:p-8 text-white overflow-hidden">
         <div
@@ -278,19 +278,19 @@ export const HomePage: React.FC<HomePageProps> = ({
 
       {/* Task List */}
       <div>
-        <div className="flex items-center justify-between mb-4 sm:mb-6">
-          <h2 className="text-lg sm:text-xl font-bold text-gray-900 dark:text-white">
-            {getStatTitle()}
-          </h2>
-          {statFilter !== 'all' && (
+        {statFilter !== 'all' && (
+          <div className="flex items-center justify-between mb-4 sm:mb-6">
+            <h2 className="text-lg sm:text-xl font-bold text-gray-900 dark:text-white">
+              {getStatTitle()}
+            </h2>
             <button
               onClick={() => setStatFilter('all')}
               className="px-2 py-1 text-xs sm:text-sm text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 rounded-md"
             >
               View All Tasks
             </button>
-          )}
-        </div>
+          </div>
+        )}
         {getFilteredTasks().length > 0 ? (
           <TaskList
             tasks={getFilteredTasks()}

@@ -27,8 +27,9 @@ interface TaskCategoriesProps {
 
 export function TaskCategories({ onCategorySelect, selectedCategory, categoryCounts }: TaskCategoriesProps) {
   const [isExpanded, setIsExpanded] = useState(false);
+  const [isMobileExpanded, setIsMobileExpanded] = useState(false);
   const showMoreButtonRef = useRef<HTMLButtonElement>(null);
-  
+
   // Calculate total tasks from all categories
   const totalTasks = Object.values(categoryCounts).reduce((sum, count) => sum + count, 0);
 
@@ -48,9 +49,11 @@ export function TaskCategories({ onCategorySelect, selectedCategory, categoryCou
     { id: 'others' as TaskCategory, label: 'Others', icon: MoreHorizontal, count: categoryCounts['others'] || 0 },
   ];
 
-  // Show first 6 categories when collapsed
-  const visibleCategories = isExpanded ? allCategories : allCategories.slice(0, 6);
+  // Show first 5 categories when collapsed on mobile, first 6 on desktop
+  const mobileVisibleCategories = isMobileExpanded ? allCategories : allCategories.slice(0, 5);
+  const desktopVisibleCategories = isExpanded ? allCategories : allCategories.slice(0, 6);
   const hasMoreCategories = allCategories.length > 6;
+  const hasMobileMoreCategories = allCategories.length > 5;
 
   const handleToggleExpansion = () => {
     setIsExpanded(prevExpanded => {
@@ -64,61 +67,131 @@ export function TaskCategories({ onCategorySelect, selectedCategory, categoryCou
     });
   };
 
+  const handleMobileToggleExpansion = () => {
+    setIsMobileExpanded(prev => !prev);
+  };
+
   return (
-    <div className="mb-8">
-      <div className="flex items-center justify-between mb-4">
-        <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Categories</h2>
-        {hasMoreCategories && (
+    <div className="mb-4 sm:mb-6">
+      <div className="flex items-center justify-between mb-4 sm:mb-5 px-4 sm:px-0">
+        <h2 className="text-xl sm:text-2xl font-bold text-gray-900 dark:text-white tracking-tight">
+          Tasks
+        </h2>
+        {hasMobileMoreCategories && (
           <button
-            ref={showMoreButtonRef}
-            onClick={handleToggleExpansion}
-            className="flex items-center gap-1 sm:gap-1.5 px-2 sm:px-3 py-1 sm:py-1.5 
-              text-xs sm:text-sm font-medium text-blue-600 dark:text-blue-400 
-              bg-blue-50 dark:bg-blue-900/20 hover:bg-blue-100 dark:hover:bg-blue-900/30 
-              rounded-full transition-all duration-200"
+            onClick={handleMobileToggleExpansion}
+            className="text-sm sm:text-base font-semibold text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 transition-colors duration-200 sm:hidden"
           >
-            <span>{isExpanded ? 'Show Less' : 'Show All'}</span>
-            <ChevronDown 
-              className={`w-3.5 h-3.5 sm:w-4 sm:h-4 transition-transform duration-300 ease-in-out ${
-                isExpanded ? 'rotate-180' : 'rotate-0'
-              }`} 
-            />
+            {isMobileExpanded ? 'Show less' : 'See all'}
           </button>
         )}
       </div>
-      <div className="space-y-3">
-        {/* Grid for categories */}
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-3 gap-3">
-          {visibleCategories.map(({ id, label, icon: Icon, count }) => (
+
+      {/* Mobile: Expandable categories */}
+      <div className="block sm:hidden">
+        {/* First row - always visible */}
+        <div className="flex gap-2 overflow-x-auto pb-3 px-4 scrollbar-hide">
+          {mobileVisibleCategories.slice(0, 5).map(({ id, label, icon: Icon, count }) => (
             <button
               key={id || 'total'}
               onClick={() => onCategorySelect(id)}
               className={`
-                group flex items-center gap-2 p-3 rounded-xl transition-all duration-200
+                flex-shrink-0 px-4 py-2.5 rounded-full text-sm font-medium whitespace-nowrap
                 ${selectedCategory === id
-                  ? 'bg-blue-600 text-white shadow-lg scale-[1.02]'
-                  : `bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 ${count === 0 ? 'opacity-60 hover:opacity-100' : ''}`
+                  ? 'bg-blue-600 text-white'
+                  : 'bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300'
                 }
-                hover:shadow-md hover:-translate-y-0.5
               `}
             >
-              <div className={`
-                p-2 rounded-lg transition-colors duration-200
-                ${selectedCategory === id
-                  ? 'bg-blue-500/20'
-                  : 'bg-blue-50 dark:bg-blue-900/20 group-hover:bg-blue-100 dark:group-hover:bg-blue-900/30'
-                }
-              `}>
-                <Icon className="w-5 h-5" />
-              </div>
-              <div className="flex-1 text-left">
-                <div className="text-sm font-medium">{label}</div>
-                <div className={`text-xs ${selectedCategory === id ? 'opacity-80' : (count === 0 ? 'opacity-60 group-hover:opacity-80' : 'opacity-80')}`}>
-                  {count} tasks
-                </div>
-              </div>
+              {id === null ? 'All' : label}
             </button>
           ))}
+        </div>
+
+        {/* Additional rows - shown when expanded */}
+        {isMobileExpanded && mobileVisibleCategories.length > 5 && (
+          <div className="space-y-3 px-4 animate-slideDown">
+            {/* Split remaining categories into rows of 3-4 */}
+            {Array.from({ length: Math.ceil((mobileVisibleCategories.length - 5) / 3) }, (_, rowIndex) => (
+              <div key={rowIndex} className="flex gap-2 overflow-x-auto scrollbar-hide">
+                {mobileVisibleCategories
+                  .slice(5 + rowIndex * 3, 5 + (rowIndex + 1) * 3)
+                  .map(({ id, label, icon: Icon, count }) => (
+                    <button
+                      key={id || 'total'}
+                      onClick={() => onCategorySelect(id)}
+                      className={`
+                        flex-shrink-0 px-4 py-2.5 rounded-full text-sm font-medium whitespace-nowrap
+                        ${selectedCategory === id
+                          ? 'bg-blue-600 text-white'
+                          : 'bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300'
+                        }
+                      `}
+                    >
+                      {id === null ? 'All' : label}
+                    </button>
+                  ))}
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Desktop: Grid layout */}
+      <div className="hidden sm:block">
+        {hasMoreCategories && (
+          <div className="flex items-center justify-end mb-4">
+            <button
+              ref={showMoreButtonRef}
+              onClick={handleToggleExpansion}
+              className="flex items-center gap-1.5 px-3 py-1.5
+                text-sm font-semibold text-blue-600 dark:text-blue-400
+                bg-blue-50 dark:bg-blue-900/20 hover:bg-blue-100 dark:hover:bg-blue-900/30
+                rounded-full transition-all duration-200"
+            >
+              <span>{isExpanded ? 'Show Less' : 'Show All'}</span>
+              <ChevronDown
+                className={`w-4 h-4 transition-transform duration-300 ease-in-out ${
+                  isExpanded ? 'rotate-180' : 'rotate-0'
+                }`}
+              />
+            </button>
+          </div>
+        )}
+        <div className="space-y-3">
+          {/* Grid for categories */}
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-3 gap-3">
+            {desktopVisibleCategories.map(({ id, label, icon: Icon, count }) => (
+              <button
+                key={id || 'total'}
+                onClick={() => onCategorySelect(id)}
+                className={`
+                  group flex items-center gap-2 p-3 rounded-xl transition-all duration-200
+                  ${selectedCategory === id
+                    ? 'bg-blue-600 text-white shadow-lg scale-[1.02]'
+                    : `bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 ${count === 0 ? 'opacity-60 hover:opacity-100' : ''}`
+                  }
+                  hover:shadow-md hover:-translate-y-0.5
+                `}
+              >
+                <div className={`
+                  p-2 rounded-lg transition-colors duration-200
+                  ${selectedCategory === id
+                    ? 'bg-blue-500/20'
+                    : 'bg-blue-50 dark:bg-blue-900/20 group-hover:bg-blue-100 dark:group-hover:bg-blue-900/30'
+                  }
+                `}>
+                  <Icon className="w-5 h-5" />
+                </div>
+                <div className="flex-1 text-left">
+                  <div className="text-sm font-medium">{label}</div>
+                  <div className={`text-xs ${selectedCategory === id ? 'opacity-80' : (count === 0 ? 'opacity-60 group-hover:opacity-80' : 'opacity-80')}`}>
+                    {count} tasks
+                  </div>
+                </div>
+              </button>
+            ))}
+          </div>
         </div>
       </div>
     </div>

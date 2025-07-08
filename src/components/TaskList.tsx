@@ -66,18 +66,18 @@ export const TaskList = memo(({ tasks = [], onDeleteTask, showDeleteButton = fal
   }
 
   return (
-    <div className="space-y-4">
+    <div>
       {isOffline && offlineNotice}
-      
+
       <div className="w-full max-w-7xl mx-auto bg-gray-50 dark:bg-gray-900 md:bg-transparent">
         {/* Mobile-optimized container */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 p-3 md:gap-4 lg:gap-6 md:p-4 lg:p-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 p-4 md:gap-4 lg:gap-6 md:p-0">
           {sortedTasks.map((task, index) => (
-            <TaskCard 
-              key={task.id} 
-              task={task} 
-              index={index} 
-              onSelect={handleSelectTask} 
+            <TaskCard
+              key={task.id}
+              task={task}
+              index={index}
+              onSelect={handleSelectTask}
             />
           ))}
         </div>

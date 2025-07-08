@@ -39,12 +39,6 @@ const RoutinePage = lazy(importRoutinePage);
 type StatFilter = 'all' | 'overdue' | 'in-progress' | 'completed';
 
 export default function App() {
-<<<<<<< HEAD
-=======
-  // State to control landing page vs auth page
-  const [showLandingPage, setShowLandingPage] = useState(true);
-
->>>>>>> 348b6301f0d1b7b3bf483c4cd533c6a7029bb062
   // Always call all hooks first, regardless of any conditions
   const { user, loading: authLoading, error: authError, login, signup, logout, forgotPassword } = useAuth();
   

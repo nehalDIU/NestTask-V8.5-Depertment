@@ -1,6 +1,6 @@
 import { X, Calendar, Tag, Clock, Crown, Download, CheckCircle2, Clipboard, Copy, Link, ExternalLink, Eye, FileText, FileSpreadsheet, Presentation, FileImage, Folder, AlertCircle, Loader2 } from 'lucide-react';
 import { parseLinks } from '../../utils/linkParser';
-import { getGoogleDriveResourceType, extractGoogleDriveId, getGoogleDrivePreviewUrl } from '../../utils/googleDriveUtils';
+import { getGoogleDriveResourceType, extractGoogleDriveId, getGoogleDrivePreviewUrl, getGoogleDriveFilenames } from '../../utils/googleDriveUtils';
 import type { Task } from '../../types';
 import type { TaskStatus } from '../../types/task';
 import { useState, useEffect } from 'react';
@@ -484,9 +484,12 @@ ${regularDescription}
               </div>
 
               <div className="space-y-3">
-                {task.googleDriveLinks.map((link, index) => {
+                {task.googleDriveLinks?.map((link, index) => {
                   const IconComponent = getGoogleDriveIcon(link);
                   const resourceType = getGoogleDriveResourceType(link);
+                  // Generate filename using simple naming convention
+                  const filenames = getGoogleDriveFilenames(task.googleDriveLinks || []);
+                  const filename = filenames[index];
                   const isDownloading = downloadingLinks.has(link);
                   const downloadError = downloadErrors.get(link);
 
@@ -507,14 +510,14 @@ ${regularDescription}
                             {/* File details */}
                             <div className="flex-1 min-w-0">
                               <div className="flex items-center gap-2 mb-1">
-                                <h4 className="text-sm font-medium text-gray-900 dark:text-white truncate">
-                                  {resourceType}
+                                <h4 className="text-sm font-medium text-gray-900 dark:text-white truncate" title={filename}>
+                                  {filename}
                                 </h4>
                                 <span className="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 flex-shrink-0">
                                   Google Drive
                                 </span>
                               </div>
-                              <p className="text-xs text-gray-500 dark:text-gray-400 truncate">
+                              <p className="text-xs text-gray-500 dark:text-gray-400 truncate" title={link}>
                                 {link.replace('https://', '').length > 50
                                   ? `${link.replace('https://', '').substring(0, 50)}...`
                                   : link.replace('https://', '')

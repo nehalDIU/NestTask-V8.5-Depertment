@@ -205,3 +205,116 @@ export function isPublicGoogleDriveUrl(url: string): boolean {
   // URLs with 'usp=sharing' parameter are typically public
   return url.includes('usp=sharing') || url.includes('usp=share_link');
 }
+
+/**
+ * Extracts a display title from a Google Drive URL
+ * Since Google Drive URLs use file IDs, we can't get the actual filename
+ * This function returns a meaningful title based on the resource type and ID
+ * @param url - The Google Drive URL
+ * @returns A display title for the file
+ */
+export function getGoogleDriveTitle(url: string): string {
+  const resourceType = getGoogleDriveResourceType(url);
+  const fileId = extractGoogleDriveId(url);
+
+  // If we can't extract a file ID, return just the resource type
+  if (!fileId) {
+    return resourceType;
+  }
+
+  // For different resource types, create meaningful titles
+  if (url.includes('docs.google.com/document')) {
+    return `Document (${fileId.substring(0, 8)}...)`;
+  } else if (url.includes('docs.google.com/spreadsheets')) {
+    return `Spreadsheet (${fileId.substring(0, 8)}...)`;
+  } else if (url.includes('docs.google.com/presentation')) {
+    return `Presentation (${fileId.substring(0, 8)}...)`;
+  } else if (url.includes('docs.google.com/forms')) {
+    return `Form (${fileId.substring(0, 8)}...)`;
+  } else if (url.includes('/folders/')) {
+    return `Folder (${fileId.substring(0, 8)}...)`;
+  } else {
+    // For regular files, try to determine type from URL or default to "File"
+    return `File (${fileId.substring(0, 8)}...)`;
+  }
+}
+
+/**
+ * Gets a short, clean title for display in compact spaces
+ * @param url - The Google Drive URL
+ * @returns A short title suitable for compact display
+ */
+export function getGoogleDriveShortTitle(url: string): string {
+  // Return just the resource type for compact display
+  if (url.includes('docs.google.com/document')) {
+    return 'Google Doc';
+  } else if (url.includes('docs.google.com/spreadsheets')) {
+    return 'Google Sheet';
+  } else if (url.includes('docs.google.com/presentation')) {
+    return 'Google Slides';
+  } else if (url.includes('docs.google.com/forms')) {
+    return 'Google Form';
+  } else if (url.includes('/folders/')) {
+    return 'Google Drive Folder';
+  } else {
+    return 'Google Drive File';
+  }
+}
+
+/**
+ * Generates a simple filename using naming convention based on file type and index
+ * @param url - The Google Drive URL
+ * @param index - The index/position of this file in the list (0-based)
+ * @returns A simple filename like "Document 1", "Spreadsheet 2", etc.
+ */
+export function getGoogleDriveSimpleFilename(url: string, index: number): string {
+  const fileNumber = index + 1; // Convert to 1-based numbering
+
+  if (url.includes('docs.google.com/document')) {
+    return `Document ${fileNumber}`;
+  } else if (url.includes('docs.google.com/spreadsheets')) {
+    return `Spreadsheet ${fileNumber}`;
+  } else if (url.includes('docs.google.com/presentation')) {
+    return `Presentation ${fileNumber}`;
+  } else if (url.includes('docs.google.com/forms')) {
+    return `Form ${fileNumber}`;
+  } else if (url.includes('/folders/')) {
+    return `Folder ${fileNumber}`;
+  } else {
+    return `File ${fileNumber}`;
+  }
+}
+
+/**
+ * Generates filenames for an array of Google Drive URLs with proper numbering per type
+ * @param urls - Array of Google Drive URLs
+ * @returns Array of simple filenames with proper numbering per file type
+ */
+export function getGoogleDriveFilenames(urls: string[]): string[] {
+  // Count occurrences of each file type to number them properly
+  const typeCounts: { [key: string]: number } = {};
+
+  return urls.map((url) => {
+    let fileType: string;
+
+    if (url.includes('docs.google.com/document')) {
+      fileType = 'Document';
+    } else if (url.includes('docs.google.com/spreadsheets')) {
+      fileType = 'Spreadsheet';
+    } else if (url.includes('docs.google.com/presentation')) {
+      fileType = 'Presentation';
+    } else if (url.includes('docs.google.com/forms')) {
+      fileType = 'Form';
+    } else if (url.includes('/folders/')) {
+      fileType = 'Folder';
+    } else {
+      fileType = 'File';
+    }
+
+    // Increment count for this file type
+    typeCounts[fileType] = (typeCounts[fileType] || 0) + 1;
+
+    // Return filename with proper numbering
+    return `${fileType} ${typeCounts[fileType]}`;
+  });
+}

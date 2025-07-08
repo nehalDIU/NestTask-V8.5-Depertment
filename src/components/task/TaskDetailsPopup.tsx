@@ -1,5 +1,6 @@
-import { X, Calendar, Tag, Clock, Crown, Download, CheckCircle2, Clipboard, Copy } from 'lucide-react';
+import { X, Calendar, Tag, Clock, Crown, Download, CheckCircle2, Clipboard, Copy, Link, ExternalLink } from 'lucide-react';
 import { parseLinks } from '../../utils/linkParser';
+import { getGoogleDriveResourceType } from '../../utils/googleDriveUtils';
 import type { Task } from '../../types';
 import type { TaskStatus } from '../../types/task';
 import { useState, useEffect } from 'react';
@@ -372,6 +373,43 @@ ${regularDescription}
                     </div>
                   );
                 })}
+              </div>
+            </div>
+          )}
+
+          {/* Google Drive Links - Only show if there are links */}
+          {task.googleDriveLinks && task.googleDriveLinks.length > 0 && (
+            <div className="mt-4 sm:mt-6">
+              <h3 className="text-base sm:text-lg font-medium text-gray-900 dark:text-white mb-2 sm:mb-3 flex items-center gap-2">
+                <Link className="w-4 h-4 sm:w-5 sm:h-5 text-blue-500" />
+                Google Drive Links
+              </h3>
+              <div className="space-y-2">
+                {task.googleDriveLinks.map((link, index) => (
+                  <div key={index} className="flex items-center justify-between p-2 sm:p-3 rounded-lg bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800/30">
+                    <div className="flex items-center gap-2 truncate max-w-[65%] sm:max-w-[70%]">
+                      <Link className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-blue-500 dark:text-blue-400 flex-shrink-0" />
+                      <div className="flex flex-col min-w-0">
+                        <span className="text-xs sm:text-sm font-medium text-blue-700 dark:text-blue-300 truncate">
+                          {getGoogleDriveResourceType(link)}
+                        </span>
+                        <span className="text-xs text-blue-600 dark:text-blue-400 truncate">
+                          {link.length > 50 ? `${link.substring(0, 50)}...` : link}
+                        </span>
+                      </div>
+                    </div>
+                    <button
+                      onClick={() => window.open(link, '_blank', 'noopener,noreferrer')}
+                      className="p-1.5 sm:p-2 rounded-md text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 hover:bg-blue-100 dark:hover:bg-blue-900/50 transition-colors active:bg-blue-200 dark:active:bg-blue-900/70 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-opacity-50 touch-manipulation"
+                      aria-label={`Open ${getGoogleDriveResourceType(link)} in new tab`}
+                    >
+                      <ExternalLink className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+              <div className="mt-2 text-xs text-gray-500 dark:text-gray-400">
+                <p>Google Drive links attached by section administrator</p>
               </div>
             </div>
           )}

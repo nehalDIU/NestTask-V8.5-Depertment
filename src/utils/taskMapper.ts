@@ -10,6 +10,7 @@ export function mapTaskFromDB(dbTask: any): Task {
     status: dbTask.status,
     createdAt: dbTask.created_at,
     isAdminTask: dbTask.is_admin_task,
-    sectionId: dbTask.section_id || null
+    sectionId: dbTask.section_id || null,
+    googleDriveLinks: dbTask.google_drive_links || [] // Handle missing column gracefully
   };
 }

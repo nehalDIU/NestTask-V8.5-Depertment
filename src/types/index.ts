@@ -31,4 +31,5 @@ export interface Task {
   assignedBy?: string;
   assignedById?: string;
   updatedAt?: string;
+  googleDriveLinks?: string[];
 }

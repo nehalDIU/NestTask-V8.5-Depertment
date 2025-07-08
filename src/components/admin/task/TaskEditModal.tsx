@@ -1,29 +1,38 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { X, Tag, Calendar, AlignLeft, Link2, Upload, CheckCircle, AlertCircle, ChevronDown, FileText, Paperclip, Eye, Edit3, Info } from 'lucide-react';
+import { X, Tag, Calendar, AlignLeft, Link2, Upload, CheckCircle, AlertCircle, ChevronDown, FileText, Paperclip, Eye, Edit3, Info, Link, ExternalLink, Plus } from 'lucide-react';
 import type { Task } from '../../../types';
 import type { TaskPriority } from '../../../types/task';
+import {
+  isValidGoogleDriveUrl,
+  normalizeGoogleDriveUrl,
+  getGoogleDriveResourceType
+} from '../../../utils/googleDriveUtils';
 
 interface TaskEditModalProps {
   task: Task;
   onClose: () => void;
   onUpdate: (taskId: string, updates: Partial<Task>) => void;
+  isSectionAdmin?: boolean;
 }
 
-export function TaskEditModal({ task, onClose, onUpdate }: TaskEditModalProps) {
+export function TaskEditModal({ task, onClose, onUpdate, isSectionAdmin = false }: TaskEditModalProps) {
   const [formData, setFormData] = useState<Partial<Task>>({
     name: task.name,
     category: task.category,
     dueDate: task.dueDate,
     description: task.description,
     status: task.status,
+    googleDriveLinks: task.googleDriveLinks || []
   });
-  
+
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [files, setFiles] = useState<File[]>([]);
   const [fileUrls, setFileUrls] = useState<string[]>([]);
   const [attachments, setAttachments] = useState<string[]>([]);
   const [linkInput, setLinkInput] = useState('');
   const [links, setLinks] = useState<string[]>([]);
+  const [googleDriveLinks, setGoogleDriveLinks] = useState<string[]>(task.googleDriveLinks || []);
+  const [currentGoogleDriveLink, setCurrentGoogleDriveLink] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showSuccess, setShowSuccess] = useState(false);
   const [showAdvanced, setShowAdvanced] = useState(false);
@@ -290,6 +299,67 @@ export function TaskEditModal({ task, onClose, onUpdate }: TaskEditModalProps) {
       setLinkInput('');
     }
   }, [linkInput, links]);
+
+  // Google Drive link handlers
+  const addGoogleDriveLink = useCallback(() => {
+    const trimmedLink = currentGoogleDriveLink.trim();
+
+    if (!trimmedLink) {
+      setErrors(prev => ({
+        ...prev,
+        googleDriveLinks: 'Please enter a Google Drive link'
+      }));
+      return;
+    }
+
+    if (!isValidGoogleDriveUrl(trimmedLink)) {
+      setErrors(prev => ({
+        ...prev,
+        googleDriveLinks: 'Please enter a valid Google Drive URL'
+      }));
+      return;
+    }
+
+    const normalizedLink = normalizeGoogleDriveUrl(trimmedLink);
+    if (googleDriveLinks.includes(normalizedLink)) {
+      setErrors(prev => ({
+        ...prev,
+        googleDriveLinks: 'This Google Drive link has already been added'
+      }));
+      return;
+    }
+
+    setGoogleDriveLinks(prev => [...prev, normalizedLink]);
+    setFormData(prev => ({
+      ...prev,
+      googleDriveLinks: [...(prev.googleDriveLinks || []), normalizedLink]
+    }));
+    setCurrentGoogleDriveLink('');
+
+    // Clear any errors
+    if (errors.googleDriveLinks) {
+      setErrors(prev => ({
+        ...prev,
+        googleDriveLinks: ''
+      }));
+    }
+  }, [currentGoogleDriveLink, googleDriveLinks, errors.googleDriveLinks]);
+
+  const removeGoogleDriveLink = useCallback((index: number) => {
+    const newLinks = googleDriveLinks.filter((_, i) => i !== index);
+    setGoogleDriveLinks(newLinks);
+    setFormData(prev => ({
+      ...prev,
+      googleDriveLinks: newLinks
+    }));
+  }, [googleDriveLinks]);
+
+  const handleGoogleDriveLinkKeyPress = useCallback((e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      addGoogleDriveLink();
+    }
+  }, [addGoogleDriveLink]);
   
   // Remove link
   const removeLink = useCallback((index: number) => {
@@ -890,6 +960,100 @@ export function TaskEditModal({ task, onClose, onUpdate }: TaskEditModalProps) {
                     )}
                   </div>
                 </div>
+
+                {/* Google Drive Links Section - Only for Section Admins */}
+                {isSectionAdmin && (
+                  <div className="md:col-span-2">
+                  <div className="pb-4">
+                    <h4 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-3 flex items-center gap-2">
+                      <Link className="w-4 h-4" />
+                      Google Drive Links
+                      <span className="text-xs text-gray-500 dark:text-gray-400 font-normal">(Section Admin Only)</span>
+                    </h4>
+
+                    <div className="space-y-3">
+                      <div className="flex gap-2">
+                        <div className="relative flex-1">
+                          <div className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 pointer-events-none">
+                            <Link className="w-4 h-4" />
+                          </div>
+                          <input
+                            type="url"
+                            value={currentGoogleDriveLink}
+                            onChange={(e) => setCurrentGoogleDriveLink(e.target.value)}
+                            onKeyPress={handleGoogleDriveLinkKeyPress}
+                            placeholder="Paste Google Drive link here..."
+                            className={`w-full pl-10 pr-4 py-2.5 border ${
+                              errors.googleDriveLinks ? 'border-red-500 dark:border-red-500' : 'border-gray-300 dark:border-gray-600'
+                            } rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white text-sm`}
+                          />
+                        </div>
+                        <button
+                          type="button"
+                          onClick={addGoogleDriveLink}
+                          disabled={!currentGoogleDriveLink.trim()}
+                          className={`px-4 py-2.5 rounded-xl font-medium transition-colors ${
+                            currentGoogleDriveLink.trim()
+                              ? 'bg-blue-600 hover:bg-blue-700 text-white'
+                              : 'bg-gray-300 dark:bg-gray-600 text-gray-500 dark:text-gray-400 cursor-not-allowed'
+                          }`}
+                        >
+                          <Plus className="w-4 h-4" />
+                        </button>
+                      </div>
+
+                      {errors.googleDriveLinks && (
+                        <p className="text-red-500 text-xs flex items-center gap-1">
+                          <AlertCircle className="w-3 h-3" />
+                          {errors.googleDriveLinks}
+                        </p>
+                      )}
+
+                      <div className="text-xs text-gray-500 dark:text-gray-400">
+                        <p>Supported: Google Drive files, folders, Docs, Sheets, Slides, and Forms</p>
+                      </div>
+
+                      {googleDriveLinks.length > 0 && (
+                        <div className="space-y-2">
+                          {googleDriveLinks.map((link, index) => (
+                            <div key={index} className="flex items-center justify-between p-2 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-800/30">
+                              <div className="flex items-center gap-2 truncate max-w-[calc(100%-40px)]">
+                                <Link className="w-4 h-4 text-blue-500 dark:text-blue-400 flex-shrink-0" />
+                                <div className="flex flex-col min-w-0">
+                                  <span className="text-sm font-medium text-blue-700 dark:text-blue-300 truncate">
+                                    {getGoogleDriveResourceType(link)}
+                                  </span>
+                                  <span className="text-xs text-blue-600 dark:text-blue-400 truncate">
+                                    {link.length > 50 ? `${link.substring(0, 50)}...` : link}
+                                  </span>
+                                </div>
+                              </div>
+                              <div className="flex items-center gap-1">
+                                <button
+                                  type="button"
+                                  onClick={() => window.open(link, '_blank', 'noopener,noreferrer')}
+                                  className="text-blue-500 hover:text-blue-600 dark:text-blue-400 dark:hover:text-blue-300 p-1 rounded-full hover:bg-blue-100 dark:hover:bg-blue-800"
+                                  aria-label="Open Google Drive link"
+                                >
+                                  <ExternalLink className="w-4 h-4" />
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => removeGoogleDriveLink(index)}
+                                  className="text-gray-500 hover:text-red-500 dark:text-gray-400 dark:hover:text-red-400 p-1 rounded-full hover:bg-gray-200 dark:hover:bg-gray-600"
+                                  aria-label="Remove Google Drive link"
+                                >
+                                  <X className="w-4 h-4" />
+                                </button>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                  </div>
+                )}
               </>
             )}
           </div>

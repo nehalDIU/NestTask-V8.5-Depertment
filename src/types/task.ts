@@ -33,6 +33,7 @@ export interface Task {
   assignedBy?: string;
   assignedById?: string;
   updatedAt?: string;
+  googleDriveLinks?: string[];
 }
 
 export type NewTask = Omit<Task, 'id' | 'createdAt' | 'isAdminTask'> & {

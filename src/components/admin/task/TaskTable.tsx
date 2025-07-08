@@ -521,6 +521,7 @@ ${cleanDescription}
           task={editingTask}
           onClose={() => setEditingTask(null)}
           onUpdate={handleUpdateTask}
+          isSectionAdmin={isSectionAdmin}
         />
       )}
     </>

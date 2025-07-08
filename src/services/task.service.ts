@@ -464,6 +464,11 @@ export const createTask = async (
       is_admin_task: userRole === 'admin' || userRole === 'section_admin' || userRole === 'section-admin' || false,
     };
 
+    // Only add google_drive_links if the column exists and there are links to add
+    if (task.googleDriveLinks && task.googleDriveLinks.length > 0) {
+      taskInsertData.google_drive_links = task.googleDriveLinks;
+    }
+
     // Determine correct section_id based on role and available data
     // Section admin: Always set section_id to their section
     if ((userRole === 'section_admin' || userRole === 'section-admin') && userSectionId) {
@@ -488,11 +493,38 @@ export const createTask = async (
 
     console.log('[Debug] Final task insert data:', taskInsertData);
 
-    const { data, error } = await supabase
-      .from('tasks')
-      .insert(taskInsertData)
-      .select()
-      .single();
+    // Try to insert with Google Drive links first, fallback without if column doesn't exist
+    let data, error;
+
+    try {
+      const result = await supabase
+        .from('tasks')
+        .insert(taskInsertData)
+        .select()
+        .single();
+
+      data = result.data;
+      error = result.error;
+    } catch (insertError: any) {
+      // If the error is about google_drive_links column, try without it
+      if (insertError.message?.includes('google_drive_links') || insertError.message?.includes('schema cache')) {
+        console.log('[Debug] Google Drive links column not found, retrying without it...');
+
+        // Remove google_drive_links from the insert data
+        const { google_drive_links, ...taskDataWithoutGoogleDrive } = taskInsertData;
+
+        const fallbackResult = await supabase
+          .from('tasks')
+          .insert(taskDataWithoutGoogleDrive)
+          .select()
+          .single();
+
+        data = fallbackResult.data;
+        error = fallbackResult.error;
+      } else {
+        throw insertError;
+      }
+    }
 
     if (error) {
       console.error('Error creating task:', error);
@@ -593,13 +625,45 @@ export async function updateTask(taskId: string, updates: Partial<Task>) {
     if (updates.status !== undefined) dbUpdates.status = updates.status;
     if (updates.sectionId !== undefined) dbUpdates.section_id = updates.sectionId;
 
-    // Update task
-    const { data, error } = await supabase
-      .from('tasks')
-      .update(dbUpdates)
-      .eq('id', taskId)
-      .select('id, name, category, due_date, description, status, created_at, is_admin_task, section_id')
-      .single();
+    // Only add google_drive_links if it's defined and not empty
+    if (updates.googleDriveLinks !== undefined && updates.googleDriveLinks.length > 0) {
+      dbUpdates.google_drive_links = updates.googleDriveLinks;
+    }
+
+    // Try to update with Google Drive links first, fallback without if column doesn't exist
+    let data, error;
+
+    try {
+      const result = await supabase
+        .from('tasks')
+        .update(dbUpdates)
+        .eq('id', taskId)
+        .select('id, name, category, due_date, description, status, created_at, is_admin_task, section_id')
+        .single();
+
+      data = result.data;
+      error = result.error;
+    } catch (updateError: any) {
+      // If the error is about google_drive_links column, try without it
+      if (updateError.message?.includes('google_drive_links') || updateError.message?.includes('schema cache')) {
+        console.log('Google Drive links column not found, retrying update without it...');
+
+        // Remove google_drive_links from the update data
+        const { google_drive_links, ...updatesWithoutGoogleDrive } = dbUpdates;
+
+        const fallbackResult = await supabase
+          .from('tasks')
+          .update(updatesWithoutGoogleDrive)
+          .eq('id', taskId)
+          .select('id, name, category, due_date, description, status, created_at, is_admin_task, section_id')
+          .single();
+
+        data = fallbackResult.data;
+        error = fallbackResult.error;
+      } else {
+        throw updateError;
+      }
+    }
 
     if (error) {
       console.error('Database error:', error);

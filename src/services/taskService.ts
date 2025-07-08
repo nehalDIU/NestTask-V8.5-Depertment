@@ -30,19 +30,53 @@ export async function fetchTasks(userId: string) {
 
 export async function createTask(userId: string, task: NewTask, isAdmin: boolean) {
   try {
-    const { data, error } = await supabase
-      .from('tasks')
-      .insert({
-        name: task.name,
-        category: task.category,
-        due_date: task.dueDate,
-        description: task.description,
-        status: task.status,
-        user_id: userId,
-        is_admin_task: isAdmin
-      })
-      .select()
-      .single();
+    const insertData: any = {
+      name: task.name,
+      category: task.category,
+      due_date: task.dueDate,
+      description: task.description,
+      status: task.status,
+      user_id: userId,
+      is_admin_task: isAdmin
+    };
+
+    // Only add google_drive_links if there are links to add
+    if (task.googleDriveLinks && task.googleDriveLinks.length > 0) {
+      insertData.google_drive_links = task.googleDriveLinks;
+    }
+
+    // Try to insert with Google Drive links first, fallback without if column doesn't exist
+    let data, error;
+
+    try {
+      const result = await supabase
+        .from('tasks')
+        .insert(insertData)
+        .select()
+        .single();
+
+      data = result.data;
+      error = result.error;
+    } catch (insertError: any) {
+      // If the error is about google_drive_links column, try without it
+      if (insertError.message?.includes('google_drive_links') || insertError.message?.includes('schema cache')) {
+        console.log('Google Drive links column not found, retrying without it...');
+
+        // Remove google_drive_links from the insert data
+        const { google_drive_links, ...dataWithoutGoogleDrive } = insertData;
+
+        const fallbackResult = await supabase
+          .from('tasks')
+          .insert(dataWithoutGoogleDrive)
+          .select()
+          .single();
+
+        data = fallbackResult.data;
+        error = fallbackResult.error;
+      } else {
+        throw insertError;
+      }
+    }
 
     if (error) {
       console.error('Error creating task:', error);
@@ -58,18 +92,53 @@ export async function createTask(userId: string, task: NewTask, isAdmin: boolean
 
 export async function updateTask(taskId: string, updates: Partial<Task>) {
   try {
-    const { data, error } = await supabase
-      .from('tasks')
-      .update({
-        name: updates.name,
-        category: updates.category,
-        due_date: updates.dueDate,
-        description: updates.description,
-        status: updates.status,
-      })
-      .eq('id', taskId)
-      .select()
-      .single();
+    const updateData: any = {
+      name: updates.name,
+      category: updates.category,
+      due_date: updates.dueDate,
+      description: updates.description,
+      status: updates.status
+    };
+
+    // Only add google_drive_links if it's defined
+    if (updates.googleDriveLinks !== undefined) {
+      updateData.google_drive_links = updates.googleDriveLinks;
+    }
+
+    // Try to update with Google Drive links first, fallback without if column doesn't exist
+    let data, error;
+
+    try {
+      const result = await supabase
+        .from('tasks')
+        .update(updateData)
+        .eq('id', taskId)
+        .select()
+        .single();
+
+      data = result.data;
+      error = result.error;
+    } catch (updateError: any) {
+      // If the error is about google_drive_links column, try without it
+      if (updateError.message?.includes('google_drive_links') || updateError.message?.includes('schema cache')) {
+        console.log('Google Drive links column not found, retrying update without it...');
+
+        // Remove google_drive_links from the update data
+        const { google_drive_links, ...updatesWithoutGoogleDrive } = updateData;
+
+        const fallbackResult = await supabase
+          .from('tasks')
+          .update(updatesWithoutGoogleDrive)
+          .eq('id', taskId)
+          .select()
+          .single();
+
+        data = fallbackResult.data;
+        error = fallbackResult.error;
+      } else {
+        throw updateError;
+      }
+    }
 
     if (error) {
       console.error('Error updating task:', error);
@@ -109,6 +178,7 @@ function mapTaskFromDB(data: any): Task {
     description: data.description,
     status: data.status,
     createdAt: data.created_at,
-    isAdminTask: data.is_admin_task
+    isAdminTask: data.is_admin_task,
+    googleDriveLinks: data.google_drive_links || [] // Handle missing column gracefully
   };
 }

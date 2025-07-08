@@ -13,6 +13,7 @@ export interface Database {
           created_at: string;
           is_admin_task: boolean;
           section_id?: string;
+          google_drive_links?: string[];
         };
         Insert: {
           id?: string;
@@ -25,6 +26,7 @@ export interface Database {
           created_at?: string;
           is_admin_task?: boolean;
           section_id?: string;
+          google_drive_links?: string[];
         };
         Update: {
           id?: string;
@@ -37,6 +39,7 @@ export interface Database {
           created_at?: string;
           is_admin_task?: boolean;
           section_id?: string;
+          google_drive_links?: string[];
         };
       };
       users: {

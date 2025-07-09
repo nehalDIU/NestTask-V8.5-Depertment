@@ -30,6 +30,28 @@
   touch-action: manipulation;
   -webkit-tap-highlight-color: transparent;
   cursor: pointer; /* Ensure cursor shows it's clickable */
+  /* Ensure minimum touch target size for accessibility */
+  min-height: 44px;
+  min-width: 44px;
+}
+
+/* Enhanced mobile touch feedback */
+.mobile-touch-target {
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Improved mobile card interactions */
+.mobile-card-touch {
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  user-select: none;
 }
 
 /* Custom utility classes */
@@ -39,6 +61,49 @@
 
 .animate-slide-up {
   animation: slideUp 0.5s ease-out;
+}
+
+/* Mobile-specific responsive utilities */
+@media (max-width: 475px) {
+  .mobile-compact {
+    padding: 0.75rem;
+  }
+
+  .mobile-text-sm {
+    font-size: 0.875rem;
+    line-height: 1.25rem;
+  }
+
+  .mobile-gap-sm {
+    gap: 0.5rem;
+  }
+
+  /* Mobile status and date improvements */
+  .mobile-status-layout {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.5rem;
+  }
+
+  .mobile-status-item {
+    width: 100%;
+    justify-content: flex-start;
+  }
+}
+
+/* Improved line clamping for mobile */
+.line-clamp-1 {
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 1;
+}
+
+.line-clamp-2 {
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
 }
 
 /* Hide scrollbar for horizontal scroll */

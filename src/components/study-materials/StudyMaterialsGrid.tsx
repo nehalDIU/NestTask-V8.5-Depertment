@@ -25,7 +25,7 @@ export function StudyMaterialsGrid({ materials }: StudyMaterialsGridProps) {
           </p>
         </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 xs:gap-4 md:gap-6">
           {materials.map((material) => (
             <StudyMaterialCard
               key={material.id}

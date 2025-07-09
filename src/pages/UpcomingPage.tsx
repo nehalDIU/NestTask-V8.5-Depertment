@@ -819,9 +819,9 @@ export function UpcomingPage({ tasks: propTasks }: UpcomingPageProps) {
       </div>
 
       {/* Tasks List with Enhanced Cards */}
-      <div className="px-4 md:max-w-4xl lg:max-w-5xl md:mx-auto pb-8">
+      <div className="px-3 xs:px-4 md:max-w-4xl lg:max-w-5xl md:mx-auto pb-8">
         {filteredTasks.length > 0 ? (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2 xs:gap-3 md:gap-4">
             {filteredTasks.map((task) => (
               <TaskCard
                   key={task.id}

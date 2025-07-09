@@ -110,12 +110,12 @@ const StatusDot = memo(({ status, overdue }: { status: string; overdue: boolean 
   // Only animate for high priority states to reduce rendering load
   const needsAnimation = status !== 'completed' && overdue;
   
-  // Single element with conditional animation class
+  // Single element with conditional animation class - improved mobile sizing
   return (
-    <span 
-      className={`inline-block rounded-full h-2.5 w-2.5 md:h-2 md:w-2 ${bgColor} ${
+    <span
+      className={`inline-block rounded-full h-3 w-3 xs:h-2.5 xs:w-2.5 md:h-2 md:w-2 ${bgColor} ${
         needsAnimation ? 'animate-pulse-light' : ''
-      }`}
+      } flex-shrink-0`}
       style={needsAnimation ? { animationDuration: '2s' } : undefined}
     />
   );
@@ -203,18 +203,20 @@ export const TaskCard = memo(({
         rounded-2xl md:rounded-lg
         shadow-sm md:hover:shadow-lg
         border border-gray-100 dark:border-gray-700/50
-        p-4 md:p-4 lg:p-5
+        p-3 xs:p-4 md:p-4 lg:p-5
         transition-all duration-300 ease-in-out
         active:scale-[0.98] md:active:scale-100 md:hover:-translate-y-1
         active:bg-gray-50 dark:active:bg-gray-800/90 md:active:bg-white
-        touch-manipulation md:touch-auto
+        mobile-card-touch md:touch-auto
+        min-h-[120px] xs:min-h-[140px] md:min-h-0
+        cursor-pointer
         ${statusStyle.cardStyle}
         motion-safe:animate-fade-in motion-safe:animate-duration-500`}
       style={{ animationDelay }}
     >
       {/* Category Tag - Desktop */}
       <div className="hidden md:flex items-start justify-between mb-3.5 md:mb-2">
-        <span className={`inline-flex items-center gap-1.5 
+        <span className={`inline-flex items-center gap-1.5
           px-2.5 py-1 md:px-2 md:py-0.5
           rounded-full text-sm md:text-xs font-medium
           bg-white dark:bg-gray-800
@@ -238,45 +240,47 @@ export const TaskCard = memo(({
       </div>
 
       {/* Task Content with Mobile Tag */}
-      <div className="space-y-2.5 md:space-y-2">
+      <div className="space-y-2 xs:space-y-2.5 md:space-y-2">
         {/* Title and Tag Container for Mobile */}
-        <div className="flex items-start justify-between md:block">
-          <h3 className="text-base md:text-sm lg:text-base font-semibold 
-            text-gray-900 dark:text-gray-100 
+        <div className="flex items-start justify-between md:block gap-2">
+          <h3 className="text-sm xs:text-base md:text-sm lg:text-base font-semibold
+            text-gray-900 dark:text-gray-100
             leading-snug md:leading-tight
-            line-clamp-2 flex-1 md:flex-none"
+            line-clamp-2 flex-1 md:flex-none
+            min-w-0 break-words"
           >
             {task.name}
           </h3>
-          
-          {/* Mobile-only Tag */}
-          <span className={`md:hidden inline-flex items-center gap-1.5 
-            px-2 py-0.5
+
+          {/* Mobile-only Tag - Improved for small screens */}
+          <span className={`md:hidden inline-flex items-center gap-1 xs:gap-1.5
+            px-1.5 xs:px-2 py-0.5
             rounded-full text-xs font-medium
             bg-white dark:bg-gray-800
             shadow-sm
             border border-gray-100 dark:border-gray-700/50
-            ml-2
+            flex-shrink-0
             ${categoryColor}`}
           >
-            <span className="w-3 h-3">
+            <span className="w-2.5 h-2.5 xs:w-3 xs:h-3">
               <CategoryIcon category={task.category} />
             </span>
-            <span className="truncate max-w-[80px]">
+            <span className="truncate max-w-[60px] xs:max-w-[80px]">
               {formattedCategory}
             </span>
           </span>
         </div>
 
-        {/* Always show description - one line by default */}
+        {/* Always show description - responsive line clamping */}
         {cleanedDescription && (
-          <p className="text-[15px] md:text-sm 
-            text-gray-600 dark:text-gray-300 
-            leading-relaxed 
-            line-clamp-1"
+          <p className="text-sm xs:text-[15px] md:text-sm
+            text-gray-600 dark:text-gray-300
+            leading-relaxed
+            line-clamp-1 xs:line-clamp-2 md:line-clamp-1
+            break-words"
           >
-            {parsedLinks.length > 0 ? 
-              parsedLinks.map((part, i) => 
+            {parsedLinks.length > 0 ?
+              parsedLinks.map((part, i) =>
                 part.type === 'link' ? (
                   <a
                     key={i}
@@ -284,10 +288,11 @@ export const TaskCard = memo(({
                     target="_blank"
                     rel="noopener noreferrer"
                     onClick={(e) => e.stopPropagation()}
-                    className="text-sky-600 dark:text-sky-400 
+                    className="text-sky-600 dark:text-sky-400
                       active:text-sky-800 md:hover:text-sky-700
                       underline-offset-2 decoration-1
-                      px-0.5 -mx-0.5 rounded"
+                      px-0.5 -mx-0.5 rounded
+                      min-h-[44px] inline-flex items-center"
                   >
                     {part.content}
                   </a>
@@ -302,34 +307,50 @@ export const TaskCard = memo(({
       </div>
 
       {/* Mobile-optimized footer */}
-      <div className="flex items-center justify-between 
-        mt-3 pt-3
-        border-t border-gray-100 dark:border-gray-700/50"
+      <div className="flex items-center justify-between
+        mt-2 xs:mt-3 pt-2 xs:pt-3
+        border-t border-gray-100 dark:border-gray-700/50
+        gap-2"
       >
-        <div className="flex items-center gap-3">
-          {/* Optimized status indicator with memo component */}
-          <span className={`inline-flex items-center gap-1.5 
-            text-sm md:text-xs font-medium ${statusStyle.textColor}`}
+        {/* Status indicator - Left side */}
+        <div className="flex items-center gap-1.5 xs:gap-2 min-w-0 flex-1">
+          <span className={`inline-flex items-center gap-1 xs:gap-1.5
+            text-xs xs:text-sm md:text-xs font-medium ${statusStyle.textColor}`}
           >
             <StatusDot status={task.status} overdue={overdue} />
-            {task.status === 'completed' ? 'Complete' : overdue ? 'Overdue' : 'In Progress'}
+            <span className="truncate min-w-0">
+              <span className="hidden xs:inline">
+                {task.status === 'completed' ? 'Complete' : overdue ? 'Overdue' : 'In Progress'}
+              </span>
+              <span className="xs:hidden">
+                {task.status === 'completed' ? 'Done' : overdue ? 'Late' : 'Active'}
+              </span>
+            </span>
           </span>
         </div>
 
-        {/* Due date display */}
-        <div className="flex items-center gap-1.5">
-          <Calendar className={`w-3.5 h-3.5 md:w-3 md:h-3 ${statusStyle.textColor}`} />
-          <span className={`text-sm md:text-xs font-medium ${statusStyle.textColor}`}>
+        {/* Due date display - Right side */}
+        <div className="flex items-center gap-1 xs:gap-1.5 flex-shrink-0">
+          <Calendar className={`w-3.5 h-3.5 xs:w-3.5 xs:h-3.5 md:w-3 md:h-3 ${statusStyle.textColor}`} />
+          <span className={`text-xs xs:text-sm md:text-xs font-medium ${statusStyle.textColor}
+            whitespace-nowrap`}>
             {formattedDate}
           </span>
         </div>
       </div>
 
-      {/* Mobile-only touch feedback */}
+      {/* Mobile-only touch feedback - Enhanced */}
       <div className="md:hidden absolute inset-0 rounded-2xl pointer-events-none
         bg-gray-900/0 active:bg-gray-900/[0.03] dark:active:bg-gray-900/[0.1]
-        transition-colors duration-200" 
+        transition-colors duration-200"
       />
+
+      {/* Admin task indicator for mobile */}
+      {task.isAdminTask && (
+        <div className="md:hidden absolute top-2 right-2">
+          <Crown className="w-3.5 h-3.5 text-amber-500 animate-pulse" />
+        </div>
+      )}
     </div>
   );
-}); 
+});

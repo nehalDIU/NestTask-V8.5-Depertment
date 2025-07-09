@@ -89,6 +89,17 @@
     width: 100%;
     justify-content: flex-start;
   }
+
+  /* Improved mobile category scrolling */
+  .mobile-category-scroll {
+    scroll-behavior: smooth;
+    -webkit-overflow-scrolling: touch;
+    scroll-snap-type: x proximity;
+  }
+
+  .mobile-category-item {
+    scroll-snap-align: start;
+  }
 }
 
 /* Improved line clamping for mobile */
@@ -433,6 +444,22 @@
 @media (min-width: 480px) {
   .xs\:inline {
     display: inline;
+  }
+}
+
+/* Extra small screen improvements */
+@media (max-width: 374px) {
+  .mobile-category-compact {
+    padding-left: 0.5rem;
+    padding-right: 0.5rem;
+  }
+
+  .mobile-category-text-xs {
+    font-size: 0.75rem;
+  }
+
+  .mobile-category-gap-xs {
+    gap: 0.375rem;
   }
 }
 

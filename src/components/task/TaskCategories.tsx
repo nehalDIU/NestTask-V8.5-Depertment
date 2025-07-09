@@ -72,8 +72,8 @@ export function TaskCategories({ onCategorySelect, selectedCategory, categoryCou
   };
 
   return (
-    <div className="mb-4 sm:mb-6">
-      <div className="flex items-center justify-between mb-4 sm:mb-5 px-4 sm:px-0">
+    <div className="mb-3 sm:mb-4">
+      <div className="flex items-center justify-between mb-3 sm:mb-4 px-4 sm:px-0">
         <h2 className="text-xl sm:text-2xl font-bold text-gray-900 dark:text-white tracking-tight">
           Tasks
         </h2>
@@ -90,7 +90,7 @@ export function TaskCategories({ onCategorySelect, selectedCategory, categoryCou
       {/* Mobile: Expandable categories */}
       <div className="block sm:hidden">
         {/* First row - always visible */}
-        <div className="flex gap-2 overflow-x-auto pb-3 px-4 scrollbar-hide">
+        <div className="flex gap-2 overflow-x-auto pb-2 px-4 scrollbar-hide">
           {mobileVisibleCategories.slice(0, 5).map(({ id, label, icon: Icon, count }) => (
             <button
               key={id || 'total'}

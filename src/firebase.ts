@@ -21,7 +21,17 @@ let messaging: any = null;
 // Check if we're in a browser environment and messaging is supported
 if (typeof window !== 'undefined' && 'serviceWorker' in navigator) {
   try {
-    messaging = getMessaging(app);
+    // Only initialize messaging if we're on HTTPS or localhost
+    const isSecureContext = window.location.protocol === 'https:' ||
+                           window.location.hostname === 'localhost' ||
+                           window.location.hostname === '127.0.0.1';
+
+    if (isSecureContext) {
+      messaging = getMessaging(app);
+      console.log('Firebase messaging initialized successfully');
+    } else {
+      console.warn('Firebase messaging requires HTTPS in production');
+    }
   } catch (error) {
     console.warn('Firebase messaging not available:', error);
   }
@@ -32,6 +42,32 @@ const VAPID_KEY = import.meta.env.VITE_FIREBASE_VAPID_KEY;
 
 export { app, messaging, VAPID_KEY };
 
+// Register service worker for FCM
+export async function registerServiceWorker(): Promise<boolean> {
+  if (!('serviceWorker' in navigator)) {
+    console.warn('Service Worker not supported');
+    return false;
+  }
+
+  try {
+    // Register the service worker
+    const registration = await navigator.serviceWorker.register('/firebase-messaging-sw.js', {
+      scope: '/'
+    });
+
+    console.log('Service Worker registered successfully:', registration);
+
+    // Wait for the service worker to be ready
+    await navigator.serviceWorker.ready;
+    console.log('Service Worker is ready');
+
+    return true;
+  } catch (error) {
+    console.error('Service Worker registration failed:', error);
+    return false;
+  }
+}
+
 // FCM token management
 export async function getFCMToken(): Promise<string | null> {
   if (!messaging || !VAPID_KEY) {
@@ -40,9 +76,31 @@ export async function getFCMToken(): Promise<string | null> {
   }
 
   try {
+    // Ensure service worker is registered first
+    const swRegistered = await registerServiceWorker();
+    if (!swRegistered) {
+      console.error('Service Worker registration failed, cannot get FCM token');
+      return null;
+    }
+
+    // Request notification permission first
+    const permission = await Notification.requestPermission();
+    if (permission !== 'granted') {
+      console.warn('Notification permission not granted');
+      return null;
+    }
+
     const token = await getToken(messaging, {
-      vapidKey: VAPID_KEY
+      vapidKey: VAPID_KEY,
+      serviceWorkerRegistration: await navigator.serviceWorker.ready
     });
+
+    if (token) {
+      console.log('FCM token generated successfully');
+    } else {
+      console.warn('No FCM token generated');
+    }
+
     return token;
   } catch (error) {
     console.error('Error getting FCM token:', error);

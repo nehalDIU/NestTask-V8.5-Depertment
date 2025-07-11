@@ -35,9 +35,25 @@ class FCMService {
     }
 
     try {
+      // Check if we're in a secure context (HTTPS or localhost)
+      const isSecureContext = window.location.protocol === 'https:' ||
+                             window.location.hostname === 'localhost' ||
+                             window.location.hostname === '127.0.0.1';
+
+      if (!isSecureContext) {
+        console.warn('FCM requires HTTPS in production');
+        return false;
+      }
+
       // Check if notifications are supported
       if (!('Notification' in window) || !('serviceWorker' in navigator)) {
         console.warn('Push notifications are not supported in this browser');
+        return false;
+      }
+
+      // Check if Firebase is properly configured
+      if (!import.meta.env.VITE_FIREBASE_VAPID_KEY) {
+        console.error('Firebase VAPID key not configured');
         return false;
       }
 
@@ -48,10 +64,25 @@ class FCMService {
         return false;
       }
 
-      // Get FCM token
-      const token = await getFCMToken();
+      // Get FCM token with retry logic
+      let token = null;
+      let retries = 3;
+
+      while (retries > 0 && !token) {
+        try {
+          token = await getFCMToken();
+          if (token) break;
+        } catch (error) {
+          console.warn(`FCM token attempt failed, retries left: ${retries - 1}`, error);
+        }
+        retries--;
+        if (retries > 0) {
+          await new Promise(resolve => setTimeout(resolve, 1000)); // Wait 1 second before retry
+        }
+      }
+
       if (!token) {
-        console.warn('Failed to get FCM token');
+        console.error('Failed to get FCM token after retries');
         return false;
       }
 
@@ -61,7 +92,7 @@ class FCMService {
       // Set up foreground message listener
       this.setupForegroundMessageListener();
 
-      console.log('FCM service initialized successfully');
+      console.log('FCM service initialized successfully with token:', token.substring(0, 20) + '...');
       return true;
     } catch (error) {
       console.error('Error initializing FCM service:', error);
@@ -88,7 +119,7 @@ class FCMService {
 
       const deviceInfo = {
         userAgent: navigator.userAgent,
-        platform: navigator.platform,
+        platform: (navigator as any).userAgentData?.platform || navigator.platform || 'unknown',
         language: navigator.language,
         timestamp: new Date().toISOString()
       };

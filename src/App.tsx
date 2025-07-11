@@ -18,6 +18,7 @@ import type { User } from './types/user';
 import { ResetPasswordPage } from './pages/ResetPasswordPage';
 import { supabase, testConnection } from './lib/supabase';
 import { HomePage } from './pages/HomePage';
+import { testFCMSetup } from './utils/fcm-debug';
 
 // Page import functions
 const importAdminDashboard = () => import('./pages/AdminDashboard').then(module => ({ default: module.AdminDashboard }));
@@ -62,9 +63,17 @@ export default function App() {
           console.log('Successfully registered for FCM notifications');
         } else {
           console.log('Failed to register for FCM notifications');
+          // Run debug check if registration fails
+          testFCMSetup().then(debugSuccess => {
+            if (!debugSuccess) {
+              console.warn('FCM setup issues detected. Check console for details.');
+            }
+          });
         }
       }).catch((error) => {
         console.error('Error registering for FCM notifications:', error);
+        // Run debug check on error
+        testFCMSetup();
       });
     }
   }, [user, fcmReady, fcmRegistered, registerFCM]);

@@ -77,52 +77,63 @@ if (messaging) {
 // Handle notification clicks
 self.addEventListener('notificationclick', (event) => {
   console.log('Notification clicked:', event);
-  
+
   event.notification.close();
 
-  if (event.action === 'view') {
-    // Open the app and navigate to the task
-    const urlToOpen = event.notification.data?.url || '/';
-    event.waitUntil(
-      clients.matchAll({ type: 'window', includeUncontrolled: true })
-        .then((clientList) => {
-          // Check if app is already open
-          for (const client of clientList) {
-            if (client.url.includes(self.location.origin) && 'focus' in client) {
+  const handleNotificationClick = async () => {
+    try {
+      const urlToOpen = event.notification.data?.url || '/';
+
+      if (event.action === 'view') {
+        // Open the app and navigate to the task
+        const clientList = await clients.matchAll({ type: 'window', includeUncontrolled: true });
+
+        // Check if app is already open
+        for (const client of clientList) {
+          if (client.url.includes(self.location.origin) && 'focus' in client) {
+            try {
               client.postMessage({
                 type: 'NOTIFICATION_CLICK',
                 data: event.notification.data
               });
-              return client.focus();
+              return await client.focus();
+            } catch (error) {
+              console.warn('Failed to focus client:', error);
             }
           }
-          
-          // Open new window if app is not open
-          if (clients.openWindow) {
-            return clients.openWindow(urlToOpen);
-          }
-        })
-    );
-  } else if (event.action === 'dismiss') {
-    // Just close the notification (already done above)
-    console.log('Notification dismissed');
-  } else {
-    // Default action - open the app
-    const urlToOpen = event.notification.data?.url || '/';
-    event.waitUntil(
-      clients.matchAll({ type: 'window', includeUncontrolled: true })
-        .then((clientList) => {
-          for (const client of clientList) {
-            if (client.url.includes(self.location.origin) && 'focus' in client) {
-              return client.focus();
+        }
+
+        // Open new window if app is not open
+        if (clients.openWindow) {
+          return await clients.openWindow(urlToOpen);
+        }
+      } else if (event.action === 'dismiss') {
+        // Just close the notification (already done above)
+        console.log('Notification dismissed');
+      } else {
+        // Default action - open the app
+        const clientList = await clients.matchAll({ type: 'window', includeUncontrolled: true });
+
+        for (const client of clientList) {
+          if (client.url.includes(self.location.origin) && 'focus' in client) {
+            try {
+              return await client.focus();
+            } catch (error) {
+              console.warn('Failed to focus client:', error);
             }
           }
-          if (clients.openWindow) {
-            return clients.openWindow(urlToOpen);
-          }
-        })
-    );
-  }
+        }
+
+        if (clients.openWindow) {
+          return await clients.openWindow(urlToOpen);
+        }
+      }
+    } catch (error) {
+      console.error('Error handling notification click:', error);
+    }
+  };
+
+  event.waitUntil(handleNotificationClick());
 });
 
 // Handle notification close

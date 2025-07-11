@@ -118,7 +118,11 @@ function updateActivityTimestamp() {
   // Store the timestamp in cache to persist across service worker restarts
   if ('caches' in self) {
     caches.open(METADATA_CACHE).then(cache => {
-      cache.put('lastActivityTime', new Response(JSON.stringify({ timestamp: lastActivityTime })));
+      // Create a new response each time to avoid cloning issues
+      const response = new Response(JSON.stringify({ timestamp: lastActivityTime }), {
+        headers: { 'Content-Type': 'application/json' }
+      });
+      cache.put('lastActivityTime', response);
     }).catch(() => {
       // Silent fail for non-critical operation
     });
@@ -131,11 +135,13 @@ async function checkServiceWorkerInactivity() {
     if ('caches' in self) {
       const cache = await caches.open(METADATA_CACHE);
       const response = await cache.match('lastActivityTime');
-      
+
       if (response) {
-        const data = await response.json();
+        // Clone the response before reading to avoid "body already used" error
+        const clonedResponse = response.clone();
+        const data = await clonedResponse.json();
         const inactiveTime = Date.now() - data.timestamp;
-        
+
         // If inactive for more than 45 minutes, update to keep alive
         if (inactiveTime > 45 * 60 * 1000) {
           updateActivityTimestamp();
@@ -301,27 +307,49 @@ self.addEventListener('message', (event: any) => {
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 self.addEventListener('fetch', (event: any) => {
   const request = event.request;
-  const url = new URL(request.url);
-  
+
   // Skip non-GET requests
   if (request.method !== 'GET') return;
-  
+
   // Skip requests that should never be cached
   if (!isValidCacheURL(request.url)) return;
-  
+
+  // Skip Firebase messaging service worker requests to avoid conflicts
+  if (request.url.includes('firebase-messaging-sw.js')) return;
+
   // Keep service worker alive
   updateActivityTimestamp();
-  
-  // Handle navigation requests
+
+  // Handle navigation requests with better error handling
   if (request.mode === 'navigate') {
     event.respondWith(
-      fetch(request).catch(() => {
-        return caches.match(OFFLINE_URL) || caches.match('/');
-      })
+      (async () => {
+        try {
+          const response = await fetch(request);
+          return response;
+        } catch (error) {
+          console.warn('Navigation fetch failed, serving offline page:', error);
+          // Try to serve offline page or fallback to index
+          const offlineResponse = await caches.match(OFFLINE_URL);
+          if (offlineResponse) {
+            return offlineResponse;
+          }
+          const indexResponse = await caches.match('/');
+          if (indexResponse) {
+            return indexResponse;
+          }
+          // Last resort: create a basic offline response
+          return new Response('App is offline', {
+            status: 503,
+            statusText: 'Service Unavailable',
+            headers: { 'Content-Type': 'text/plain' }
+          });
+        }
+      })()
     );
     return;
   }
-  
+
   // Let the browser handle everything else with default network behavior
 });
 

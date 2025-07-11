@@ -19,6 +19,7 @@ import { ResetPasswordPage } from './pages/ResetPasswordPage';
 import { supabase, testConnection } from './lib/supabase';
 import { HomePage } from './pages/HomePage';
 import { testFCMSetup } from './utils/fcm-debug';
+import { testServiceWorkerSetup } from './utils/service-worker-debug';
 
 // Page import functions
 const importAdminDashboard = () => import('./pages/AdminDashboard').then(module => ({ default: module.AdminDashboard }));
@@ -63,17 +64,24 @@ export default function App() {
           console.log('Successfully registered for FCM notifications');
         } else {
           console.log('Failed to register for FCM notifications');
-          // Run debug check if registration fails
-          testFCMSetup().then(debugSuccess => {
-            if (!debugSuccess) {
+          // Run debug checks if registration fails
+          Promise.all([
+            testFCMSetup(),
+            testServiceWorkerSetup()
+          ]).then(([fcmSuccess, swSuccess]) => {
+            if (!fcmSuccess) {
               console.warn('FCM setup issues detected. Check console for details.');
+            }
+            if (!swSuccess) {
+              console.warn('Service Worker issues detected. Use window.swDebug.testServiceWorkerSetup() to debug.');
             }
           });
         }
       }).catch((error) => {
         console.error('Error registering for FCM notifications:', error);
-        // Run debug check on error
+        // Run debug checks on error
         testFCMSetup();
+        testServiceWorkerSetup();
       });
     }
   }, [user, fcmReady, fcmRegistered, registerFCM]);

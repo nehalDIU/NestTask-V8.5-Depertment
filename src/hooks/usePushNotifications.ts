@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from './useAuth';
-import { 
-  requestNotificationPermission, 
+import { fcmService } from '../services/fcm.service';
+import {
+  requestNotificationPermission,
   subscribeToPushNotifications,
   unsubscribeFromPushNotifications
 } from '../utils/pushNotifications';
@@ -11,6 +12,7 @@ export function usePushNotifications() {
   const [isSubscribed, setIsSubscribed] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [fcmReady, setFcmReady] = useState(false);
 
   useEffect(() => {
     if (!user) {
@@ -19,8 +21,33 @@ export function usePushNotifications() {
       return;
     }
 
-    checkSubscriptionStatus();
+    initializeFCMAndCheckStatus();
   }, [user]);
+
+  const initializeFCMAndCheckStatus = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+
+      // Initialize FCM service
+      const fcmInitialized = await fcmService.initialize();
+      setFcmReady(fcmInitialized);
+
+      if (fcmInitialized) {
+        // Register token automatically if FCM is ready
+        const tokenRegistered = await fcmService.registerToken();
+        setIsSubscribed(tokenRegistered);
+      }
+
+      // Also check legacy push subscription status
+      await checkSubscriptionStatus();
+    } catch (error: any) {
+      console.error('Error initializing FCM:', error);
+      setError(getNotificationErrorMessage(error));
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const checkSubscriptionStatus = async () => {
     try {
@@ -48,6 +75,16 @@ export function usePushNotifications() {
       setError(null);
       setLoading(true);
 
+      // Try FCM first
+      if (fcmReady) {
+        const fcmRegistered = await fcmService.registerToken();
+        if (fcmRegistered) {
+          setIsSubscribed(true);
+          return true;
+        }
+      }
+
+      // Fallback to legacy push notifications
       const permissionGranted = await requestNotificationPermission();
       if (!permissionGranted) {
         setError('Please allow notifications in your browser settings to receive updates');
@@ -78,6 +115,12 @@ export function usePushNotifications() {
       setError(null);
       setLoading(true);
 
+      // Unsubscribe from FCM
+      if (fcmReady) {
+        await fcmService.unregisterToken();
+      }
+
+      // Also unsubscribe from legacy push notifications
       const success = await unsubscribeFromPushNotifications(user.id);
       setIsSubscribed(!success);
       return success;
@@ -104,7 +147,9 @@ export function usePushNotifications() {
     isSubscribed,
     loading,
     error,
+    fcmReady,
     subscribe,
-    unsubscribe
+    unsubscribe,
+    fcmService
   };
 }

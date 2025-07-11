@@ -3,6 +3,7 @@ import { useAuth } from './hooks/useAuth';
 import { useTasks } from './hooks/useTasks';
 import { useUsers } from './hooks/useUsers';
 import { useNotifications } from './hooks/useNotifications';
+import { useFCM } from './hooks/useFCM';
 import { AuthPage } from './pages/AuthPage';
 import { LoadingScreen } from './components/LoadingScreen';
 import { Navigation } from './components/Navigation';
@@ -41,7 +42,10 @@ type StatFilter = 'all' | 'overdue' | 'in-progress' | 'completed';
 export default function App() {
   // Always call all hooks first, regardless of any conditions
   const { user, loading: authLoading, error: authError, login, signup, logout, forgotPassword } = useAuth();
-  
+
+  // Initialize FCM for push notifications
+  const { isReady: fcmReady, isRegistered: fcmRegistered, register: registerFCM } = useFCM();
+
   // Debug user role
   useEffect(() => {
     if (user) {
@@ -49,6 +53,21 @@ export default function App() {
       console.log('Complete user object:', user);
     }
   }, [user]);
+
+  // Auto-register for FCM notifications when user logs in
+  useEffect(() => {
+    if (user && fcmReady && !fcmRegistered) {
+      registerFCM().then((success) => {
+        if (success) {
+          console.log('Successfully registered for FCM notifications');
+        } else {
+          console.log('Failed to register for FCM notifications');
+        }
+      }).catch((error) => {
+        console.error('Error registering for FCM notifications:', error);
+      });
+    }
+  }, [user, fcmReady, fcmRegistered, registerFCM]);
   
   const { users, loading: usersLoading, deleteUser } = useUsers();
   const { 

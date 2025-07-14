@@ -8,14 +8,8 @@ import path from 'path';
 // Define algorithm type to avoid type errors
 type CompressionAlgorithm = 'gzip' | 'brotliCompress' | 'deflate' | 'deflateRaw';
 
-// Helper function to determine if we should use secure headers
-const shouldUseSecureHeaders = (command: string, mode: string) => {
-  // Only use secure headers in production or when explicitly using HTTPS
-  return mode === 'production' || process.env.HTTPS === 'true';
-};
-
 // https://vitejs.dev/config/
-export default defineConfig(({ command, mode }) => ({
+export default defineConfig({
   resolve: {
     // Add aliases for better import paths
     alias: {
@@ -219,34 +213,18 @@ export default defineConfig(({ command, mode }) => ({
       usePolling: false
     },
     cors: true,
-    host: true, // Allow access from network
-    headers: shouldUseSecureHeaders(command, mode) ? {
+    headers: {
       "Access-Control-Allow-Origin": "*",
       "Cross-Origin-Embedder-Policy": "credentialless",
       "Cross-Origin-Opener-Policy": "same-origin",
       "Cross-Origin-Resource-Policy": "cross-origin"
-    } : {
-      "Access-Control-Allow-Origin": "*",
-      "Cross-Origin-Resource-Policy": "cross-origin"
-      // Secure headers omitted for HTTP development to avoid browser warnings
     }
   },
   // Improve preview server performance
   preview: {
     port: 4173,
     strictPort: true,
-    host: true, // Allow access from network
-    headers: shouldUseSecureHeaders(command, mode) ? {
-      "Access-Control-Allow-Origin": "*",
-      "Cross-Origin-Embedder-Policy": "credentialless",
-      "Cross-Origin-Opener-Policy": "same-origin",
-      "Cross-Origin-Resource-Policy": "cross-origin"
-    } : {
-      "Access-Control-Allow-Origin": "*",
-      "Cross-Origin-Resource-Policy": "cross-origin"
-      // Secure headers omitted for HTTP preview to avoid browser warnings
-    }
   },
   // Speed up first dev startup by caching
   cacheDir: 'node_modules/.vite'
-}));
+});

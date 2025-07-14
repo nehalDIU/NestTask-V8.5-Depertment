@@ -27,6 +27,7 @@ const TaskManager = lazy(() => import('../components/admin/TaskManager').then(mo
 const AnnouncementManager = lazy(() => import('../components/admin/announcement/AnnouncementManager').then(module => ({ default: module.AnnouncementManager })));
 const CourseManager = lazy(() => import('../components/admin/course/CourseManager').then(module => ({ default: module.CourseManager })));
 const StudyMaterialManager = lazy(() => import('../components/admin/study-materials/StudyMaterialManager').then(module => ({ default: module.StudyMaterialManager })));
+const LectureSlidesManager = lazy(() => import('../components/admin/lecture-slides/LectureSlidesManager').then(module => ({ default: module.LectureSlidesManager })));
 const RoutineManager = lazy(() => import('../components/admin/routine/RoutineManager').then(module => ({ default: module.RoutineManager })));
 const TeacherManager = lazy(() => import('../components/admin/teacher/TeacherManager').then(module => ({ default: module.TeacherManager })));
 
@@ -355,6 +356,9 @@ export function AdminDashboard({
       case 'teachers':
       refreshTeachers();
         break;
+      case 'lecture-slides':
+        // Lecture slides don't need special refresh logic
+        break;
       case 'dashboard':
         // For dashboard, load key data
         Promise.all([refreshTasks(), refreshUsers()]);
@@ -399,6 +403,9 @@ export function AdminDashboard({
           break;
         case 'teachers':
           await refreshTeachers();
+          break;
+        case 'lecture-slides':
+          // Lecture slides refresh is handled internally by the component
           break;
         case 'dashboard':
           // For dashboard, refresh all critical data
@@ -696,6 +703,12 @@ export function AdminDashboard({
               />
             )}
 
+            {activeTab === 'lecture-slides' && sectionId && (
+              <LectureSlidesManager
+                sectionId={sectionId}
+              />
+            )}
+
             {activeTab === 'routine' && (
               <RoutineManager
                 routines={filteredRoutines}
@@ -746,6 +759,7 @@ export function AdminDashboard({
                   {activeTab === 'teachers' && 'Teacher Management'}
                   {activeTab === 'courses' && 'Course Management'}
                   {activeTab === 'study-materials' && 'Study Materials'}
+                  {activeTab === 'lecture-slides' && 'Lecture Slides'}
                   {activeTab === 'routine' && 'Routine Management'}
                 </h1>
                 {isSectionAdmin && sectionName && (

@@ -3,7 +3,6 @@ import { useAuth } from './hooks/useAuth';
 import { useTasks } from './hooks/useTasks';
 import { useUsers } from './hooks/useUsers';
 import { useNotifications } from './hooks/useNotifications';
-import { useFCM } from './hooks/useFCM';
 import { AuthPage } from './pages/AuthPage';
 import { LoadingScreen } from './components/LoadingScreen';
 import { Navigation } from './components/Navigation';
@@ -18,8 +17,6 @@ import type { User } from './types/user';
 import { ResetPasswordPage } from './pages/ResetPasswordPage';
 import { supabase, testConnection } from './lib/supabase';
 import { HomePage } from './pages/HomePage';
-import { testFCMSetup } from './utils/fcm-debug';
-import { testServiceWorkerSetup } from './utils/service-worker-debug';
 
 // Page import functions
 const importAdminDashboard = () => import('./pages/AdminDashboard').then(module => ({ default: module.AdminDashboard }));
@@ -29,6 +26,7 @@ const importSearchPage = () => import('./pages/SearchPage').then(module => ({ de
 const importCoursePage = () => import('./pages/CoursePage').then(module => ({ default: module.CoursePage }));
 const importStudyMaterialsPage = () => import('./pages/StudyMaterialsPage').then(module => ({ default: module.StudyMaterialsPage }));
 const importRoutinePage = () => import('./pages/RoutinePage').then(module => ({ default: module.RoutinePage }));
+const importLectureSlidesPage = () => import('./pages/LectureSlidesPage').then(module => ({ default: module.LectureSlidesPage }));
 
 // Lazy-loaded components
 const AdminDashboard = lazy(importAdminDashboard);
@@ -38,16 +36,14 @@ const SearchPage = lazy(importSearchPage);
 const CoursePage = lazy(importCoursePage);
 const StudyMaterialsPage = lazy(importStudyMaterialsPage);
 const RoutinePage = lazy(importRoutinePage);
+const LectureSlidesPage = lazy(importLectureSlidesPage);
 
 type StatFilter = 'all' | 'overdue' | 'in-progress' | 'completed';
 
 export default function App() {
   // Always call all hooks first, regardless of any conditions
   const { user, loading: authLoading, error: authError, login, signup, logout, forgotPassword } = useAuth();
-
-  // Initialize FCM for push notifications
-  const { isReady: fcmReady, isRegistered: fcmRegistered, register: registerFCM } = useFCM();
-
+  
   // Debug user role
   useEffect(() => {
     if (user) {
@@ -55,36 +51,6 @@ export default function App() {
       console.log('Complete user object:', user);
     }
   }, [user]);
-
-  // Auto-register for FCM notifications when user logs in
-  useEffect(() => {
-    if (user && fcmReady && !fcmRegistered) {
-      registerFCM().then((success) => {
-        if (success) {
-          console.log('Successfully registered for FCM notifications');
-        } else {
-          console.log('Failed to register for FCM notifications');
-          // Run debug checks if registration fails
-          Promise.all([
-            testFCMSetup(),
-            testServiceWorkerSetup()
-          ]).then(([fcmSuccess, swSuccess]) => {
-            if (!fcmSuccess) {
-              console.warn('FCM setup issues detected. Check console for details.');
-            }
-            if (!swSuccess) {
-              console.warn('Service Worker issues detected. Use window.swDebug.testServiceWorkerSetup() to debug.');
-            }
-          });
-        }
-      }).catch((error) => {
-        console.error('Error registering for FCM notifications:', error);
-        // Run debug checks on error
-        testFCMSetup();
-        testServiceWorkerSetup();
-      });
-    }
-  }, [user, fcmReady, fcmRegistered, registerFCM]);
   
   const { users, loading: usersLoading, deleteUser } = useUsers();
   const { 
@@ -299,6 +265,12 @@ export default function App() {
         return (
           <Suspense fallback={<LoadingScreen minimumLoadTime={300} />}>
             <RoutinePage />
+          </Suspense>
+        );
+      case 'lecture-slides':
+        return (
+          <Suspense fallback={<LoadingScreen minimumLoadTime={300} />}>
+            <LectureSlidesPage />
           </Suspense>
         );
       default:

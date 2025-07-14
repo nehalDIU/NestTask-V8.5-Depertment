@@ -33,14 +33,6 @@
       "headers": { "cache-control": "public, max-age=0, must-revalidate" },
       "continue": true
     },
-    {
-      "src": "/firebase-messaging-sw.js",
-      "headers": {
-        "cache-control": "public, max-age=0, must-revalidate",
-        "service-worker-allowed": "/"
-      },
-      "continue": true
-    },
     { "handle": "filesystem" },
     { "src": "/(.*)", "dest": "/index.html" }
   ]

@@ -54,6 +54,7 @@ export function SlidingNavigation({
     { id: 'notifications' as const, label: 'Notifications', icon: Bell },
     { id: 'search' as const, label: 'Search', icon: Search },
     { id: 'study-materials' as const, label: 'Study Materials', icon: BookOpen },
+    { id: 'lecture-slides' as const, label: 'Lecture Slides', icon: FileText },
     { id: 'courses' as const, label: 'Courses', icon: GraduationCap },
     { id: 'routine' as const, label: 'Routine', icon: CalendarDays },
     { 

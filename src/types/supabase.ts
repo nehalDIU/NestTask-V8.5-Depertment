@@ -183,6 +183,45 @@ export interface Database {
           created_at?: string;
         };
       };
+      lecture_slides: {
+        Row: {
+          id: string;
+          title: string;
+          description: string;
+          section_id: string;
+          file_urls: string[];
+          original_file_names: string[];
+          slide_links: string[];
+          video_links: string[];
+          created_at: string;
+          created_by: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          title: string;
+          description?: string;
+          section_id: string;
+          file_urls?: string[];
+          original_file_names?: string[];
+          slide_links?: string[];
+          video_links?: string[];
+          created_at?: string;
+          created_by?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          title?: string;
+          description?: string;
+          section_id?: string;
+          file_urls?: string[];
+          original_file_names?: string[];
+          slide_links?: string[];
+          video_links?: string[];
+          updated_at?: string;
+        };
+      };
     };
     Functions: {
       is_admin: {

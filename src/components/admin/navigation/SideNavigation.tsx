@@ -74,14 +74,15 @@ export const SideNavigation = React.memo(function SideNavigation({
     { id: 'teachers' as const, label: 'Teachers', icon: User },
     { id: 'courses' as const, label: 'Courses', icon: GraduationCap },
     { id: 'study-materials' as const, label: 'Study Materials', icon: Book },
+    { id: 'lecture-slides' as const, label: 'Lecture Slides', icon: FileText },
     { id: 'routine' as const, label: 'Routine', icon: CalendarDays }
   ], []);
   
-  // Section admin can only manage announcements, study materials, and routines
+  // Section admin can only manage announcements, study materials, lecture slides, and routines
   const managementNavItems = useMemo(() => {
     if (isSectionAdmin) {
-      return allManagementItems.filter(item => 
-        ['announcements', 'teachers', 'courses', 'study-materials', 'routine'].includes(item.id)
+      return allManagementItems.filter(item =>
+        ['announcements', 'teachers', 'courses', 'study-materials', 'lecture-slides', 'routine'].includes(item.id)
       );
     }
     return allManagementItems;

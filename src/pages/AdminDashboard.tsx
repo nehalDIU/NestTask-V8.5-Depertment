@@ -10,7 +10,6 @@ import { useRoutines } from '../hooks/useRoutines';
 import { useTeachers } from '../hooks/useTeachers';
 import { useUsers } from '../hooks/useUsers';
 import { showErrorToast, showSuccessToast } from '../utils/notifications';
-import { isOverdue } from '../utils/dateUtils';
 import type { User } from '../types/auth';
 import type { Task } from '../types/index';
 import type { NewTask } from '../types/task';
@@ -18,7 +17,6 @@ import type { Teacher, NewTeacher } from '../types/teacher';
 import type { AdminTab } from '../types/admin';
 import { useAuth } from '../hooks/useAuth';
 import { useTasks } from '../hooks/useTasks';
-import { supabase } from '../lib/supabase';
 import { RefreshCcw, AlertTriangle, Loader2 } from 'lucide-react';
 
 // Lazy load heavy components
@@ -64,13 +62,15 @@ export function AdminDashboard({
   const [error, setError] = useState<string | null>(null);
   const [isCreatingTask, setIsCreatingTask] = useState(false);
   const previousTabRef = useRef<AdminTab | null>(null);
-  
+  const lastVisibilityChangeRef = useRef<number>(Date.now());
+  const isPageActiveRef = useRef<boolean>(true);
+  const refreshTimeoutRef = useRef<number | null>(null);
+
   // Get current user from auth for debugging
   const { user } = useAuth();
-  const { 
-    refreshTasks, 
-    loading: tasksLoading, 
-    error: tasksError 
+  const {
+    refreshTasks,
+    loading: tasksLoading
   } = useTasks(user?.id);
   
   // Reset task form state when navigating away from tasks tab
@@ -103,12 +103,11 @@ export function AdminDashboard({
   }, [tasks, isSectionAdmin, sectionId]);
   
   // Conditionally load data based on active tab
-  const { 
+  const {
     announcements,
     createAnnouncement,
     deleteAnnouncement,
-    refreshAnnouncements,
-    loading: announcementsLoading
+    refreshAnnouncements
   } = useAnnouncements();
   
   // Filter announcements for section admin - memoized for performance
@@ -129,11 +128,9 @@ export function AdminDashboard({
     updateCourse,
     deleteCourse,
     createMaterial,
-    updateMaterial,
     deleteMaterial,
     bulkImportCourses,
-    refreshCourses,
-    loading: coursesLoading
+    refreshCourses
   } = useCourses();
 
   // Filter courses for section admin - memoized and conditional
@@ -159,8 +156,7 @@ export function AdminDashboard({
     activateRoutine,
     deactivateRoutine,
     bulkImportSlots,
-    refreshRoutines,
-    loading: routinesLoading
+    refreshRoutines
   } = useRoutines();
 
   // Filter routines for section admin - conditional loading
@@ -178,8 +174,7 @@ export function AdminDashboard({
     updateTeacher,
     deleteTeacher: deleteTeacherService,
     bulkImportTeachers,
-    refreshTeachers,
-    loading: teachersLoading
+    refreshTeachers
   } = useTeachers();
   
   // Filter teachers for section admin - memoized and conditional
@@ -212,74 +207,61 @@ export function AdminDashboard({
     return users.filter(u => u.sectionId === sectionId);
   }, [users, sectionId, activeTab]);
   
-  // Memoized calculation of due tasks
-  const dueTasks = useMemo(() => 
-    filteredTasks.filter(task => isOverdue(task.dueDate) && task.status !== 'completed'),
-    [filteredTasks]
-  );
 
-  // Setup optimized realtime subscription for data changes
+
+  // Optimized page visibility handling to prevent excessive refreshes
   useEffect(() => {
-    if (!sectionId) return;
-    
-    const channels: Array<ReturnType<typeof supabase.channel>> = [];
-    
-    // Only subscribe to data changes needed for current tab
-    if (activeTab === 'tasks' || activeTab === 'dashboard') {
-    const tasksSubscription = supabase
-      .channel('section-tasks')
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'tasks',
-          filter: `sectionId=eq.${sectionId}`
-        },
-          () => refreshTasks()
-      )
-      .subscribe();
-      channels.push(tasksSubscription);
-    }
-      
-    if (activeTab === 'routine') {
-    const routinesSubscription = supabase
-      .channel('section-routines')
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'routines',
-          filter: `sectionId=eq.${sectionId}`
-        },
-          () => refreshRoutines()
-      )
-      .subscribe();
-      channels.push(routinesSubscription);
-    }
-      
-    if (activeTab === 'users' || activeTab === 'dashboard') {
-    const usersSubscription = supabase
-      .channel('section-users')
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'users',
-          filter: `sectionId=eq.${sectionId}`
-        },
-          () => refreshUsers()
-      )
-      .subscribe();
-      channels.push(usersSubscription);
-    }
+    const handleVisibilityChange = () => {
+      const isVisible = document.visibilityState === 'visible';
+      const now = Date.now();
+
+      isPageActiveRef.current = isVisible;
+
+      if (isVisible) {
+        const timeSinceLastChange = now - lastVisibilityChangeRef.current;
+        lastVisibilityChangeRef.current = now;
+
+        // Only refresh if page was hidden for more than 2 minutes to prevent excessive refreshes
+        if (timeSinceLastChange > 120000) {
+          console.log('Page visible after long absence, refreshing current tab data');
+
+          // Clear any pending refresh timeouts
+          if (refreshTimeoutRef.current) {
+            clearTimeout(refreshTimeoutRef.current);
+            refreshTimeoutRef.current = null;
+          }
+
+          // Debounced refresh to prevent multiple rapid refreshes
+          refreshTimeoutRef.current = window.setTimeout(() => {
+            switch (activeTab) {
+              case 'tasks':
+                refreshTasks(true);
+                break;
+              case 'users':
+                refreshUsers();
+                break;
+              case 'dashboard':
+                Promise.all([refreshTasks(), refreshUsers()]);
+                break;
+              default:
+                // Don't auto-refresh other tabs
+                break;
+            }
+            refreshTimeoutRef.current = null;
+          }, 1000);
+        }
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
 
     return () => {
-      channels.forEach(channel => channel.unsubscribe());
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      if (refreshTimeoutRef.current) {
+        clearTimeout(refreshTimeoutRef.current);
+      }
     };
-  }, [sectionId, activeTab, refreshTasks, refreshRoutines, refreshUsers]);
+  }, [activeTab, refreshTasks, refreshUsers]);
 
   // Check for mobile view on mount and resize with debounce
   useEffect(() => {
@@ -320,121 +302,121 @@ export function AdminDashboard({
     setIsSidebarCollapsed(collapsed);
   }, []);
 
-  // Handle tab changes with selective data loading
+  // Optimized tab change handling with smart data loading
   const handleTabChange = useCallback((tab: AdminTab) => {
     // Skip reload if already on this tab
     if (tab === activeTab) return;
-    
+
     // Store previous tab
     previousTabRef.current = activeTab;
-    
+
     // Reset states when changing tabs
     setError(null);
     setIsCreatingTask(false);
-    
+
     setActiveTab(tab);
-    
-    // Only load data for the active tab
+
+    // Smart data loading - only refresh if data is likely stale or critical
+    const shouldRefreshData = () => {
+      // Only refresh if page has been active and we're switching to a data-heavy tab
+      return isPageActiveRef.current && (tab === 'tasks' || tab === 'dashboard');
+    };
+
     switch (tab) {
       case 'tasks':
-      setShowTaskForm(true);
-        // Force a fresh load of tasks when switching to the tasks tab
-        refreshTasks(true);
+        setShowTaskForm(true);
+        // Only force refresh if we really need fresh data
+        if (shouldRefreshData()) {
+          refreshTasks();
+        }
         break;
       case 'users':
-      refreshUsers();
+        // Only refresh users if switching to users tab and page is active
+        if (shouldRefreshData()) {
+          refreshUsers();
+        }
         break;
       case 'routine':
-      refreshRoutines();
+        // Lazy load routines only when needed
+        if (isPageActiveRef.current) {
+          refreshRoutines();
+        }
         break;
       case 'courses':
-      refreshCourses();
+        // Lazy load courses only when needed
+        if (isPageActiveRef.current) {
+          refreshCourses();
+        }
         break;
       case 'announcements':
-      refreshAnnouncements();
+        // Lazy load announcements only when needed
+        if (isPageActiveRef.current) {
+          refreshAnnouncements();
+        }
         break;
       case 'teachers':
-      refreshTeachers();
+        // Lazy load teachers only when needed
+        if (isPageActiveRef.current) {
+          refreshTeachers();
+        }
         break;
       case 'lecture-slides':
         // Lecture slides don't need special refresh logic
         break;
       case 'dashboard':
-        // For dashboard, load key data
-        Promise.all([refreshTasks(), refreshUsers()]);
+        // For dashboard, only load key data if page is active
+        if (shouldRefreshData()) {
+          Promise.all([refreshTasks(), refreshUsers()]);
+        }
         break;
       default:
-      setShowTaskForm(false);
+        setShowTaskForm(false);
     }
   }, [
-    activeTab, 
-    refreshAnnouncements, 
-    refreshCourses, 
-    refreshRoutines, 
-    refreshTasks, 
-    refreshTeachers, 
+    activeTab,
+    refreshAnnouncements,
+    refreshCourses,
+    refreshRoutines,
+    refreshTasks,
+    refreshTeachers,
     refreshUsers
   ]);
 
-  // Refresh only data relevant to current tab
-  const handleRefreshData = useCallback(async () => {
+  // Optimized manual refresh with better error handling
+  const handleManualRefresh = useCallback(async () => {
     if (isRefreshing) return; // Prevent multiple refreshes
-    
-    setIsRefreshing(true);
-    setError(null);
-    
+
     try {
-      // Only refresh data for the active tab
+      setIsRefreshing(true);
+      setError(null);
+      setIsCreatingTask(false); // Reset task creation state
+
+      // Only refresh data for the active tab to reduce load
       switch (activeTab) {
         case 'tasks':
-          await refreshTasks();
+          await refreshTasks(true); // Force refresh for tasks
           break;
         case 'users':
           await refreshUsers();
           break;
-        case 'routine':
-          await refreshRoutines();
-          break;
-        case 'courses':
-          await refreshCourses();
-          break;
-        case 'announcements':
-          await refreshAnnouncements();
-          break;
-        case 'teachers':
-          await refreshTeachers();
-          break;
-        case 'lecture-slides':
-          // Lecture slides refresh is handled internally by the component
-          break;
         case 'dashboard':
-          // For dashboard, refresh all critical data
-      await Promise.all([
-        refreshTasks(),
-            refreshUsers()
-          ]);
+          // For dashboard, refresh critical data only
+          await Promise.all([refreshTasks(), refreshUsers()]);
           break;
         default:
+          // For other tabs, just show success without unnecessary refreshes
           break;
       }
+
       showSuccessToast('Data refreshed successfully');
-    } catch (error: any) {
-      console.error('Error refreshing data:', error);
-      setError('Failed to refresh data. Please try again.');
+    } catch (err: any) {
+      console.error('Error refreshing data:', err);
+      setError(err.message || 'Failed to refresh data');
       showErrorToast('Failed to refresh data');
     } finally {
       setIsRefreshing(false);
     }
-  }, [
-    activeTab, 
-    isRefreshing,
-    refreshAnnouncements, 
-    refreshCourses, 
-    refreshRoutines, 
-    refreshTasks, 
-    refreshTeachers, 
-    refreshUsers
-  ]);
+  }, [activeTab, isRefreshing, refreshTasks, refreshUsers]);
 
   // Create task with section ID assignment and better state management
   const handleCreateTask = useCallback(async (taskData: NewTask) => {
@@ -505,7 +487,7 @@ export function AdminDashboard({
       showErrorToast('Invalid teacher ID');
       return Promise.resolve();
     }
-    
+
     try {
       await deleteTeacherService(teacherId);
       showSuccessToast('Teacher deleted successfully');
@@ -518,43 +500,46 @@ export function AdminDashboard({
     }
   }, [deleteTeacherService, refreshTeachers]);
 
-  // Manual refresh with improved error handling and state reset
-  const handleManualRefresh = useCallback(async () => {
-    try {
-      setIsRefreshing(true);
-      setError(null);
-      setIsCreatingTask(false); // Reset task creation state
-      
-      await refreshTasks(true); // Force refresh
-      
-      // Reset activeTab to force re-render components
-      if (activeTab === 'tasks') {
-        const currentTab = activeTab;
-        setActiveTab('dashboard');
-        setTimeout(() => {
-          setActiveTab(currentTab);
-        }, 50);
-      }
-    } catch (err: any) {
-      console.error('Error refreshing tasks:', err);
-      setError(err.message || 'Failed to refresh data');
-    } finally {
-      setIsRefreshing(false);
-    }
-  }, [activeTab, refreshTasks]);
+  // Wrapper functions for routine operations to match expected types
+  const handleUpdateRoutine = useCallback(async (id: string, updates: Partial<any>) => {
+    await updateRoutine(id, updates);
+  }, [updateRoutine]);
 
-  // Auto-recovery for stuck loading state with memoization
+  const handleDeleteRoutine = useCallback(async (id: string) => {
+    await deleteRoutine(id);
+  }, [deleteRoutine]);
+
+  const handleUpdateSlot = useCallback(async (routineId: string, slotId: string, updates: Partial<any>) => {
+    await updateRoutineSlot(routineId, slotId, updates);
+  }, [updateRoutineSlot]);
+
+  const handleDeleteSlot = useCallback(async (routineId: string, slotId: string) => {
+    await deleteRoutineSlot(routineId, slotId);
+  }, [deleteRoutineSlot]);
+
+  const handleActivateRoutine = useCallback(async (routineId: string) => {
+    await activateRoutine(routineId);
+  }, [activateRoutine]);
+
+  const handleDeactivateRoutine = useCallback(async (routineId: string) => {
+    await deactivateRoutine(routineId);
+  }, [deactivateRoutine]);
+
+
+
+  // Optimized auto-recovery for stuck loading states
   useEffect(() => {
     let timeoutId: number;
-    
-    // If we're on tasks tab and loading is stuck for too long, try to recover
-    if (activeTab === 'tasks' && tasksLoading) {
+
+    // Only attempt recovery if we're on tasks tab and loading seems stuck
+    if (activeTab === 'tasks' && tasksLoading && isPageActiveRef.current) {
       timeoutId = window.setTimeout(() => {
         console.warn('Task loading appears stuck, attempting recovery');
+        // Use the optimized manual refresh
         handleManualRefresh();
-      }, 15000); // 15 seconds timeout
+      }, 20000); // Increased timeout to 20 seconds to be less aggressive
     }
-    
+
     return () => {
       if (timeoutId) {
         window.clearTimeout(timeoutId);
@@ -657,9 +642,6 @@ export function AdminDashboard({
                   announcements={filteredAnnouncements}
                   onCreateAnnouncement={createAnnouncement}
                   onDeleteAnnouncement={deleteAnnouncement}
-                  sectionId={sectionId}
-                  isSectionAdmin={isSectionAdmin}
-                  isLoading={announcementsLoading}
                 />
               </div>
             )}
@@ -674,7 +656,6 @@ export function AdminDashboard({
                 onBulkImportTeachers={bulkImportTeachers}
                 sectionId={sectionId}
                 isSectionAdmin={isSectionAdmin}
-                isLoading={teachersLoading}
               />
             )}
 
@@ -688,7 +669,6 @@ export function AdminDashboard({
                 onBulkImportCourses={bulkImportCourses}
                 sectionId={sectionId}
                 isSectionAdmin={isSectionAdmin}
-                isLoading={coursesLoading}
               />
             )}
 
@@ -698,8 +678,6 @@ export function AdminDashboard({
                 materials={materials}
                 onCreateMaterial={createMaterial}
                 onDeleteMaterial={deleteMaterial}
-                sectionId={sectionId}
-                isSectionAdmin={isSectionAdmin}
               />
             )}
 
@@ -715,17 +693,14 @@ export function AdminDashboard({
                 courses={filteredCourses}
                 teachers={filteredTeachers}
                 onCreateRoutine={createRoutine}
-                onUpdateRoutine={updateRoutine}
-                onDeleteRoutine={deleteRoutine}
+                onUpdateRoutine={handleUpdateRoutine}
+                onDeleteRoutine={handleDeleteRoutine}
                 onAddSlot={addRoutineSlot}
-                onUpdateSlot={updateRoutineSlot}
-                onDeleteSlot={deleteRoutineSlot}
-                onActivateRoutine={activateRoutine}
-                onDeactivateRoutine={deactivateRoutine}
+                onUpdateSlot={handleUpdateSlot}
+                onDeleteSlot={handleDeleteSlot}
+                onActivateRoutine={handleActivateRoutine}
+                onDeactivateRoutine={handleDeactivateRoutine}
                 onBulkImportSlots={bulkImportSlots}
-                sectionId={sectionId}
-                isSectionAdmin={isSectionAdmin}
-                isLoading={routinesLoading}
               />
             )}
       </Suspense>

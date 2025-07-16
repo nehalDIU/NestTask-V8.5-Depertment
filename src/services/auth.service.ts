@@ -171,6 +171,7 @@ export async function loginUser({ email, password }: LoginCredentials): Promise<
       
       // Store session data for persistence across browser restarts
       localStorage.setItem('supabase.auth.token', JSON.stringify(authData.session));
+      console.log('Session stored in localStorage for persistence');
     }
 
     // Wait briefly for the trigger to create the profile

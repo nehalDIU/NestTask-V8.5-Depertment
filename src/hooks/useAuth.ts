@@ -18,7 +18,11 @@ export function useAuth() {
   const [retryCount, setRetryCount] = useState(0);
 
   useEffect(() => {
-    // localStorage functionality removed - no saved email persistence
+    // Restore saved email for authentication
+    const savedEmail = localStorage.getItem(SAVED_EMAIL_KEY);
+    if (savedEmail) {
+      setSavedEmail(savedEmail);
+    }
 
     checkSession();
     const { data: { subscription } } = supabase.auth.onAuthStateChange(handleAuthChange);
@@ -48,6 +52,7 @@ export function useAuth() {
       }
       
       if (session?.user) {
+        console.log('Active session found, updating user state');
         await updateUserState(session.user);
       } else {
         console.log('No active session found');
@@ -184,7 +189,14 @@ export function useAuth() {
     try {
       setError(null);
       
-      // localStorage functionality removed - remember me feature disabled
+      // Handle remember me functionality for authentication
+      if (rememberMe) {
+        localStorage.setItem(REMEMBER_ME_KEY, 'true');
+        localStorage.setItem(SAVED_EMAIL_KEY, credentials.email);
+      } else {
+        localStorage.removeItem(REMEMBER_ME_KEY);
+        localStorage.removeItem(SAVED_EMAIL_KEY);
+      }
       
       // Check for development mode more robustly
       const isDevelopment = import.meta.env.DEV || 
@@ -341,7 +353,13 @@ export function useAuth() {
       
       console.log('Logout API call successful');
       
-      // localStorage functionality removed
+      // Clear authentication-related localStorage (but preserve remember me if set)
+      if (localStorage.getItem(REMEMBER_ME_KEY) !== 'true') {
+        localStorage.removeItem(SAVED_EMAIL_KEY);
+      }
+
+      localStorage.removeItem('supabase.auth.token');
+      localStorage.removeItem('nesttask_user');
       
       document.cookie.split(";").forEach(function(c) {
         document.cookie = c.replace(/^ +/, "").replace(/=.*/, "=;expires=" + new Date().toUTCString() + ";path=/");

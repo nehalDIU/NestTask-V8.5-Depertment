@@ -163,8 +163,9 @@
             return 'dark';
           }
         },
-        // Match system preference (localStorage disabled)
+        // Match system preference
         resetToSystem: function() {
+          localStorage.removeItem('dark-mode');
           const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
           if (prefersDark) {
             document.documentElement.classList.add('dark');

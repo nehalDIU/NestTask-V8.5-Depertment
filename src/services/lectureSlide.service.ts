@@ -313,26 +313,7 @@ export async function updateLectureSlide(
       .from('lecture_slides')
       .update(updateData)
       .eq('id', id)
-      .select(`
-        *,
-        section:sections (
-          id,
-          name,
-          batch:batches (
-            id,
-            name,
-            department:departments (
-              id,
-              name
-            )
-          )
-        ),
-        creator:users!lecture_slides_created_by_fkey (
-          id,
-          name,
-          email
-        )
-      `)
+      .select('*')
       .single();
 
     if (error) throw error;
@@ -406,26 +387,7 @@ export async function getLectureSlide(id: string): Promise<LectureSlide | null> 
   try {
     const { data, error } = await supabase
       .from('lecture_slides')
-      .select(`
-        *,
-        section:sections (
-          id,
-          name,
-          batch:batches (
-            id,
-            name,
-            department:departments (
-              id,
-              name
-            )
-          )
-        ),
-        creator:users!lecture_slides_created_by_fkey (
-          id,
-          name,
-          email
-        )
-      `)
+      .select('*')
       .eq('id', id)
       .single();
 

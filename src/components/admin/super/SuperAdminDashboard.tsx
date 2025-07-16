@@ -140,19 +140,10 @@ export function SuperAdminDashboard() {
     refreshAdmins
   } = useAdminUsers();
 
-  // Replace the enhanced recovery functionality with a simple initialization effect
+  // Simple initialization effect (localStorage/sessionStorage disabled)
   useEffect(() => {
-    // Mark super admin status for proper cache handling
-    localStorage.setItem('is_super_admin', 'true');
-    sessionStorage.setItem('is_super_admin', 'true');
-    
     // Force immediate data load on mount
     refreshAdmins();
-    
-    // Clear any reload-related flags
-    sessionStorage.removeItem('super_admin_reloading');
-    sessionStorage.removeItem('super_admin_reload_count');
-    sessionStorage.removeItem('recovering_super_admin');
     
     // Handle path-specific tab selection if needed
     if (window.location.pathname.includes('/section-admins')) {

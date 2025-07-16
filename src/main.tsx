@@ -4,7 +4,7 @@ import { createBrowserRouter, RouterProvider } from 'react-router-dom';
 // Import CSS (Vite handles this correctly)
 import './index.css';
 import { MicroLoader } from './components/MicroLoader';
-import { initPWA } from './utils/pwa';
+// PWA functionality removed
 import { supabase } from './lib/supabase';
 import type { LoginCredentials, SignupCredentials } from './types/auth';
 
@@ -124,17 +124,7 @@ function initApp() {
     </StrictMode>
   );
   
-  // Initialize PWA features
-  if ('serviceWorker' in navigator) {
-    window.addEventListener('load', () => {
-      navigator.serviceWorker.register('/service-worker.js')
-        .then(() => {
-          // Initialize PWA features after service worker is registered
-          setTimeout(() => initPWA(), 1000);
-        })
-        .catch(error => console.error('SW registration failed:', error));
-    });
-  }
+  // PWA and service worker functionality removed
 }
 
 // Start the app

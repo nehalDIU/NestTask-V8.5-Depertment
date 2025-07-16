@@ -79,16 +79,14 @@ export const trackMetrics = () => {
   }
 };
 
-// Cache API wrapper for response caching
+// Cache API wrapper - DISABLED
 export const cacheResponse = async (
   request: Request,
   response: Response,
-  cacheName: string = 'api-cache'
+  cacheName?: string
 ): Promise<void> => {
-  if ('caches' in window) {
-    const cache = await caches.open(cacheName);
-    await cache.put(request, response.clone());
-  }
+  // Cache functionality disabled
+  return Promise.resolve();
 };
 
 // Memory usage monitoring

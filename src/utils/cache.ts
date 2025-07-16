@@ -1,108 +1,71 @@
-// Simple in-memory cache utility to replace offline storage
+// Cache utility - All caching functionality disabled
+// This file provides stub implementations to prevent import errors
 
-// Cache storage
-const memoryCache: Record<string, any> = {};
+console.warn('Cache functionality has been disabled');
 
 /**
- * Save data to memory cache
- * @param key Cache key to store data under
- * @param data Data to cache
+ * Save data to cache - DISABLED
  */
 export function setCache<T>(key: string, data: T): void {
-  memoryCache[key] = {
-    data,
-    timestamp: Date.now()
-  };
+  // Cache functionality disabled
 }
 
 /**
- * Get data from memory cache
- * @param key Cache key to retrieve
- * @returns The cached data or null if not found
+ * Get data from cache - DISABLED
  */
 export function getCache<T>(key: string): T | null {
-  const cached = memoryCache[key];
-  if (!cached) return null;
-  return cached.data as T;
+  // Cache functionality disabled
+  return null;
 }
 
 /**
- * Check if cache entry exists and is not expired
- * @param key Cache key to check
- * @param maxAge Maximum age in milliseconds (optional)
- * @returns True if cache exists and is not expired
+ * Check if cache entry exists and is not expired - DISABLED
  */
 export function isCacheValid(key: string, maxAge?: number): boolean {
-  const cached = memoryCache[key];
-  if (!cached) return false;
-  
-  if (maxAge) {
-    const age = Date.now() - cached.timestamp;
-    return age < maxAge;
-  }
-  
-  return true;
+  // Cache functionality disabled
+  return false;
 }
 
 /**
- * Remove a specific cache entry
- * @param key Cache key to remove
+ * Remove a specific cache entry - DISABLED
  */
 export function invalidateCache(key: string): void {
-  delete memoryCache[key];
+  // Cache functionality disabled
 }
 
 /**
- * Clear all cache entries that match a prefix
- * @param prefix Prefix to match
+ * Clear all cache entries - DISABLED
+ */
+export function clearCache(): void {
+  // Cache functionality disabled
+}
+
+/**
+ * Clear cache entries by prefix - DISABLED
  */
 export function clearCacheByPrefix(prefix: string): void {
-  Object.keys(memoryCache).forEach(key => {
-    if (key.startsWith(prefix)) {
-      delete memoryCache[key];
-    }
-  });
+  // Cache functionality disabled
 }
 
 /**
- * Clear all cache entries
+ * Get cache size - DISABLED
  */
-export function clearAllCache(): void {
-  Object.keys(memoryCache).forEach(key => {
-    delete memoryCache[key];
-  });
+export function getCacheSize(): number {
+  // Cache functionality disabled
+  return 0;
 }
 
 /**
- * Get all cached data for a specific prefix
- * @param prefix Prefix to match
- * @returns Object with all matching cache entries
+ * Get all cached data for a specific prefix - DISABLED
  */
 export function getCachedData<T>(prefix: string): Record<string, T> {
-  const result: Record<string, T> = {};
-  
-  Object.keys(memoryCache).forEach(key => {
-    if (key.startsWith(prefix)) {
-      result[key] = memoryCache[key].data;
-    }
-  });
-  
-  return result;
+  // Cache functionality disabled
+  return {};
 }
 
 /**
- * Update a specific field in a cached object
- * @param key Cache key 
- * @param field Field to update
- * @param value New value
+ * Update a specific field in a cached object - DISABLED
  */
 export function updateCachedField<T, K extends keyof T>(key: string, field: K, value: T[K]): void {
-  const cached = getCache<T>(key);
-  if (cached) {
-    const updated = {
-      ...cached,
-      [field]: value
-    };
-    setCache<T>(key, updated);
-  }
-} 
+  // Cache functionality disabled
+}

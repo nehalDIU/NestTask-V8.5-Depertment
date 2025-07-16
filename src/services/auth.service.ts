@@ -34,64 +34,7 @@ interface SupabaseUser {
   student_id?: string;
 }
 
-// Initialize IndexedDB
-const DB_NAME = 'nesttask-auth-storage';
-const DB_VERSION = 1;
-const STORE_NAME = 'auth';
-
-async function initializeIndexedDB(): Promise<IDBDatabase> {
-  return new Promise((resolve, reject) => {
-    const request = indexedDB.open(DB_NAME, DB_VERSION);
-
-    request.onerror = () => {
-      console.error('Error opening IndexedDB:', request.error);
-      reject(request.error);
-    };
-
-    request.onupgradeneeded = (event) => {
-      const db = (event.target as IDBOpenDBRequest).result;
-      
-      // Check if the store already exists
-      if (!db.objectStoreNames.contains(STORE_NAME)) {
-        db.createObjectStore(STORE_NAME);
-        console.log('Created auth store in IndexedDB');
-      }
-    };
-
-    request.onsuccess = () => {
-      const db = request.result;
-      resolve(db);
-    };
-  });
-}
-
-// Helper function to store data in IndexedDB
-async function storeInIndexedDB(key: string, value: any): Promise<void> {
-  try {
-    const db = await initializeIndexedDB();
-    return new Promise((resolve, reject) => {
-      const transaction = db.transaction(STORE_NAME, 'readwrite');
-      const store = transaction.objectStore(STORE_NAME);
-      
-      const request = store.put(value, key);
-      
-      request.onerror = () => {
-        console.error('Error storing in IndexedDB:', request.error);
-        reject(request.error);
-      };
-      
-      request.onsuccess = () => {
-        resolve();
-      };
-      
-      transaction.oncomplete = () => {
-        db.close();
-      };
-    });
-  } catch (error) {
-    console.warn('Failed to store in IndexedDB:', error);
-  }
-}
+// IndexedDB functionality removed - all storage operations disabled
 
 export async function loginUser({ email, password }: LoginCredentials): Promise<User> {
   try {
@@ -220,7 +163,7 @@ export async function loginUser({ email, password }: LoginCredentials): Promise<
     
     if (!authData?.user) throw new Error('No user data received');
 
-    // Store the session in localStorage AND IndexedDB for maximum persistence
+    // Store the session in localStorage for persistence
     if (authData.session) {
       // Set up a periodic token refresh to ensure the session never expires
       // This runs every 12 hours to refresh the token silently in the background
@@ -228,15 +171,6 @@ export async function loginUser({ email, password }: LoginCredentials): Promise<
       
       // Store session data for persistence across browser restarts
       localStorage.setItem('supabase.auth.token', JSON.stringify(authData.session));
-      
-      // Store in IndexedDB for redundancy
-      try {
-        await storeInIndexedDB('session', JSON.stringify(authData.session));
-        await storeInIndexedDB('email', email);
-        await storeInIndexedDB('remember_me', true);
-      } catch (e) {
-        console.warn('IndexedDB storage failed, falling back to localStorage only', e);
-      }
     }
 
     // Wait briefly for the trigger to create the profile
@@ -491,16 +425,7 @@ export async function logoutUser(): Promise<void> {
     localStorage.removeItem('supabase.auth.token');
     sessionStorage.removeItem('supabase.auth.token');
     
-    // Clear IndexedDB storage
-    try {
-      const db = await initializeIndexedDB();
-      const transaction = db.transaction(STORE_NAME, 'readwrite');
-      const store = transaction.objectStore(STORE_NAME);
-      await store.clear();
-      db.close();
-    } catch (e) {
-      console.warn('Failed to clear IndexedDB storage:', e);
-    }
+    // IndexedDB storage functionality removed
     
     console.log('Logout process in auth.service completed');
   } catch (error: any) {
@@ -548,8 +473,6 @@ function setupTokenRefresh(refreshToken: string) {
         // Successfully refreshed - update stored session
         if (refreshData?.session) {
           localStorage.setItem('supabase.auth.token', JSON.stringify(refreshData.session));
-          // Also update IndexedDB
-          await storeInIndexedDB('session', JSON.stringify(refreshData.session));
         }
       }
     } catch (err) {

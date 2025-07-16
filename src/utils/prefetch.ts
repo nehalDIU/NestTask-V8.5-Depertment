@@ -1,6 +1,7 @@
 import { supabase } from '../lib/supabase';
 import { lazyLoad, preloadComponent } from './lazyLoad';
-import { setCache, getCache, isCacheValid } from './cache';
+
+// Cache functionality disabled
 
 // Type for prefetch options
 export interface PrefetchOptions {
@@ -27,11 +28,7 @@ export const prefetchRoute = (importFn: () => Promise<any>, routeKey: string) =>
 };
 
 /**
- * Prefetch API data and store in memory cache
- * @param tableName Supabase table name
- * @param queryFn Function that returns the Supabase query
- * @param cacheKey Unique key for this query
- * @param options Prefetch options
+ * Prefetch API data - DISABLED
  */
 export const prefetchApiData = async (
   tableName: string,
@@ -39,50 +36,20 @@ export const prefetchApiData = async (
   cacheKey: string,
   options: PrefetchOptions = {}
 ) => {
-  if (prefetchedQueries.has(cacheKey) || !navigator.onLine) return;
-  prefetchedQueries.add(cacheKey);
-  
-  try {
-    const controller = new AbortController();
-    const signal = controller.signal;
-    
-    // Set timeout if specified
-    if (options.timeout) {
-      setTimeout(() => controller.abort(), options.timeout);
-    }
-    
-    const query = supabase.from(tableName);
-    const queryWithOptions = queryFn(query);
-    
-    // Execute the query
-    const { data, error } = await queryWithOptions;
-    
-    if (error) {
-      prefetchedQueries.delete(cacheKey); // Allow retry on error
-      return;
-    }
-    
-    if (data) {
-      // Store in cache with timestamp
-      setCache(cacheKey, data);
-    }
-  } catch (err: unknown) {
-    prefetchedQueries.delete(cacheKey); // Allow retry on error
-  }
+  // Prefetch functionality disabled
+  return Promise.resolve();
 };
 
 /**
- * Get cached data if available
- * @param cacheKey The key to look up in the cache
- * @returns The cached data or null if not found
+ * Get cached data - DISABLED
  */
 export const getCachedData = (cacheKey: string) => {
-  return getCache(cacheKey);
+  // Cache functionality disabled
+  return null;
 };
 
 /**
- * Prefetch multiple resources in parallel with priority
- * @param resources Array of resources to prefetch
+ * Prefetch multiple resources - DISABLED
  */
 export const prefetchResources = async (resources: Array<{
   type: 'route' | 'api' | 'asset';
@@ -90,63 +57,20 @@ export const prefetchResources = async (resources: Array<{
   loader: any;
   options?: PrefetchOptions;
 }>) => {
-  if (!navigator.onLine) return;
-  
-  // Process high priority resources immediately
-  const highPriorityResources = resources.filter(r => r.options?.priority === 'high');
-  
-  highPriorityResources.forEach(resource => {
-    if (resource.type === 'route') {
-      prefetchRoute(resource.loader, resource.key);
-    } else if (resource.type === 'api' && resource.loader) {
-      const { tableName, queryFn } = resource.loader;
-      prefetchApiData(tableName, queryFn, resource.key, resource.options);
-    } else if (resource.type === 'asset' && typeof resource.loader === 'string') {
-      prefetchAsset(resource.loader);
-    }
-  });
-  
-  // Process other resources during idle time
-  if ('requestIdleCallback' in window) {
-    const otherResources = resources.filter(r => r.options?.priority !== 'high');
-    
-    (window as any).requestIdleCallback(() => {
-      otherResources.forEach(resource => {
-        if (resource.type === 'route') {
-          prefetchRoute(resource.loader, resource.key);
-        } else if (resource.type === 'api' && resource.loader) {
-          const { tableName, queryFn } = resource.loader;
-          prefetchApiData(tableName, queryFn, resource.key, resource.options);
-        } else if (resource.type === 'asset' && typeof resource.loader === 'string') {
-          prefetchAsset(resource.loader);
-        }
-      });
-    }, { timeout: 2000 });
-  }
+  // Prefetch functionality disabled
+  return Promise.resolve();
 };
 
 /**
- * Prefetch an asset (image, CSS, etc.)
- * @param url The URL of the asset to prefetch
+ * Prefetch an asset - DISABLED
  */
 export const prefetchAsset = (url: string) => {
-  if (!url || !navigator.onLine) return;
-  
-  const link = document.createElement('link');
-  link.rel = 'prefetch';
-  link.href = url;
-  link.as = url.endsWith('.css') ? 'style' : 
-            url.endsWith('.js') ? 'script' : 
-            url.match(/\.(png|jpg|jpeg|gif|webp|svg)$/) ? 'image' : 
-            'fetch';
-  
-  document.head.appendChild(link);
+  // Prefetch functionality disabled
 };
 
 /**
- * Clear prefetch cache to avoid outdated data
+ * Clear prefetch cache - DISABLED
  */
 export const clearPrefetchCache = () => {
-  prefetchedRoutes.clear();
-  prefetchedQueries.clear();
-}; 
+  // Cache functionality disabled
+};

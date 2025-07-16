@@ -18,11 +18,8 @@ export function useAuth() {
   const [retryCount, setRetryCount] = useState(0);
 
   useEffect(() => {
-    const savedEmail = localStorage.getItem(SAVED_EMAIL_KEY);
-    if (savedEmail) {
-      setSavedEmail(savedEmail);
-    }
-    
+    // localStorage functionality removed - no saved email persistence
+
     checkSession();
     const { data: { subscription } } = supabase.auth.onAuthStateChange(handleAuthChange);
     return () => {
@@ -94,19 +91,13 @@ export function useAuth() {
   const handleInvalidSession = async () => {
     setUser(null);
     updateAuthStatus(false);
-    
-    localStorage.removeItem('supabase.auth.token');
-    localStorage.removeItem('nesttask_user');
-    sessionStorage.removeItem('supabase.auth.token');
-    
-    if (localStorage.getItem(REMEMBER_ME_KEY) !== 'true') {
-      localStorage.removeItem(SAVED_EMAIL_KEY);
-    }
-    
+
+    // localStorage and sessionStorage functionality removed
+
     document.cookie.split(";").forEach(function(c) {
       document.cookie = c.replace(/^ +/, "").replace(/=.*/, "=;expires=" + new Date().toUTCString() + ";path=/");
     });
-    
+
     // Clear caches without page reload
     forceCleanReload();
   };
@@ -193,13 +184,7 @@ export function useAuth() {
     try {
       setError(null);
       
-      if (rememberMe) {
-        localStorage.setItem(REMEMBER_ME_KEY, 'true');
-        localStorage.setItem(SAVED_EMAIL_KEY, credentials.email);
-      } else {
-        localStorage.removeItem(REMEMBER_ME_KEY);
-        localStorage.removeItem(SAVED_EMAIL_KEY);
-      }
+      // localStorage functionality removed - remember me feature disabled
       
       // Check for development mode more robustly
       const isDevelopment = import.meta.env.DEV || 
@@ -207,29 +192,7 @@ export function useAuth() {
                           window.location.hostname === 'localhost' ||
                           window.location.hostname === '127.0.0.1';
       
-      // Try to load demo user from localStorage first (for development mode)
-      if (isDevelopment && localStorage.getItem('nesttask_demo_user')) {
-        try {
-          const demoUser = JSON.parse(localStorage.getItem('nesttask_demo_user') || '{}');
-          if (demoUser && demoUser.email === credentials.email) {
-            console.log('Using cached demo user from localStorage:', demoUser);
-            setUser(demoUser);
-            updateAuthStatus(true);
-            
-            // Handle superadmin redirect for demo users too
-            if (demoUser.role === 'super-admin' || demoUser.email === 'superadmin@nesttask.com') {
-              console.log('Demo super admin detected');
-              localStorage.setItem('is_super_admin', 'true');
-              sessionStorage.setItem('is_super_admin', 'true');
-              localStorage.setItem('auth_completed', 'true');
-            }
-            
-            return demoUser;
-          }
-        } catch (err) {
-          console.warn('Failed to parse demo user from localStorage');
-        }
-      }
+      // Demo user localStorage functionality removed
       
       // Regular login process with the backend
       const user = await loginUser(credentials);
@@ -263,9 +226,7 @@ export function useAuth() {
           console.warn('Error fetching super admin data, using default values', err);
         }
         
-        localStorage.setItem('is_super_admin', 'true');
-        sessionStorage.setItem('is_super_admin', 'true');
-        localStorage.setItem('auth_completed', 'true');
+        // localStorage and sessionStorage functionality removed
         
         setUser(user);
         
@@ -380,12 +341,7 @@ export function useAuth() {
       
       console.log('Logout API call successful');
       
-      if (localStorage.getItem(REMEMBER_ME_KEY) !== 'true') {
-        localStorage.removeItem(SAVED_EMAIL_KEY);
-      }
-      
-      localStorage.removeItem('supabase.auth.token');
-      localStorage.removeItem('nesttask_user');
+      // localStorage functionality removed
       
       document.cookie.split(";").forEach(function(c) {
         document.cookie = c.replace(/^ +/, "").replace(/=.*/, "=;expires=" + new Date().toUTCString() + ";path=/");

@@ -1,17 +1,12 @@
 import { useState, useEffect } from 'react';
 
 export function useTheme() {
-  const [isDark, setIsDark] = useState(() => {
-    const saved = localStorage.getItem('dark-mode');
-    // Handle both string 'true'/'false' and serialized JSON boolean values
-    if (saved === 'true') return true;
-    if (saved === 'false') return false;
-    return saved ? JSON.parse(saved) : false;
-  });
+  // Default to light theme - no localStorage persistence
+  const [isDark, setIsDark] = useState(false);
 
   useEffect(() => {
     document.documentElement.classList.toggle('dark', isDark);
-    localStorage.setItem('dark-mode', JSON.stringify(isDark));
+    // localStorage persistence removed
   }, [isDark]);
 
   const toggle = () => setIsDark(!isDark);

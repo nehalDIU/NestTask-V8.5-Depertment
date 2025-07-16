@@ -42,10 +42,8 @@
     <link rel="dns-prefetch" href="https://fonts.gstatic.com" />
     <link rel="dns-prefetch" href="https://api.supabase.co" />
     
-    <!-- PWA assets -->
-    <link rel="icon" type="image/svg+xml" href="/icons/icon-192x192.png" />
-    <link rel="manifest" href="/manifest.json" crossorigin="use-credentials" />
-    <link rel="apple-touch-icon" href="/icons/icon-192x192.png" />
+    <!-- Basic favicon -->
+    <link rel="icon" type="image/svg+xml" href="/icons/favicon.svg" />
     
     <!-- Critical CSS inline for faster paint -->
     <style>
@@ -165,9 +163,8 @@
             return 'dark';
           }
         },
-        // Match system preference
+        // Match system preference (localStorage disabled)
         resetToSystem: function() {
-          localStorage.removeItem('dark-mode');
           const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
           if (prefersDark) {
             document.documentElement.classList.add('dark');

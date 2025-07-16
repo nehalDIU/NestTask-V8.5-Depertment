@@ -19,15 +19,14 @@ if (!supabaseUrl || !supabaseAnonKey) {
   throw new Error('Missing Supabase environment variables. Please click "Connect to Supabase" to set up your project.');
 }
 
-// Create optimized Supabase client with retry logic
+// Create Supabase client with session persistence disabled
 export const supabase = createClient<Database>(supabaseUrl, supabaseAnonKey, {
   auth: {
-    persistSession: true,
-    autoRefreshToken: true,
-    detectSessionInUrl: true,
+    persistSession: false,
+    autoRefreshToken: false,
+    detectSessionInUrl: false,
     flowType: 'pkce',
-    storage: localStorage,
-    storageKey: 'nesttask_supabase_auth',
+    storage: undefined,
   },
   global: {
     headers: {

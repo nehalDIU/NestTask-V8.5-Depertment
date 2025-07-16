@@ -1,10 +1,10 @@
-import { useState } from 'react';
-import { 
-  Upload, 
-  Plus, 
-  X, 
-  Link, 
-  Video, 
+import { useState, useEffect } from 'react';
+import {
+  Upload,
+  Plus,
+  X,
+  Link,
+  Video,
   FileText,
   AlertCircle,
   Trash2
@@ -40,6 +40,42 @@ export function LectureSlidesForm({
   const [newVideoLink, setNewVideoLink] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
+
+  // Update form state when initialData changes (for editing)
+  useEffect(() => {
+    if (initialData && isEditing) {
+      setLectureSlide({
+        title: initialData.title || '',
+        description: initialData.description || '',
+        sectionId: sectionId,
+        fileUrls: initialData.fileUrls || [],
+        originalFileNames: initialData.originalFileNames || [],
+        slideLinks: initialData.slideLinks || [],
+        videoLinks: initialData.videoLinks || []
+      });
+      // Clear any previous errors when switching to edit mode
+      setErrors({});
+      // Clear file input when editing (existing files are shown in fileUrls)
+      setFiles([]);
+      setNewSlideLink('');
+      setNewVideoLink('');
+    } else if (!isEditing) {
+      // Reset form when switching back to create mode
+      setLectureSlide({
+        title: '',
+        description: '',
+        sectionId: sectionId,
+        fileUrls: [],
+        originalFileNames: [],
+        slideLinks: [],
+        videoLinks: []
+      });
+      setFiles([]);
+      setNewSlideLink('');
+      setNewVideoLink('');
+      setErrors({});
+    }
+  }, [initialData, isEditing, sectionId]);
 
   const validateForm = (): boolean => {
     const newErrors: Record<string, string> = {};
@@ -112,6 +148,14 @@ export function LectureSlidesForm({
 
   const removeFile = (index: number) => {
     setFiles(prev => prev.filter((_, i) => i !== index));
+  };
+
+  const removeExistingFile = (index: number) => {
+    setLectureSlide(prev => ({
+      ...prev,
+      fileUrls: prev.fileUrls.filter((_, i) => i !== index),
+      originalFileNames: prev.originalFileNames.filter((_, i) => i !== index)
+    }));
   };
 
   const addSlideLink = () => {
@@ -202,9 +246,35 @@ export function LectureSlidesForm({
           </label>
           
           <div className="space-y-3">
+            {/* Existing Files (shown during editing) */}
+            {isEditing && lectureSlide.fileUrls.length > 0 && (
+              <div className="space-y-2">
+                <h4 className="text-sm font-medium text-gray-700 dark:text-gray-300">Existing Files:</h4>
+                {lectureSlide.fileUrls.map((fileUrl, index) => (
+                  <div key={`existing-${index}`} className="flex items-center justify-between p-3 bg-green-50 dark:bg-green-900/20 rounded-lg border border-green-200 dark:border-green-800">
+                    <div className="flex items-center gap-2">
+                      <FileText className="w-4 h-4 text-green-600 dark:text-green-400" />
+                      <span className="text-sm text-gray-700 dark:text-gray-300">
+                        {lectureSlide.originalFileNames[index] || `File ${index + 1}`}
+                      </span>
+                      <span className="text-xs text-green-600 dark:text-green-400">(existing)</span>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => removeExistingFile(index)}
+                      className="p-1 text-red-600 hover:bg-red-100 dark:hover:bg-red-900/20 rounded"
+                      title="Remove existing file"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+
             <label className="flex items-center gap-2 px-4 py-2 bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 rounded-lg cursor-pointer hover:bg-blue-100 dark:hover:bg-blue-900/30 transition-colors w-fit">
               <Upload className="w-5 h-5" />
-              <span>Upload Files</span>
+              <span>{isEditing ? 'Upload Additional Files' : 'Upload Files'}</span>
               <input
                 type="file"
                 multiple
@@ -213,9 +283,10 @@ export function LectureSlidesForm({
                 accept=".pdf,.doc,.docx,.txt,.rtf,.md,.ppt,.pptx,.xls,.xlsx,.jpg,.jpeg,.png,.gif,.svg"
               />
             </label>
-            
+
             {files.length > 0 && (
               <div className="space-y-2">
+                <h4 className="text-sm font-medium text-gray-700 dark:text-gray-300">New Files to Upload:</h4>
                 {files.map((file, index) => (
                   <div key={index} className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-700 rounded-lg">
                     <div className="flex items-center gap-2">

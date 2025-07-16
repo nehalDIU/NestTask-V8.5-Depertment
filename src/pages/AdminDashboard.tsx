@@ -527,17 +527,19 @@ export function AdminDashboard({
 
 
 
-  // Optimized auto-recovery for stuck loading states
+  // Optimized auto-recovery for stuck loading states - less aggressive
   useEffect(() => {
     let timeoutId: number;
 
-    // Only attempt recovery if we're on tasks tab and loading seems stuck
+    // Only attempt recovery if we're on tasks tab, loading seems stuck, and page is active
     if (activeTab === 'tasks' && tasksLoading && isPageActiveRef.current) {
       timeoutId = window.setTimeout(() => {
-        console.warn('Task loading appears stuck, attempting recovery');
-        // Use the optimized manual refresh
-        handleManualRefresh();
-      }, 20000); // Increased timeout to 20 seconds to be less aggressive
+        // Double-check conditions before recovery
+        if (activeTab === 'tasks' && tasksLoading && isPageActiveRef.current) {
+          console.warn('Task loading appears stuck, attempting recovery');
+          handleManualRefresh();
+        }
+      }, 30000); // Increased timeout to 30 seconds to be much less aggressive
     }
 
     return () => {
@@ -625,13 +627,14 @@ export function AdminDashboard({
                 onCreateTask={handleCreateTask}
                 onDeleteTask={onDeleteTask}
                 onUpdateTask={onUpdateTask}
-                  showTaskForm={showTaskForm}
+                showTaskForm={showTaskForm}
                 sectionId={sectionId}
                 isSectionAdmin={isSectionAdmin}
-                  isLoading={tasksLoading || isRefreshing}
-              isCreatingTask={isCreatingTask}
-              onTaskCreateStart={() => setIsCreatingTask(true)}
-              onTaskCreateEnd={() => setIsCreatingTask(false)}
+                isLoading={tasksLoading || isRefreshing}
+                isCreatingTask={isCreatingTask}
+                onTaskCreateStart={() => setIsCreatingTask(true)}
+                onTaskCreateEnd={() => setIsCreatingTask(false)}
+                onRefresh={handleManualRefresh}
               />
               </>
             )}

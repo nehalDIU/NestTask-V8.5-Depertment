@@ -263,6 +263,9 @@ export function useTasks(userId: string | undefined) {
     }
 
     if (!isOffline) {
+      // Debounced realtime subscription to prevent excessive refreshes
+      let realtimeTimeout: number | null = null;
+
       const subscription = supabase
         .channel('tasks_channel')
         .on('postgres_changes', {
@@ -272,37 +275,47 @@ export function useTasks(userId: string | undefined) {
           filter: `user_id=eq.${userId}`
         }, () => {
           if (isMountedRef.current) {
-            loadTasks();
+            // Debounce realtime updates to prevent rapid-fire refreshes
+            if (realtimeTimeout) {
+              clearTimeout(realtimeTimeout);
+            }
+
+            realtimeTimeout = window.setTimeout(() => {
+              if (isMountedRef.current && !loadingRef.current) {
+                loadTasks();
+              }
+            }, 1000); // 1 second debounce
           }
         })
         .subscribe();
 
-      // Enhanced visibility change handler with fallback mechanism
+      // Optimized visibility change handler to prevent excessive refreshes
       const handleVisibilityChange = () => {
         if (document.visibilityState === 'visible') {
+          const now = Date.now();
+          const timeSinceLastLoad = now - lastLoadTimeRef.current;
+
           // Always reset stuck state on tab focus
           if (loadingRef.current) {
             console.log('Resetting loading state on visibility change');
             loadingRef.current = false;
           }
-          
-          // Check if we're in a loading state for too long (possible abandoned request)
-          const isStuck = Date.now() - lastLoadTimeRef.current > 20000;
-          
-          if (isStuck || tabSwitchRecoveryRef.current) {
+
+          // Only refresh if we've been away for more than 5 minutes to prevent excessive refreshes
+          if (timeSinceLastLoad > 300000) { // 5 minutes
+            console.log('Page visible after long absence, refreshing tasks');
+            loadTasks({ force: true });
+          } else if (tabSwitchRecoveryRef.current) {
+            // Only force refresh if we're in recovery mode
             console.warn('Task loading needs recovery, forcing refresh');
-            // Force refresh with the force option
             loadTasks({ force: true });
           } else {
-            // Normal refresh when page becomes visible, but only if cache is stale
-            const now = Date.now();
+            // Check cache staleness only if we haven't refreshed recently
             if (tasksCache.has(userId)) {
               const cachedData = tasksCache.get(userId)!;
-              if (now - cachedData.timestamp > CACHE_TTL) {
+              if (now - cachedData.timestamp > CACHE_TTL && timeSinceLastLoad > 60000) { // 1 minute minimum
                 loadTasks();
               }
-            } else {
-              loadTasks();
             }
           }
         }
@@ -325,6 +338,12 @@ export function useTasks(userId: string | undefined) {
       return () => {
         // Mark component as unmounted
         isMountedRef.current = false;
+
+        // Cleanup realtime timeout
+        if (realtimeTimeout) {
+          clearTimeout(realtimeTimeout);
+        }
+
         // Clean up
         subscription.unsubscribe();
         document.removeEventListener('visibilitychange', handleVisibilityChange);

@@ -1,13 +1,12 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { TaskForm } from './task/TaskForm';
 import { TaskTable } from './task/TaskTable';
-import { 
-  Plus, 
-  ChevronUp, 
-  ChevronDown, 
-  Filter, 
-  SortAsc, 
-  SortDesc, 
+import {
+  Plus,
+  ChevronUp,
+  Filter,
+  SortAsc,
+  SortDesc,
   Download,
   Search,
   X,
@@ -17,8 +16,6 @@ import {
   RotateCcw,
   List,
   LayoutGrid,
-  ChevronLeft,
-  ChevronRight,
   RefreshCw
 } from 'lucide-react';
 import type { Task } from '../../types';
@@ -37,6 +34,7 @@ interface TaskManagerProps {
   isCreatingTask?: boolean;
   onTaskCreateStart?: () => void;
   onTaskCreateEnd?: () => void;
+  onRefresh?: () => void;
 }
 
 // Helper type for consolidated filters
@@ -54,10 +52,10 @@ interface SortConfig {
   order: 'asc' | 'desc';
 }
 
-export function TaskManager({ 
-  tasks, 
-  onCreateTask, 
-  onDeleteTask, 
+export function TaskManager({
+  tasks,
+  onCreateTask,
+  onDeleteTask,
   onUpdateTask,
   showTaskForm: initialShowTaskForm = false,
   sectionId,
@@ -65,13 +63,14 @@ export function TaskManager({
   isLoading = false,
   isCreatingTask = false,
   onTaskCreateStart,
-  onTaskCreateEnd
+  onTaskCreateEnd,
+  onRefresh
 }: TaskManagerProps) {
   // Main UI state - consolidated for better performance
   const [showTaskForm, setShowTaskForm] = useState(true);
   const [showFilters, setShowFilters] = useState(false);
   const [viewMode, setViewMode] = useState<'table' | 'grid'>('table');
-  
+
   // Consolidated filter state
   const [filters, setFilters] = useState<TaskFilters>({
     category: 'all',
@@ -80,33 +79,48 @@ export function TaskManager({
     startDate: '',
     endDate: ''
   });
-  
+
   // Consolidated sort state
   const [sort, setSort] = useState<SortConfig>({
     by: 'createdAt',
     order: 'desc'
   });
-  
+
   // Bulk operations
   const [selectedTaskIds, setSelectedTaskIds] = useState<string[]>([]);
   const [isProcessingBulk, setIsProcessingBulk] = useState(false);
-  
-  // Local state for optimistic UI updates
-  const [localTasks, setLocalTasks] = useState<Task[]>(tasks);
-  
+
+  // Optimized local state management
+  const [localTasks, setLocalTasks] = useState<Task[]>([]);
+  const [lastTasksUpdate, setLastTasksUpdate] = useState<number>(0);
+
   // Debounce search input
   const searchTimeoutRef = useRef<number | null>(null);
   const [debouncedSearchTerm, setDebouncedSearchTerm] = useState('');
+
+  // Refs for performance optimization
+  const isUpdatingRef = useRef<boolean>(false);
+  const lastPropsTasksRef = useRef<Task[]>([]);
   
   // Force showTaskForm state to match prop when it changes
   useEffect(() => {
     setShowTaskForm(true);
   }, [initialShowTaskForm]);
 
-  // Update local tasks when props change
+  // Optimized task update logic to prevent unnecessary re-renders
   useEffect(() => {
-    setLocalTasks(tasks);
-  }, [tasks]);
+    // Only update if tasks actually changed and we're not in the middle of an update
+    if (!isUpdatingRef.current && tasks !== lastPropsTasksRef.current) {
+      const now = Date.now();
+
+      // Prevent rapid updates by debouncing
+      if (now - lastTasksUpdate > 100) {
+        setLocalTasks(tasks);
+        setLastTasksUpdate(now);
+        lastPropsTasksRef.current = tasks;
+      }
+    }
+  }, [tasks, lastTasksUpdate]);
   
   // Debounced search - optimized
   useEffect(() => {
@@ -198,85 +212,37 @@ export function TaskManager({
     });
   }, [filteredTasks, sort.by, sort.order]);
   
-  // Handle task creation with optimistic update and better error handling - optimized
+  // Optimized task creation with better state management
   const handleCreateTask = useCallback(async (task: NewTask) => {
-    // Generate a unique temporary ID to track this optimistic update
-    const tempId = `temp-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
-    
+    // Prevent multiple simultaneous creations
+    if (isUpdatingRef.current) {
+      console.log('Task creation already in progress');
+      return;
+    }
+
+    isUpdatingRef.current = true;
+
     try {
       // Notify the parent component that task creation is starting
       onTaskCreateStart?.();
-      
-      // Check for mobile files
-      const mobileFiles = (task as any)._mobileFiles;
-      const isMobileUpload = !!mobileFiles && mobileFiles.length > 0;
-      const isSectionAdminMobile = !!(task as any)._isSectionAdminMobile;
-      
-      // Add a timeout to prevent infinite "creating" state
-      let timeoutId: number | null = null;
-      
-      if (isMobileUpload) {
-        // Set a timeout to clear the optimistic update if it takes too long
-        timeoutId = window.setTimeout(() => {
-          // Remove optimistic task on timeout
-          setLocalTasks(prev => prev.filter(t => t.id !== tempId));
-          showErrorToast('Task submission is taking longer than expected. Please check tasks list later to confirm if it was created.');
-          // Notify the parent component that task creation has ended
-          onTaskCreateEnd?.();
-        }, 30000); // 30 seconds timeout
-      }
-      
+
       // Clone task to prevent modifying the original
       const taskToProcess = { ...task };
-      
+
       // If section admin, automatically associate with section
       if (isSectionAdmin && sectionId) {
         const enhancedTask = {
           ...taskToProcess,
           sectionId
         };
-        
-        // For section admin mobile uploads, add extra metadata
-        if (isMobileUpload && isSectionAdminMobile) {
-          (enhancedTask as any)._isSectionAdminMobile = true;
-          (enhancedTask as any)._sectionId = sectionId;
-        }
-        
-        // Create temporary optimistic task
-        const optimisticTask: Task = {
-          id: tempId,
-          ...enhancedTask,
-          createdAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString(),
-          assignedBy: 'Pending...',
-          assignedById: '',
-          status: enhancedTask.status || 'in-progress',
-          isAdminTask: true
-        };
-        
-        // Add to local tasks for optimistic UI update
-        setLocalTasks(prev => [optimisticTask, ...prev]);
-        
-        // Submit to the server
-        try {
-          await onCreateTask(isSectionAdmin && sectionId ? enhancedTask : taskToProcess, sectionId);
-          if (timeoutId) clearTimeout(timeoutId);
-          
-          // Remove temporary task
-          setLocalTasks(prev => prev.filter(t => t.id !== tempId));
-          showSuccessToast('Task created successfully');
-        } catch (error) {
-          // Remove temporary task on error
-          setLocalTasks(prev => prev.filter(t => t.id !== tempId));
-          showErrorToast('Failed to create task. Please try again.');
-          if (timeoutId) clearTimeout(timeoutId);
-        }
+
+        // Submit to the server without optimistic updates to prevent conflicts
+        await onCreateTask(enhancedTask, sectionId);
       } else {
         // Standard task creation flow
         await onCreateTask(taskToProcess);
-        if (isMobileUpload && timeoutId) clearTimeout(timeoutId);
       }
-      
+
       // Reset filters on successful task creation to show the new task
       setFilters({
         category: 'all',
@@ -285,126 +251,154 @@ export function TaskManager({
         endDate: '',
         search: ''
       });
-      
-    } catch (error) {
-      showErrorToast('Failed to create task. Please try again.');
+
+      showSuccessToast('Task created successfully');
+
+    } catch (error: any) {
+      console.error('Error creating task:', error);
+      showErrorToast(`Failed to create task: ${error.message || 'Please try again.'}`);
     } finally {
+      isUpdatingRef.current = false;
       // Always notify the parent component that task creation has ended
       onTaskCreateEnd?.();
     }
   }, [isSectionAdmin, onCreateTask, sectionId, onTaskCreateStart, onTaskCreateEnd]);
   
-  // Handle task deletion with optimistic update - optimized
+  // Optimized task deletion without aggressive optimistic updates
   const handleDeleteTask = useCallback(async (taskId: string) => {
+    if (isUpdatingRef.current) return;
+
+    isUpdatingRef.current = true;
+
     try {
-      // Optimistically remove task from local state
-      setLocalTasks(prev => prev.filter(t => t.id !== taskId));
-      
-      // Make API call
+      // Make API call first to ensure it succeeds
       await onDeleteTask(taskId);
+
+      // Only update local state after successful API call
+      setLocalTasks(prev => prev.filter(t => t.id !== taskId));
       showSuccessToast('Task deleted successfully');
     } catch (error: any) {
-      showErrorToast(`Error deleting task: ${error.message}`);
-      
-      // Refresh tasks to restore state on error
-      setLocalTasks(tasks);
+      console.error('Error deleting task:', error);
+      showErrorToast(`Error deleting task: ${error.message || 'Please try again.'}`);
+    } finally {
+      isUpdatingRef.current = false;
     }
-  }, [onDeleteTask, tasks]);
-  
-  // Handle task update with optimistic update - optimized
+  }, [onDeleteTask]);
+
+  // Optimized task update without aggressive optimistic updates
   const handleUpdateTask = useCallback(async (taskId: string, updates: Partial<Task>) => {
+    if (isUpdatingRef.current) return;
+
+    isUpdatingRef.current = true;
+
     try {
-      // Update task optimistically
-      setLocalTasks(prev => 
-        prev.map(t => t.id === taskId 
-          ? { ...t, ...updates, updatedAt: new Date().toISOString() } 
+      // Make API call first to ensure it succeeds
+      await onUpdateTask(taskId, updates);
+
+      // Only update local state after successful API call
+      setLocalTasks(prev =>
+        prev.map(t => t.id === taskId
+          ? { ...t, ...updates, updatedAt: new Date().toISOString() }
           : t
         )
       );
-      
-      // Make API call
-      await onUpdateTask(taskId, updates);
       showSuccessToast('Task updated successfully');
     } catch (error: any) {
-      showErrorToast(`Error updating task: ${error.message}`);
-      
-      // Refresh tasks to restore state on error
-      setLocalTasks(tasks);
+      console.error('Error updating task:', error);
+      showErrorToast(`Error updating task: ${error.message || 'Please try again.'}`);
+    } finally {
+      isUpdatingRef.current = false;
     }
-  }, [onUpdateTask, tasks]);
+  }, [onUpdateTask]);
   
-  // Handle bulk task deletion - optimized with proper error handling
+  // Optimized bulk task deletion with better error handling
   const handleBulkDelete = async () => {
-    if (!selectedTaskIds.length) return;
-    
+    if (!selectedTaskIds.length || isProcessingBulk) return;
+
     try {
       setIsProcessingBulk(true);
-      
-      // Optimistically remove tasks from local state
-      setLocalTasks(prev => prev.filter(t => !selectedTaskIds.includes(t.id)));
-      
-      // Process in smaller batches for better mobile performance
-      const chunkSize = window.innerWidth < 768 ? 3 : 5;
-      const chunks = [];
-      for (let i = 0; i < selectedTaskIds.length; i += chunkSize) {
-        chunks.push(selectedTaskIds.slice(i, i + chunkSize));
+
+      // Process deletions sequentially to avoid overwhelming the server
+      let successCount = 0;
+      const errors: string[] = [];
+
+      for (const taskId of selectedTaskIds) {
+        try {
+          await onDeleteTask(taskId);
+          successCount++;
+
+          // Update local state incrementally for better UX
+          setLocalTasks(prev => prev.filter(t => t.id !== taskId));
+        } catch (error: any) {
+          errors.push(`Task ${taskId}: ${error.message}`);
+        }
       }
-      
-      for (const chunk of chunks) {
-        await Promise.all(chunk.map(id => onDeleteTask(id)));
+
+      // Show appropriate success/error messages
+      if (successCount > 0) {
+        showSuccessToast(`${successCount} tasks deleted successfully`);
       }
-      
-      showSuccessToast(`${selectedTaskIds.length} tasks deleted successfully`);
+
+      if (errors.length > 0) {
+        showErrorToast(`Failed to delete ${errors.length} tasks`);
+      }
+
       setSelectedTaskIds([]);
     } catch (error: any) {
-      showErrorToast(`Error deleting tasks: ${error.message}`);
-      
-      // Refresh tasks to restore state on error
-      setLocalTasks(tasks);
+      showErrorToast(`Error deleting tasks: ${error.message || 'Please try again.'}`);
     } finally {
       setIsProcessingBulk(false);
     }
   };
   
-  // Handle bulk task status update - optimized
+  // Optimized bulk task status update with better error handling
   const handleBulkStatusUpdate = async (status: TaskStatus) => {
-    if (selectedTaskIds.length === 0) return;
-    
+    if (selectedTaskIds.length === 0 || isProcessingBulk) return;
+
     setIsProcessingBulk(true);
-    
+
     try {
-      // Update local state immediately (optimistic UI)
-      setLocalTasks(prev => prev.map(task => {
-        if (selectedTaskIds.includes(task.id)) {
-          return {
-            ...task,
+      // Process updates sequentially to avoid overwhelming the server
+      let successCount = 0;
+      const errors: string[] = [];
+
+      for (const taskId of selectedTaskIds) {
+        try {
+          await onUpdateTask(taskId, {
             status,
             updatedAt: new Date().toISOString()
-          };
+          });
+          successCount++;
+
+          // Update local state incrementally for better UX
+          setLocalTasks(prev => prev.map(task => {
+            if (task.id === taskId) {
+              return {
+                ...task,
+                status,
+                updatedAt: new Date().toISOString()
+              };
+            }
+            return task;
+          }));
+        } catch (error: any) {
+          errors.push(`Task ${taskId}: ${error.message}`);
         }
-        return task;
-      }));
-      
-      // Process each task sequentially for better reliability on mobile
-      const chunkSize = window.innerWidth < 768 ? 3 : 5;
-      const chunks = [];
-      for (let i = 0; i < selectedTaskIds.length; i += chunkSize) {
-        chunks.push(selectedTaskIds.slice(i, i + chunkSize));
       }
-      
-      for (const chunk of chunks) {
-        await Promise.all(chunk.map(id => onUpdateTask(id, { 
-          status,
-          updatedAt: new Date().toISOString()
-        })));
+
+      // Show appropriate success/error messages
+      if (successCount > 0) {
+        showSuccessToast(`Updated ${successCount} tasks to ${status}`);
       }
-      
-      showSuccessToast(`Updated ${selectedTaskIds.length} tasks to ${status}`);
-      
+
+      if (errors.length > 0) {
+        showErrorToast(`Failed to update ${errors.length} tasks`);
+      }
+
       // Clear selection after the operation is complete
       setSelectedTaskIds([]);
     } catch (error: any) {
-      showErrorToast(`Error updating task status: ${error.message}`);
+      showErrorToast(`Error updating task status: ${error.message || 'Please try again.'}`);
     } finally {
       setIsProcessingBulk(false);
     }
@@ -584,6 +578,18 @@ export function TaskManager({
                 <Download className="w-3.5 h-3.5 sm:w-4 sm:h-4 mr-1" />
                 <span className="hidden xs:inline">Export</span>
               </button>
+
+              {onRefresh && (
+                <button
+                  className="inline-flex items-center justify-center px-3 sm:px-4 py-1.5 sm:py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700 transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
+                  onClick={onRefresh}
+                  disabled={isLoading}
+                  title="Refresh tasks"
+                >
+                  <RefreshCw className={`w-3.5 h-3.5 sm:w-4 sm:h-4 mr-1 ${isLoading ? 'animate-spin' : ''}`} />
+                  <span className="hidden xs:inline">Refresh</span>
+                </button>
+              )}
             </div>
 
             {/* Right Side Search - responsive width */}

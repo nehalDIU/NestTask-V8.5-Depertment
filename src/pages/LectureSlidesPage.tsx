@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Search, Filter, FileText, Calendar, User, AlertTriangle } from 'lucide-react';
+import { Search, Filter, FileText, User, AlertTriangle } from 'lucide-react';
 import { LectureSlidesGrid } from '../components/lecture-slides/LectureSlidesGrid';
 import { LoadingScreen } from '../components/LoadingScreen';
 import { fetchLectureSlides } from '../services/lectureSlide.service';

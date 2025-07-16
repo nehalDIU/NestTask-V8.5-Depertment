@@ -1,12 +1,7 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
-import { X, Tag, Calendar, AlignLeft, Link2, Upload, CheckCircle, AlertCircle, ChevronDown, FileText, Paperclip, Eye, Edit3, Info, Link, ExternalLink, Plus } from 'lucide-react';
+import { useState, useEffect, useRef } from 'react';
+import { X, Save, Calendar, Tag, FileText, Paperclip, Upload, Trash2, ExternalLink } from 'lucide-react';
 import type { Task } from '../../../types';
-import type { TaskPriority } from '../../../types/task';
-import {
-  isValidGoogleDriveUrl,
-  normalizeGoogleDriveUrl,
-  getGoogleDriveResourceType
-} from '../../../utils/googleDriveUtils';
+import { supabase } from '../../../lib/supabase';
 
 interface TaskEditModalProps {
   task: Task;
@@ -15,1089 +10,668 @@ interface TaskEditModalProps {
   isSectionAdmin?: boolean;
 }
 
-export function TaskEditModal({ task, onClose, onUpdate, isSectionAdmin = false }: TaskEditModalProps) {
-  const [formData, setFormData] = useState<Partial<Task>>({
-    name: task.name,
-    category: task.category,
-    dueDate: task.dueDate,
-    description: task.description,
-    status: task.status,
-    googleDriveLinks: task.googleDriveLinks || []
+interface AttachmentFile {
+  name: string;
+  url: string;
+  path?: string;
+}
+
+export function TaskEditModal({ task, onClose, onUpdate }: TaskEditModalProps) {
+  // Extract existing attachments from description
+  const extractAttachments = (description: string): AttachmentFile[] => {
+    if (!description) return [];
+
+    const attachments: AttachmentFile[] = [];
+
+    // Match attachment links like "- [filename.pdf](url)" or "[filename.pdf](url)"
+    const attachmentRegex = /(?:^- |\n- )?\[([^\]]+)\]\(([^)]+)\)/g;
+    let match;
+
+    while ((match = attachmentRegex.exec(description)) !== null) {
+      const [, filename, url] = match;
+      // Only include actual file attachments (has file extension or storage URL)
+      if (url.includes('supabase.co/storage') || url.includes('task-attachments') || filename.match(/\.[a-zA-Z0-9]+$/)) {
+        // Extract path from URL for deletion
+        const pathMatch = url.match(/task-files\/([^?]+)/);
+        const path = pathMatch ? pathMatch[1] : undefined;
+
+        attachments.push({
+          name: filename,
+          url: url,
+          path: path
+        });
+      }
+    }
+
+    return attachments;
+  };
+
+  // Clean description by removing attachment links and metadata
+  const cleanDescription = (description: string) => {
+    if (!description) return '';
+
+    // Remove attachment links
+    let cleaned = description.replace(/(?:^- |\n- )?\[([^\]]+)\]\(([^)]+)\)/g, (match, filename, url) => {
+      // Only remove if it's a file attachment
+      if (url.includes('supabase.co/storage') || url.includes('task-attachments') || filename.match(/\.[a-zA-Z0-9]+$/)) {
+        return '';
+      }
+      return match; // Keep non-file links
+    });
+
+    // Remove attachment sections
+    cleaned = cleaned.replace(/\n*\*\*Attachments:\*\*\n*((?:- \[.*?\]\(.*?\)\n*)*)/g, '');
+
+    // Remove links sections
+    cleaned = cleaned.replace(/\n*\*\*Links:\*\*\n*((?:- \[.*?\]\(.*?\)\n*)*)/g, '');
+
+    // Remove section ID references
+    cleaned = cleaned.replace(/\*This task is assigned to section ID: [a-f0-9-]+\*/g, '');
+
+    // Clean up extra whitespace and newlines
+    cleaned = cleaned.replace(/\n{3,}/g, '\n\n').replace(/^\n+|\n+$/g, '').trim();
+
+    return cleaned;
+  };
+
+  const [formData, setFormData] = useState({
+    name: task.name || '',
+    category: task.category || 'task',
+    dueDate: task.dueDate || '',
+    description: cleanDescription(task.description || ''),
+    status: task.status || 'my-tasks'
   });
 
-  const [errors, setErrors] = useState<Record<string, string>>({});
-  const [files, setFiles] = useState<File[]>([]);
-  const [fileUrls, setFileUrls] = useState<string[]>([]);
-  const [attachments, setAttachments] = useState<string[]>([]);
-  const [linkInput, setLinkInput] = useState('');
-  const [links, setLinks] = useState<string[]>([]);
-  const [googleDriveLinks, setGoogleDriveLinks] = useState<string[]>(task.googleDriveLinks || []);
-  const [currentGoogleDriveLink, setCurrentGoogleDriveLink] = useState('');
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [showSuccess, setShowSuccess] = useState(false);
-  const [showAdvanced, setShowAdvanced] = useState(false);
-  const [showPreview, setShowPreview] = useState(false);
-  const [isKeyboardUser, setIsKeyboardUser] = useState(false);
-  const [touchStart, setTouchStart] = useState<{x: number, y: number} | null>(null);
-  
-  const modalRef = useRef<HTMLDivElement>(null);
-  const nameInputRef = useRef<HTMLInputElement>(null);
-  
-  // Focus first input on mount for better keyboard accessibility
-  useEffect(() => {
-    setTimeout(() => {
-      if (nameInputRef.current) {
-        nameInputRef.current.focus();
-      }
-    }, 100);
-  }, []);
-  
-  // Add improved mobile touch detection
-  useEffect(() => {
-    const detectMobile = () => {
-      return (
-        /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(
-          navigator.userAgent
-        ) || window.innerWidth < 768
-      );
-    };
-    
-    const isMobile = detectMobile();
-    
-    // Add mobile-specific class to body when modal is open
-    if (isMobile) {
-      document.body.classList.add('modal-open-mobile');
-    }
-    
-    return () => {
-      document.body.classList.remove('modal-open-mobile');
-    };
-  }, []);
-  
-  // Enhance touch handling for better mobile UX
-  const handleTouchStart = (e: React.TouchEvent) => {
-    if (e.touches.length === 1) {
-      setTouchStart({
-        x: e.touches[0].clientX,
-        y: e.touches[0].clientY
-      });
-    }
-  };
-  
-  const handleTouchMove = (e: React.TouchEvent) => {
-    if (!touchStart || e.touches.length !== 1) return;
-    
-    const touchY = e.touches[0].clientY;
-    const deltaY = touchStart.y - touchY;
-    
-    // If scrolling up, prevent closing
-    if (deltaY > 0) return;
-    
-    // For downward swipes, add some resistance
-    const resistance = 0.4;
-    const translateY = Math.min(Math.abs(deltaY) * resistance, 150);
-    
-    if (modalRef.current) {
-      modalRef.current.style.transform = `translateY(${translateY}px)`;
-      modalRef.current.style.transition = 'none';
-    }
-  };
-  
-  const handleTouchEnd = (e: React.TouchEvent) => {
-    if (!touchStart || !modalRef.current) return;
-    
-    // Reset the modal position with a smooth transition
-    modalRef.current.style.transform = '';
-    modalRef.current.style.transition = 'transform 0.3s ease-out';
-    
-    const touchEndY = e.changedTouches[0].clientY;
-    const deltaY = touchStart.y - touchEndY;
-    
-    // If swiped down far enough, close the modal
-    if (deltaY < -100) {
-      onClose();
-    }
-    
-    setTouchStart(null);
-  };
-  
-  // Store form elements to restore focus
-  const formElementRefs = useRef<Record<string, HTMLElement | null>>({});
-  
-  const storeRef = useCallback((el: HTMLElement | null, name: string) => {
-    if (el) {
-      formElementRefs.current[name] = el;
-    }
-  }, []);
-  
-  // Extract existing attachments from description and clean description
-  useEffect(() => {
-    if (task.description) {
-      const regex = /\[([^\]]+)\]\(([^)]+)\)/g;
-      const matches: string[] = [];
-      const existingLinks: string[] = [];
-      
-      // Replace description with clean version (without attachment links)
-      let cleanDescription = task.description.replace(
-        /\n\n\*\*Attachments:\*\*\n((?:- \[[^\]]+\]\([^)]+\)\n)*)/g, 
-        ''
-      ).replace(
-        /\n\n\*\*Links:\*\*\n((?:- \[[^\]]+\]\([^)]+\)\n)*)/g, 
-        ''
-      ).trim();
-      
-      // Extract section ID from description
-      const sectionIdRegex = /\*This task is assigned to section ID: ([a-f0-9-]+)\*/g;
-      const sectionIdMatch = sectionIdRegex.exec(cleanDescription);
-      
-      if (sectionIdMatch) {
-        // Remove the section ID line from the description
-        cleanDescription = cleanDescription.replace(sectionIdRegex, '').trim();
-      }
-      
-      // Check for inline attachment references
-      const inlineAttachmentRegex = /\[([^\]]+)\]\(attachment:([^)]+)\)/g;
-      let inlineMatch;
-      
-      while ((inlineMatch = inlineAttachmentRegex.exec(cleanDescription)) !== null) {
-        const [fullMatch, text] = inlineMatch;
-        // If there's an inline attachment reference, extract it and remove from description
-        if (!matches.includes(text)) {
-          matches.push(text);
-        }
-        cleanDescription = cleanDescription.replace(fullMatch, '').trim();
-      }
-      
-      // Extract links and attachments separately from the full description
-      let match;
-      while ((match = regex.exec(task.description)) !== null) {
-        const [fullMatch, text, url] = match;
-        
-        if (url.startsWith('attachment:')) {
-          // Extract attachment references that might not have been caught above
-          if (!matches.includes(text)) {
-            matches.push(text);
-          }
-        } else if (!url.startsWith('attachment:') && text === url) {
-          existingLinks.push(url);
-        }
-      }
-      
-      setAttachments(matches);
-      setLinks(existingLinks);
-      setFormData(prev => ({ ...prev, description: cleanDescription }));
-    }
-  }, [task.description]);
+  const [existingAttachments, setExistingAttachments] = useState<AttachmentFile[]>(
+    extractAttachments(task.description || '')
+  );
+  const [newAttachments, setNewAttachments] = useState<File[]>([]);
+  const [uploadProgress, setUploadProgress] = useState<Record<string, number>>({});
+  const [isLoading, setIsLoading] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Detect keyboard users for focus styles
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Tab') {
-        setIsKeyboardUser(true);
-      }
-    };
-
-    const handleMouseDown = () => {
-      setIsKeyboardUser(false);
-    };
-
-    window.addEventListener('keydown', handleKeyDown);
-    window.addEventListener('mousedown', handleMouseDown);
-
-    return () => {
-      window.removeEventListener('keydown', handleKeyDown);
-      window.removeEventListener('mousedown', handleMouseDown);
-    };
-  }, []);
-  
-  // Validation function
-  const validate = useCallback((): boolean => {
-    const newErrors: Record<string, string> = {};
-    let isValid = true;
-    
-    if (!formData.name?.trim()) {
-      newErrors.name = 'Task name is required';
-      isValid = false;
-    }
-    
-    if (!formData.dueDate) {
-      newErrors.dueDate = 'Due date is required';
-      isValid = false;
-    } else {
-      const selectedDate = new Date(formData.dueDate);
-      const today = new Date();
-      today.setHours(0, 0, 0, 0);
-      
-      if (selectedDate < today && formData.status !== 'completed') {
-        newErrors.dueDate = 'Due date cannot be in the past for non-completed tasks';
-        isValid = false;
-      }
-    }
-    
-    if (!formData.description?.trim()) {
-      newErrors.description = 'Description is required';
-      isValid = false;
-    }
-    
-    setErrors(newErrors);
-    return isValid;
-  }, [formData]);
-  
-  // Handle input changes
-  const handleChange = useCallback((e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
-    const { name, value } = e.target;
-    
-    // Special handling for due date on mobile
-    if (name === 'dueDate' && value) {
-      try {
-        // Validate date format
-        const date = new Date(value);
-        if (isNaN(date.getTime())) {
-          setErrors(prev => ({
-            ...prev,
-            [name]: 'Please enter a valid date'
-          }));
-          return;
-        }
-      } catch (error) {
-        console.error('Date parsing error:', error);
-        setErrors(prev => ({
-          ...prev,
-          [name]: 'Invalid date format'
-        }));
-        return;
-      }
-    }
-    
-    setFormData(prev => ({
-      ...prev,
-      [name]: value,
-    }));
-    
-    // Clear error when user types
-    if (errors[name]) {
-      setErrors(prev => ({
-        ...prev,
-        [name]: '',
-      }));
-    }
-    
-    // Provide haptic feedback on mobile if available
-    if ('vibrate' in navigator && 'ontouchstart' in window) {
-      try {
-        navigator.vibrate(5); // Subtle feedback
-      } catch (e) {
-        // Ignore if vibration API not available
-      }
-    }
-  }, [errors]);
-  
-  // Add link
-  const addLink = useCallback(() => {
-    if (linkInput.trim() && !links.includes(linkInput)) {
-      setLinks(prev => [...prev, linkInput]);
-      setLinkInput('');
-    }
-  }, [linkInput, links]);
-
-  // Google Drive link handlers
-  const addGoogleDriveLink = useCallback(() => {
-    const trimmedLink = currentGoogleDriveLink.trim();
-
-    if (!trimmedLink) {
-      setErrors(prev => ({
-        ...prev,
-        googleDriveLinks: 'Please enter a Google Drive link'
-      }));
-      return;
-    }
-
-    if (!isValidGoogleDriveUrl(trimmedLink)) {
-      setErrors(prev => ({
-        ...prev,
-        googleDriveLinks: 'Please enter a valid Google Drive URL'
-      }));
-      return;
-    }
-
-    const normalizedLink = normalizeGoogleDriveUrl(trimmedLink);
-    if (googleDriveLinks.includes(normalizedLink)) {
-      setErrors(prev => ({
-        ...prev,
-        googleDriveLinks: 'This Google Drive link has already been added'
-      }));
-      return;
-    }
-
-    setGoogleDriveLinks(prev => [...prev, normalizedLink]);
-    setFormData(prev => ({
-      ...prev,
-      googleDriveLinks: [...(prev.googleDriveLinks || []), normalizedLink]
-    }));
-    setCurrentGoogleDriveLink('');
-
-    // Clear any errors
-    if (errors.googleDriveLinks) {
-      setErrors(prev => ({
-        ...prev,
-        googleDriveLinks: ''
-      }));
-    }
-  }, [currentGoogleDriveLink, googleDriveLinks, errors.googleDriveLinks]);
-
-  const removeGoogleDriveLink = useCallback((index: number) => {
-    const newLinks = googleDriveLinks.filter((_, i) => i !== index);
-    setGoogleDriveLinks(newLinks);
-    setFormData(prev => ({
-      ...prev,
-      googleDriveLinks: newLinks
-    }));
-  }, [googleDriveLinks]);
-
-  const handleGoogleDriveLinkKeyPress = useCallback((e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === 'Enter') {
-      e.preventDefault();
-      addGoogleDriveLink();
-    }
-  }, [addGoogleDriveLink]);
-  
-  // Remove link
-  const removeLink = useCallback((index: number) => {
-    setLinks(prev => prev.filter((_, i) => i !== index));
-  }, []);
-  
-  // Handle file upload
-  const handleFileUpload = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files) {
-      const newFiles = Array.from(e.target.files);
-      setFiles(prev => [...prev, ...newFiles]);
-      
-      // Create temporary URLs for display
-      const newUrls = newFiles.map(file => URL.createObjectURL(file));
-      setFileUrls(prev => [...prev, ...newUrls]);
-    }
-  }, []);
-  
-  // Remove file
-  const removeFile = useCallback((index: number) => {
-    if (fileUrls[index]) {
-      URL.revokeObjectURL(fileUrls[index]);
-    }
-    setFiles(prev => prev.filter((_, i) => i !== index));
-    setFileUrls(prev => prev.filter((_, i) => i !== index));
-  }, [fileUrls]);
-  
-  // Remove existing attachment
-  const removeAttachment = useCallback((index: number) => {
-    setAttachments(prev => prev.filter((_, i) => i !== index));
-  }, []);
-  
-  // Handle form submission
-  const handleSubmit = useCallback(async (e: React.FormEvent) => {
-    e.preventDefault();
-    
-    if (!validate()) return;
-    
-    setIsSubmitting(true);
-    
-    try {
-      // Clean and prepare description
-      let enhancedDescription = formData.description?.trim() || '';
-      
-      // Remove any existing attachment or link references if they exist at the end of description
-      enhancedDescription = enhancedDescription
-        .replace(/\n\n\*\*Attachments:\*\*\n((?:- \[[^\]]+\]\([^)]+\)\n)*)/g, '')
-        .replace(/\n\n\*\*Links:\*\*\n((?:- \[[^\]]+\]\([^)]+\)\n)*)/g, '')
-        .trim();
-      
-      // Preserve section ID if present
-      if (task.sectionId) {
-        enhancedDescription += `\n\n*This task is assigned to section ID: ${task.sectionId}*`;
-      }
-      
-      // Add links to description if any exist
-      if (links.length > 0) {
-        enhancedDescription += '\n\n**Links:**\n';
-        links.forEach(link => {
-          enhancedDescription += `- [${link}](${link})\n`;
-        });
-      }
-      
-      // Add attachments section if any exist
-      if (attachments.length > 0 || files.length > 0) {
-        enhancedDescription += '\n\n**Attachments:**\n';
-        
-        // Add existing attachments
-        attachments.forEach(attachment => {
-          enhancedDescription += `- [${attachment}](attachment:${attachment})\n`;
-        });
-        
-        // Add new files
-        files.forEach(file => {
-          enhancedDescription += `- [${file.name}](attachment:${file.name})\n`;
-        });
-      }
-      
-      const updates: Partial<Task> = {
-        ...formData,
-        description: enhancedDescription,
-      };
-      
-      onUpdate(task.id, updates);
-      setShowSuccess(true);
-      
-      // Close modal after success message
-      setTimeout(() => {
-        onClose();
-      }, 1500);
-    } catch (error) {
-      console.error('Error updating task:', error);
-    } finally {
-      setIsSubmitting(false);
-    }
-  }, [formData, links, attachments, files, validate, onUpdate, task.id, task.sectionId, onClose]);
-  
-  const getMinDate = useCallback(() => {
-    const today = new Date();
-    return today.toISOString().split('T')[0];
-  }, []);
-  
-  // Handle modal backdrop click
-  const handleBackdropClick = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
-    if (e.target === e.currentTarget) {
-      onClose();
-    }
-  }, [onClose]);
-  
-  // Handle escape key press
+  // Handle escape key
   useEffect(() => {
     const handleEscape = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
-        onClose();
-      }
+      if (e.key === 'Escape') onClose();
     };
-    
-    window.addEventListener('keydown', handleEscape);
-    
-    return () => {
-      window.removeEventListener('keydown', handleEscape);
-    };
+    document.addEventListener('keydown', handleEscape);
+    return () => document.removeEventListener('keydown', handleEscape);
   }, [onClose]);
 
-  // Format markdown content for preview
-  const renderMarkdownPreview = useCallback((content: string): string => {
-    if (!content) return '';
-    
-    // Replace line breaks with HTML breaks
-    let formatted = content.replace(/\n/g, '<br>');
-    
-    // Format bold text
-    formatted = formatted.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
-    
-    // Format italics
-    formatted = formatted.replace(/\*([^*]+)\*/g, '<em>$1</em>');
-    
-    // Format attachment links specially
-    formatted = formatted.replace(
-      /\[([^\]]+)\]\(attachment:([^)]+)\)/g, 
-      '<span class="inline-flex items-center gap-1 px-2 py-0.5 bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300 rounded-full text-xs"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"></path></svg>$1</span>'
-    );
-    
-    // Format regular links
-    formatted = formatted.replace(
-      /\[([^\]]+)\]\((?!attachment:)([^)]+)\)/g, 
-      '<a href="$2" class="text-blue-600 dark:text-blue-400 hover:underline" target="_blank">$1</a>'
-    );
-    
-    return formatted;
-  }, []);
+
+
+  // Handle input changes
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
+    const { name, value } = e.target;
+    setFormData(prev => ({ ...prev, [name]: value }));
+  };
+
+  // Generate UUID fallback
+  const generateUUID = () => {
+    if (typeof crypto !== 'undefined' && crypto.randomUUID) {
+      return crypto.randomUUID();
+    }
+    // Fallback UUID generation
+    return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+      const r = Math.random() * 16 | 0;
+      const v = c == 'x' ? r : (r & 0x3 | 0x8);
+      return v.toString(16);
+    });
+  };
+
+  // Upload file to Supabase storage
+  const uploadFile = async (file: File): Promise<{ url: string; path: string }> => {
+    const fileExt = file.name.split('.').pop();
+    const fileName = `${generateUUID()}.${fileExt}`;
+    const filePath = `task-files/${fileName}`;
+
+    const { data, error: uploadError } = await supabase.storage
+      .from('task-attachments')
+      .upload(filePath, file, {
+        cacheControl: '3600',
+        upsert: false,
+        contentType: file.type
+      });
+
+    if (uploadError) {
+      throw new Error(`Upload failed: ${uploadError.message}`);
+    }
+
+    if (!data) {
+      throw new Error('Upload completed but no data returned');
+    }
+
+    const { data: { publicUrl } } = supabase.storage
+      .from('task-attachments')
+      .getPublicUrl(filePath);
+
+    return { url: publicUrl, path: fileName };
+  };
+
+  // Delete file from Supabase storage
+  const deleteFile = async (path: string) => {
+    if (!path) return;
+
+    const { error } = await supabase.storage
+      .from('task-attachments')
+      .remove([`task-files/${path}`]);
+
+    if (error) {
+      console.error('Error deleting file:', error);
+      throw error;
+    }
+  };
+
+  // Handle file upload
+  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
+
+    const newFiles = Array.from(files);
+
+    // Validate file sizes (max 10MB per file)
+    const maxSize = 10 * 1024 * 1024; // 10MB
+    const validFiles = newFiles.filter(file => {
+      if (file.size > maxSize) {
+        alert(`File "${file.name}" is too large. Maximum size is 10MB.`);
+        return false;
+      }
+      return true;
+    });
+
+    if (validFiles.length > 0) {
+      setNewAttachments(prev => [...prev, ...validFiles]);
+
+      // Initialize progress for new files
+      const progressReset: Record<string, number> = {};
+      validFiles.forEach(file => {
+        progressReset[file.name] = 0;
+      });
+      setUploadProgress(prev => ({ ...prev, ...progressReset }));
+    }
+
+    // Reset the input value
+    e.target.value = '';
+  };
+
+  // Trigger file input
+  const triggerFileInput = () => {
+    fileInputRef.current?.click();
+  };
+
+  // Handle drag and drop
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+  };
+
+  const handleDragEnter = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+  };
+
+  const handleDragLeave = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+  };
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+
+    const files = Array.from(e.dataTransfer.files);
+    if (files.length === 0) return;
+
+    // Validate file sizes
+    const maxSize = 10 * 1024 * 1024; // 10MB
+    const validFiles = files.filter(file => {
+      if (file.size > maxSize) {
+        alert(`File "${file.name}" is too large. Maximum size is 10MB.`);
+        return false;
+      }
+      return true;
+    });
+
+    if (validFiles.length > 0) {
+      setNewAttachments(prev => [...prev, ...validFiles]);
+
+      // Initialize progress for new files
+      const progressReset: Record<string, number> = {};
+      validFiles.forEach(file => {
+        progressReset[file.name] = 0;
+      });
+      setUploadProgress(prev => ({ ...prev, ...progressReset }));
+    }
+  };
+
+  // Remove new attachment
+  const removeNewAttachment = (indexToRemove: number) => {
+    setNewAttachments(prev => prev.filter((_, i) => i !== indexToRemove));
+  };
+
+  // Remove existing attachment
+  const removeExistingAttachment = async (indexToRemove: number) => {
+    const attachment = existingAttachments[indexToRemove];
+    if (!attachment) return;
+
+    try {
+      // Delete from storage if we have the path
+      if (attachment.path) {
+        await deleteFile(attachment.path);
+      }
+
+      // Remove from state
+      setExistingAttachments(prev => prev.filter((_, i) => i !== indexToRemove));
+    } catch (error) {
+      console.error('Error removing attachment:', error);
+      // Still remove from UI even if storage deletion fails
+      setExistingAttachments(prev => prev.filter((_, i) => i !== indexToRemove));
+    }
+  };
+
+  // Handle form submission
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+
+    // Basic validation
+    if (!formData.name.trim() || !formData.dueDate || !formData.description.trim()) {
+      return;
+    }
+
+    setIsLoading(true);
+
+    try {
+      // Upload new files first
+      const uploadedFiles: { name: string; url: string; path: string }[] = [];
+
+      for (const file of newAttachments) {
+        try {
+          setUploadProgress(prev => ({ ...prev, [file.name]: 25 }));
+
+          const { url, path } = await uploadFile(file);
+
+          uploadedFiles.push({
+            name: file.name,
+            url: url,
+            path: path
+          });
+
+          setUploadProgress(prev => ({ ...prev, [file.name]: 100 }));
+
+        } catch (error) {
+          setUploadProgress(prev => ({ ...prev, [file.name]: 0 }));
+          throw new Error(`Failed to upload ${file.name}: ${error instanceof Error ? error.message : 'Unknown error'}`);
+        }
+      }
+
+      // Build updated description with attachments
+      let updatedDescription = formData.description.trim();
+
+      // Combine all attachments
+      const allAttachments = [
+        ...existingAttachments,
+        ...uploadedFiles.map(file => ({
+          name: file.name,
+          url: file.url
+        }))
+      ];
+
+      if (allAttachments.length > 0) {
+        updatedDescription += '\n\n**Attachments:**\n';
+        allAttachments.forEach(attachment => {
+          updatedDescription += `- [${attachment.name}](${attachment.url})\n`;
+        });
+      }
+
+      // Preserve section ID if it exists
+      if (task.sectionId) {
+        updatedDescription += `\n\n*This task is assigned to section ID: ${task.sectionId}*`;
+      }
+
+      const updateData = {
+        ...formData,
+        description: updatedDescription
+      };
+
+      await onUpdate(task.id, updateData);
+      onClose();
+    } catch (error) {
+      console.error('Failed to update task:', error);
+      alert(`Error: ${error instanceof Error ? error.message : 'Unknown error occurred'}`);
+    } finally {
+      setIsLoading(false);
+      setUploadProgress({});
+    }
+  };
+
+  // Category options
+  const categories = [
+    { value: 'assignment', label: 'Assignment' },
+    { value: 'blc', label: 'BLC' },
+    { value: 'documents', label: 'Documents' },
+    { value: 'final-exam', label: 'Final Exam' },
+    { value: 'groups', label: 'Groups' },
+    { value: 'lab-final', label: 'Lab Final' },
+    { value: 'lab-performance', label: 'Lab Performance' },
+    { value: 'lab-report', label: 'Lab Report' },
+    { value: 'midterm', label: 'Midterm' },
+    { value: 'presentation', label: 'Presentation' },
+    { value: 'project', label: 'Project' },
+    { value: 'quiz', label: 'Quiz' },
+    { value: 'task', label: 'Task' },
+    { value: 'others', label: 'Others' }
+  ];
+
+  // Status options
+  const statusOptions = [
+    { value: 'my-tasks', label: 'To Do' },
+    { value: 'in-progress', label: 'In Progress' },
+    { value: 'completed', label: 'Completed' }
+  ];
 
   return (
-    <div
-      className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-0 sm:p-4 z-50 overflow-y-auto animate-fadeIn"
-      onClick={handleBackdropClick}
-      role="dialog"
-      aria-modal="true"
-      aria-labelledby="edit-task-title"
-    >
-      <div 
-        className="bg-white dark:bg-gray-800 rounded-2xl max-w-4xl w-full max-h-[95vh] sm:max-h-[90vh] overflow-y-auto shadow-xl relative animate-slideIn"
-        ref={modalRef}
-        onTouchStart={handleTouchStart}
-        onTouchMove={handleTouchMove}
-        onTouchEnd={handleTouchEnd}
+    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+      <div
+        className="bg-white dark:bg-gray-900 rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto border border-gray-200 dark:border-gray-700"
+        onClick={(e) => e.stopPropagation()}
       >
-        {/* Improved swipe indicator for mobile */}
-        <div className="absolute left-0 right-0 flex justify-center -top-1 touch-none">
-          <div className="w-12 h-1.5 bg-gray-300 dark:bg-gray-600 rounded-full transform translate-y-1 opacity-80"></div>
-        </div>
-        
-        {/* Modal Header - improved for mobile */}
-        <div className="sticky top-0 px-4 sm:px-6 py-3 sm:py-4 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between bg-white dark:bg-gray-800 z-10 shadow-sm">
-          <h3 className="text-base sm:text-lg font-semibold text-gray-900 dark:text-white" id="edit-task-title">
-            Edit Task
-          </h3>
-          <div className="flex items-center gap-2">
-            {/* Preview toggle button */}
-            <button
-              type="button"
-              onClick={() => setShowPreview(!showPreview)}
-              className="text-xs text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 p-2 rounded-lg hover:bg-blue-50 dark:hover:bg-blue-900/20 flex items-center gap-1"
-              aria-label={showPreview ? "Edit description" : "Preview description"}
-            >
-              {showPreview ? (
-                <Edit3 className="w-4 h-4" />
-              ) : (
-                <Eye className="w-4 h-4" />
-              )}
-              <span className="hidden sm:inline">{showPreview ? "Edit" : "Preview"}</span>
-            </button>
-            
-            <button
-              onClick={onClose}
-              className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300 rounded-full p-2 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500"
-              aria-label="Close dialog"
-            >
-              <X className="w-5 h-5" />
-            </button>
+        {/* Header */}
+        <div className="flex items-center justify-between p-6 border-b border-gray-200 dark:border-gray-700">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 bg-blue-100 dark:bg-blue-900/30 rounded-xl flex items-center justify-center">
+              <FileText className="w-5 h-5 text-blue-600 dark:text-blue-400" />
+            </div>
+            <div>
+              <h2 className="text-xl font-semibold text-gray-900 dark:text-white">Edit Task</h2>
+              <p className="text-sm text-gray-500 dark:text-gray-400">Update task information</p>
+            </div>
           </div>
+          <button
+            onClick={onClose}
+            className="w-8 h-8 rounded-lg bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 flex items-center justify-center transition-colors"
+          >
+            <X className="w-4 h-4 text-gray-600 dark:text-gray-400" />
+          </button>
         </div>
 
         {/* Form */}
-        <form onSubmit={handleSubmit} className="p-4 sm:p-6">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
-            <div className="space-y-4 md:col-span-2">
-              <div>
-                <label htmlFor="name" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                  Task Name<span className="text-red-500">*</span>
-                </label>
-                <input
-                  type="text"
-                  id="name"
-                  name="name"
-                  ref={nameInputRef}
-                  value={formData.name || ''}
-                  onChange={handleChange}
-                  className={`w-full px-4 py-2.5 sm:py-3 border dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white text-sm sm:text-base
-                    ${errors.name ? 'border-red-500 dark:border-red-500' : ''} ${isKeyboardUser ? 'focus:ring-2' : 'focus:ring-0'}`}
-                  placeholder="Enter task name"
-                  aria-required="true"
-                  aria-invalid={!!errors.name}
-                />
-                {errors.name && (
-                  <p className="mt-1.5 text-xs sm:text-sm text-red-600 dark:text-red-400 flex items-start gap-1">
-                    <AlertCircle className="w-3.5 h-3.5 mt-0.5 flex-shrink-0" />
-                    {errors.name}
-                  </p>
-                )}
-              </div>
-            </div>
+        <form onSubmit={handleSubmit} className="p-6 space-y-5">
+          {/* Task Name */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+              Task Name *
+            </label>
+            <input
+              type="text"
+              name="name"
+              value={formData.name}
+              onChange={handleInputChange}
+              className="w-full px-4 py-3 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+              placeholder="Enter task name"
+              required
+            />
+          </div>
 
+          {/* Category & Due Date */}
+          <div className="grid grid-cols-2 gap-4">
             <div>
-              <label htmlFor="category" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                Category<span className="text-red-500">*</span>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                Category *
               </label>
               <div className="relative">
-                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                  <Tag className="h-4 w-4 sm:h-5 sm:w-5 text-gray-400" />
-                </div>
+                <Tag className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
                 <select
-                  id="category"
                   name="category"
-                  ref={(el) => storeRef(el, 'category')}
-                  value={formData.category || ''}
-                  onChange={handleChange}
-                  className="w-full pl-10 pr-10 py-2.5 sm:py-3 border dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white text-sm sm:text-base appearance-none"
-                  aria-required="true"
+                  value={formData.category}
+                  onChange={handleInputChange}
+                  className="w-full pl-10 pr-4 py-3 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all appearance-none"
+                  required
                 >
-                  <option value="assignment">Assignment</option>
-                  <option value="blc">BLC</option>
-                  <option value="documents">Documents</option>
-                  <option value="final-exam">Final Exam</option>
-                  <option value="groups">Groups</option>
-                  <option value="lab-final">Lab Final</option>
-                  <option value="lab-performance">Lab Performance</option>
-                  <option value="lab-report">Lab Report</option>
-                  <option value="midterm">Midterm</option>
-                  <option value="presentation">Presentation</option>
-                  <option value="project">Project</option>
-                  <option value="quiz">Quiz</option>
-                  <option value="task">Task</option>
-                  <option value="others">Others</option>
+                  {categories.map(cat => (
+                    <option key={cat.value} value={cat.value}>{cat.label}</option>
+                  ))}
                 </select>
-                <div className="absolute inset-y-0 right-0 flex items-center pr-2 pointer-events-none">
-                  <ChevronDown className="h-4 w-4 text-gray-500" />
-                </div>
               </div>
             </div>
 
             <div>
-              <label htmlFor="dueDate" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                Due Date<span className="text-red-500">*</span>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                Due Date *
               </label>
               <div className="relative">
-                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                  <Calendar className="h-4 w-4 sm:h-5 sm:w-5 text-gray-400" />
-                </div>
+                <Calendar className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
                 <input
                   type="date"
-                  id="dueDate"
                   name="dueDate"
-                  ref={(el) => storeRef(el, 'dueDate')}
-                  value={formData.dueDate || ''}
-                  min={formData.status === 'completed' ? undefined : getMinDate()}
-                  onChange={handleChange}
-                  className={`w-full pl-10 pr-4 py-2.5 sm:py-3 border dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white text-sm sm:text-base
-                    ${errors.dueDate ? 'border-red-500 dark:border-red-500' : ''}`}
-                  aria-required="true"
-                  aria-invalid={!!errors.dueDate}
-                  onClick={(e) => {
-                    // Force open native date picker on mobile
-                    const input = e.currentTarget;
-                    input.showPicker && input.showPicker();
-                  }}
+                  value={formData.dueDate}
+                  onChange={handleInputChange}
+                  className="w-full pl-10 pr-4 py-3 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+                  required
                 />
-                {errors.dueDate && (
-                  <p className="mt-1.5 text-xs sm:text-sm text-red-600 dark:text-red-400 flex items-start gap-1">
-                    <AlertCircle className="w-3.5 h-3.5 mt-0.5 flex-shrink-0" />
-                    {errors.dueDate}
-                  </p>
-                )}
               </div>
             </div>
+          </div>
 
-            <div>
-              <div className="flex justify-between items-center mb-1">
-                <label htmlFor="status" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
-                  Status
-                </label>
-                <button 
-                  type="button"
-                  onClick={() => setShowAdvanced(!showAdvanced)}
-                  className="text-xs text-blue-600 dark:text-blue-400 hover:underline flex items-center gap-1"
-                >
-                  {showAdvanced ? 'Hide' : 'Show'} Advanced
-                  <ChevronDown className={`h-3 w-3 transition-transform ${showAdvanced ? 'rotate-180' : ''}`} />
-                </button>
-              </div>
-              <div className="relative">
-                <select
-                  id="status"
-                  name="status"
-                  value={formData.status || ''}
-                  onChange={handleChange}
-                  className="w-full px-4 py-2.5 sm:py-3 border dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white text-sm sm:text-base appearance-none"
-                >
-                  <option value="my-tasks">To Do</option>
-                  <option value="in-progress">In Progress</option>
-                  <option value="completed">Completed</option>
-                </select>
-                <div className="absolute inset-y-0 right-0 flex items-center pr-2 pointer-events-none">
-                  <ChevronDown className="h-4 w-4 text-gray-500" />
-                </div>
-              </div>
-            </div>
-
-            <div className="md:col-span-2">
-              <div className="flex justify-between items-center mb-1">
-                <label htmlFor="description" className="text-sm font-medium text-gray-700 dark:text-gray-300 flex items-center gap-2">
-                  Description<span className="text-red-500">*</span>
-                  {attachments.length > 0 && (
-                    <span className="text-xs text-blue-600 dark:text-blue-400 flex items-center gap-1">
-                      <Paperclip className="w-3 h-3" /> {attachments.length} attachment{attachments.length !== 1 ? 's' : ''}
-                    </span>
-                  )}
-                  <div className="relative group">
-                    <Info className="w-3.5 h-3.5 text-gray-400 hover:text-gray-600 cursor-help dark:hover:text-gray-200" />
-                    <div className="absolute left-0 bottom-full mb-2 w-60 p-2 bg-white dark:bg-gray-800 rounded shadow-lg text-xs border border-gray-200 dark:border-gray-700 hidden group-hover:block z-10">
-                      <p>Use markdown formatting:</p>
-                      <p><code>**bold**</code> for <strong>bold text</strong></p>
-                      <p><code>*italic*</code> for <em>italic text</em></p>
-                      <p>New lines create paragraphs</p>
-                    </div>
-                  </div>
-                </label>
+          {/* Status */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+              Status
+            </label>
+            <div className="flex gap-2">
+              {statusOptions.map(status => (
                 <button
+                  key={status.value}
                   type="button"
-                  onClick={() => setShowPreview(!showPreview)}
-                  className="text-xs text-blue-600 dark:text-blue-400 hover:underline flex items-center gap-1"
-                  aria-label={showPreview ? "Edit description" : "Preview description"}
+                  onClick={() => setFormData(prev => ({ ...prev, status: status.value }))}
+                  className={`flex-1 py-2.5 px-4 rounded-lg text-sm font-medium transition-all ${
+                    formData.status === status.value
+                      ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 border-2 border-blue-200 dark:border-blue-700'
+                      : 'bg-gray-50 dark:bg-gray-800 text-gray-600 dark:text-gray-400 border-2 border-gray-200 dark:border-gray-700 hover:bg-gray-100 dark:hover:bg-gray-700'
+                  }`}
                 >
-                  {showPreview ? (
-                    <>
-                      <Edit3 className="h-3.5 w-3.5" />
-                      Edit
-                    </>
-                  ) : (
-                    <>
-                      <Eye className="h-3.5 w-3.5" />
-                      Preview
-                    </>
-                  )}
+                  {status.label}
                 </button>
-              </div>
-              <div className="relative">
-                {!showPreview ? (
-                  <>
-                    <div className="absolute top-3 left-3 pointer-events-none">
-                      <AlignLeft className="h-4 w-4 sm:h-5 sm:w-5 text-gray-400" />
-                    </div>
-                    <textarea
-                      id="description"
-                      name="description"
-                      value={formData.description || ''}
-                      onChange={handleChange}
-                      rows={4}
-                      onFocus={() => {
-                        // On mobile, scroll to keep the textarea in view when keyboard appears
-                        if ('ontouchstart' in window) {
-                          setTimeout(() => {
-                            modalRef.current?.scrollTo({
-                              top: modalRef.current.scrollTop + 200,
-                              behavior: 'smooth'
-                            });
-                          }, 300);
-                        }
-                      }}
-                      className={`w-full pl-10 pr-4 py-2.5 sm:py-3 border dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white text-sm sm:text-base
-                        ${errors.description ? 'border-red-500 dark:border-red-500' : ''}`}
-                      placeholder="Enter task description"
-                      aria-required="true"
-                      aria-invalid={!!errors.description}
-                    ></textarea>
-                  </>
-                ) : (
-                  <div 
-                    className="w-full px-4 py-2.5 sm:py-3 border dark:border-gray-600 rounded-xl bg-gray-50 dark:bg-gray-700 text-sm sm:text-base text-gray-700 dark:text-gray-200 min-h-[6rem]"
-                    dangerouslySetInnerHTML={{ __html: renderMarkdownPreview(formData.description || '') }}
-                  ></div>
-                )}
-                {errors.description && !showPreview && (
-                  <p className="mt-1.5 text-xs sm:text-sm text-red-600 dark:text-red-400 flex items-start gap-1">
-                    <AlertCircle className="w-3.5 h-3.5 mt-0.5 flex-shrink-0" />
-                    {errors.description}
-                  </p>
+              ))}
+            </div>
+          </div>
+
+          {/* Description */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+              Description *
+            </label>
+            <textarea
+              name="description"
+              value={formData.description}
+              onChange={handleInputChange}
+              rows={4}
+              className="w-full px-4 py-3 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all resize-none"
+              placeholder="Describe the task details..."
+              required
+            />
+          </div>
+
+          {/* Attachments */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">
+              <div className="flex items-center gap-2">
+                <Paperclip className="w-4 h-4" />
+                Attachments
+                {(existingAttachments.length + newAttachments.length) > 0 && (
+                  <span className="text-xs bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 px-2 py-1 rounded-full">
+                    {existingAttachments.length + newAttachments.length} file{(existingAttachments.length + newAttachments.length) !== 1 ? 's' : ''}
+                  </span>
                 )}
               </div>
-              
-              {/* Section ID display if present */}
-              {task.sectionId && (
-                <div className="mt-2 text-xs text-gray-500 dark:text-gray-400 flex items-center gap-1">
-                  <span className="font-medium">Section ID:</span> 
-                  <code className="bg-gray-100 dark:bg-gray-700 px-1.5 py-0.5 rounded text-gray-800 dark:text-gray-200 font-mono">
-                    {task.sectionId}
-                  </code>
+            </label>
+
+            {/* File Upload Area */}
+            <div
+              className="border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-xl p-6 text-center hover:border-blue-400 dark:hover:border-blue-500 transition-colors cursor-pointer"
+              onClick={triggerFileInput}
+              onDragOver={handleDragOver}
+              onDragEnter={handleDragEnter}
+              onDragLeave={handleDragLeave}
+              onDrop={handleDrop}
+            >
+              <input
+                ref={fileInputRef}
+                type="file"
+                multiple
+                onChange={handleFileUpload}
+                className="hidden"
+                accept=".pdf,.doc,.docx,.txt,.jpg,.jpeg,.png,.gif,.zip,.rar"
+              />
+              <Upload className="w-8 h-8 text-gray-400 mx-auto mb-2" />
+              <p className="text-sm text-gray-600 dark:text-gray-400 mb-1">
+                <span className="text-blue-600 dark:text-blue-400 font-medium hover:underline">
+                  Click to upload
+                </span> or drag and drop
+              </p>
+              <p className="text-xs text-gray-500 dark:text-gray-500">
+                PDF, DOC, TXT, Images up to 10MB
+              </p>
+
+              {/* File count indicator */}
+              {newAttachments.length > 0 && (
+                <div className="mt-3 text-xs text-green-600 dark:text-green-400">
+                  {newAttachments.length} file{newAttachments.length !== 1 ? 's' : ''} ready to upload
                 </div>
               )}
             </div>
-            
-            {showAdvanced && (
-              <>
-                <div className="md:col-span-2">
-                  <div className="pb-4 border-b border-gray-200 dark:border-gray-700">
-                    <h4 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">Links</h4>
-                    <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
-                      <div className="relative flex-1 min-w-0">
-                        <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                          <Link2 className="h-4 w-4 sm:h-5 sm:w-5 text-gray-400" />
-                        </div>
-                        <input
-                          type="url"
-                          id="link"
-                          value={linkInput}
-                          onChange={(e) => setLinkInput(e.target.value)}
-                          onKeyDown={(e) => {
-                            if (e.key === 'Enter' && linkInput.trim()) {
-                              e.preventDefault();
-                              addLink();
-                            }
-                          }}
-                          className="w-full pl-10 pr-4 py-2.5 sm:py-3 border dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white text-sm"
-                          placeholder="https://example.com"
-                        />
+
+            {/* Existing Attachments */}
+            {existingAttachments.length > 0 && (
+              <div className="mt-3 space-y-2">
+                <h4 className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                  Current Attachments
+                </h4>
+                {existingAttachments.map((attachment, index) => (
+                  <div key={`existing-${attachment.name}-${index}`} className="flex items-center justify-between p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-700">
+                    <div className="flex items-center gap-3">
+                      <div className="w-8 h-8 bg-blue-100 dark:bg-blue-900/30 rounded-lg flex items-center justify-center">
+                        <FileText className="w-4 h-4 text-blue-600 dark:text-blue-400" />
                       </div>
+                      <div>
+                        <p className="text-sm font-medium text-gray-900 dark:text-white truncate max-w-[200px]">
+                          {attachment.name}
+                        </p>
+                        <p className="text-xs text-blue-600 dark:text-blue-400">
+                          Existing file
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2">
                       <button
                         type="button"
-                        onClick={addLink}
-                        className="px-4 py-2.5 sm:py-3 bg-blue-600 text-white rounded-xl hover:bg-blue-700 transition-colors flex items-center justify-center text-sm min-w-[100px]"
-                        disabled={!linkInput.trim()}
+                        onClick={() => window.open(attachment.url, '_blank')}
+                        className="w-8 h-8 rounded-lg bg-blue-100 dark:bg-blue-900/30 hover:bg-blue-200 dark:hover:bg-blue-900/50 flex items-center justify-center transition-colors"
+                        title="View file"
                       >
-                        Add Link
+                        <ExternalLink className="w-4 h-4 text-blue-600 dark:text-blue-400" />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          removeExistingAttachment(index);
+                        }}
+                        className="w-8 h-8 rounded-lg bg-red-100 dark:bg-red-900/30 hover:bg-red-200 dark:hover:bg-red-900/50 flex items-center justify-center transition-colors"
+                        title="Remove file"
+                        disabled={isLoading}
+                      >
+                        <Trash2 className="w-4 h-4 text-red-600 dark:text-red-400" />
                       </button>
                     </div>
-                    
-                    {links.length > 0 && (
-                      <div className="mt-3 space-y-2">
-                        {links.map((link, index) => (
-                          <div key={index} className="flex items-center justify-between px-3 py-2.5 bg-gray-50 dark:bg-gray-700 rounded-lg">
-                            <a
-                              href={link}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="text-blue-600 dark:text-blue-400 hover:underline text-sm truncate max-w-[calc(100%-40px)]"
-                            >
-                              {link}
-                            </a>
-                            <button
-                              type="button"
-                              onClick={() => removeLink(index)}
-                              className="text-gray-400 hover:text-red-600 dark:hover:text-red-400 p-1.5 rounded-full hover:bg-gray-200 dark:hover:bg-gray-600"
-                              aria-label={`Remove link ${link}`}
-                            >
-                              <X className="w-4 h-4" />
-                            </button>
-                          </div>
-                        ))}
-                      </div>
-                    )}
                   </div>
-                </div>
-                
-                <div className="md:col-span-2">
-                  <div className="pb-4">
-                    <h4 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-3 flex items-center justify-between">
-                      <span className="flex items-center gap-2">
-                        <FileText className="w-4 h-4" /> Attachments
-                      </span>
-                      {attachments.length > 0 && (
-                        <div className="relative group">
-                          <button
-                            type="button"
-                            className="text-xs text-gray-500 dark:text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 flex items-center gap-1"
-                            aria-label="How to use attachments"
-                          >
-                            <Info className="w-3.5 h-3.5" />
-                            <span className="hidden xs:inline">How to use</span>
-                          </button>
-                          <div className="absolute right-0 bottom-full mb-2 w-60 p-2 bg-white dark:bg-gray-800 rounded shadow-lg text-xs border border-gray-200 dark:border-gray-700 hidden group-hover:block z-10">
-                            <p>To reference an attachment in your description:</p>
-                            <code className="block mt-1 p-1 bg-gray-100 dark:bg-gray-700 rounded">
-                              See my [filename.csv](attachment:filename.csv)
-                            </code>
-                          </div>
-                        </div>
-                      )}
-                    </h4>
-                    
-                    {/* Existing attachments */}
-                    {attachments.length > 0 && (
-                      <div className="mb-4">
-                        <h5 className="text-xs text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-2">
-                          Current Attachments
-                        </h5>
-                        <div className="space-y-2">
-                          {attachments.map((attachment, index) => (
-                            <div key={index} className="flex items-center justify-between px-3 py-2.5 bg-gray-50 dark:bg-gray-700 rounded-lg">
-                              <div className="text-sm text-gray-700 dark:text-gray-300 truncate max-w-[calc(100%-40px)] flex items-center gap-2">
-                                <Upload className="w-4 h-4 text-gray-400 flex-shrink-0" />
-                                <span className="font-medium">{attachment}</span>
-                              </div>
-                              <button
-                                type="button"
-                                onClick={() => removeAttachment(index)}
-                                className="text-gray-400 hover:text-red-600 dark:hover:text-red-400 p-1.5 rounded-full hover:bg-gray-200 dark:hover:bg-gray-600"
-                                aria-label={`Remove attachment ${attachment}`}
-                              >
-                                <X className="w-4 h-4" />
-                              </button>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-                    
-                    {/* File Upload */}
-                    <label 
-                      htmlFor="file-upload" 
-                      className="border-2 border-dashed dark:border-gray-600 rounded-xl p-4 sm:p-6 text-center flex flex-col items-center cursor-pointer hover:border-gray-400 dark:hover:border-gray-500 transition-colors"
-                    >
-                      <Upload className="w-7 h-7 sm:w-8 sm:h-8 text-gray-400 mb-2" />
-                      <div className="text-sm text-gray-600 dark:text-gray-400">
-                        <span className="text-blue-600 dark:text-blue-400 font-medium hover:underline">
-                          Upload files
-                        </span>
-                        <input
-                          id="file-upload"
-                          name="file-upload"
-                          type="file"
-                          multiple
-                          className="sr-only"
-                          onChange={handleFileUpload}
-                        />
-                        <p className="mt-1 text-xs sm:text-sm">Drag and drop or click to select</p>
-                      </div>
-                    </label>
-                    
-                    {/* New files */}
-                    {files.length > 0 && (
-                      <div className="mt-4">
-                        <h5 className="text-xs text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-2">
-                          New Attachments
-                        </h5>
-                        <div className="space-y-2">
-                          {files.map((file, index) => (
-                            <div key={index} className="flex items-center justify-between px-3 py-2.5 bg-gray-50 dark:bg-gray-700 rounded-lg">
-                              <div className="flex items-center text-sm truncate max-w-[calc(100%-40px)]">
-                                <div className="font-medium text-gray-900 dark:text-white truncate">
-                                  {file.name}
-                                </div>
-                                <div className="ml-2 text-gray-500 dark:text-gray-400 text-xs whitespace-nowrap">
-                                  ({(file.size / 1024).toFixed(1)} KB)
-                                </div>
-                              </div>
-                              <button
-                                type="button"
-                                onClick={() => removeFile(index)}
-                                className="text-gray-400 hover:text-red-600 dark:hover:text-red-400 p-1.5 rounded-full hover:bg-gray-200 dark:hover:bg-gray-600"
-                                aria-label={`Remove file ${file.name}`}
-                              >
-                                <X className="w-4 h-4" />
-                              </button>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                </div>
+                ))}
+              </div>
+            )}
 
-                {/* Google Drive Links Section - Only for Section Admins */}
-                {isSectionAdmin && (
-                  <div className="md:col-span-2">
-                  <div className="pb-4">
-                    <h4 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-3 flex items-center gap-2">
-                      <Link className="w-4 h-4" />
-                      Google Drive Links
-                      <span className="text-xs text-gray-500 dark:text-gray-400 font-normal">(Section Admin Only)</span>
-                    </h4>
-
-                    <div className="space-y-3">
-                      <div className="flex gap-2">
-                        <div className="relative flex-1">
-                          <div className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 pointer-events-none">
-                            <Link className="w-4 h-4" />
-                          </div>
-                          <input
-                            type="url"
-                            value={currentGoogleDriveLink}
-                            onChange={(e) => setCurrentGoogleDriveLink(e.target.value)}
-                            onKeyPress={handleGoogleDriveLinkKeyPress}
-                            placeholder="Paste Google Drive link here..."
-                            className={`w-full pl-10 pr-4 py-2.5 border ${
-                              errors.googleDriveLinks ? 'border-red-500 dark:border-red-500' : 'border-gray-300 dark:border-gray-600'
-                            } rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white text-sm`}
-                          />
-                        </div>
-                        <button
-                          type="button"
-                          onClick={addGoogleDriveLink}
-                          disabled={!currentGoogleDriveLink.trim()}
-                          className={`px-4 py-2.5 rounded-xl font-medium transition-colors ${
-                            currentGoogleDriveLink.trim()
-                              ? 'bg-blue-600 hover:bg-blue-700 text-white'
-                              : 'bg-gray-300 dark:bg-gray-600 text-gray-500 dark:text-gray-400 cursor-not-allowed'
-                          }`}
-                        >
-                          <Plus className="w-4 h-4" />
-                        </button>
+            {/* New Attachments */}
+            {newAttachments.length > 0 && (
+              <div className="mt-3 space-y-2">
+                <h4 className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                  New Attachments
+                </h4>
+                {newAttachments.map((file, index) => (
+                  <div key={`new-${file.name}-${file.size}-${index}`} className="flex items-center justify-between p-3 bg-green-50 dark:bg-green-900/20 rounded-lg border border-green-200 dark:border-green-700">
+                    <div className="flex items-center gap-3">
+                      <div className="w-8 h-8 bg-green-100 dark:bg-green-900/30 rounded-lg flex items-center justify-center">
+                        <FileText className="w-4 h-4 text-green-600 dark:text-green-400" />
                       </div>
-
-                      {errors.googleDriveLinks && (
-                        <p className="text-red-500 text-xs flex items-center gap-1">
-                          <AlertCircle className="w-3 h-3" />
-                          {errors.googleDriveLinks}
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium text-gray-900 dark:text-white truncate">
+                          {file.name}
                         </p>
-                      )}
-
-                      <div className="text-xs text-gray-500 dark:text-gray-400">
-                        <p>Supported: Google Drive files, folders, Docs, Sheets, Slides, and Forms</p>
-                      </div>
-
-                      {googleDriveLinks.length > 0 && (
-                        <div className="space-y-2">
-                          {googleDriveLinks.map((link, index) => (
-                            <div key={index} className="flex items-center justify-between p-2 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-800/30">
-                              <div className="flex items-center gap-2 truncate max-w-[calc(100%-40px)]">
-                                <Link className="w-4 h-4 text-blue-500 dark:text-blue-400 flex-shrink-0" />
-                                <div className="flex flex-col min-w-0">
-                                  <span className="text-sm font-medium text-blue-700 dark:text-blue-300 truncate">
-                                    {getGoogleDriveResourceType(link)}
-                                  </span>
-                                  <span className="text-xs text-blue-600 dark:text-blue-400 truncate">
-                                    {link.length > 50 ? `${link.substring(0, 50)}...` : link}
-                                  </span>
-                                </div>
+                        <div className="flex items-center gap-2">
+                          <p className="text-xs text-green-600 dark:text-green-400">
+                            {(file.size / 1024).toFixed(1)} KB • New
+                          </p>
+                          {uploadProgress[file.name] !== undefined && (
+                            <div className="flex items-center gap-1">
+                              <div className="w-16 h-1 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
+                                <div
+                                  className="h-full bg-green-500 transition-all duration-300"
+                                  style={{ width: `${uploadProgress[file.name] || 0}%` }}
+                                />
                               </div>
-                              <div className="flex items-center gap-1">
-                                <button
-                                  type="button"
-                                  onClick={() => window.open(link, '_blank', 'noopener,noreferrer')}
-                                  className="text-blue-500 hover:text-blue-600 dark:text-blue-400 dark:hover:text-blue-300 p-1 rounded-full hover:bg-blue-100 dark:hover:bg-blue-800"
-                                  aria-label="Open Google Drive link"
-                                >
-                                  <ExternalLink className="w-4 h-4" />
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={() => removeGoogleDriveLink(index)}
-                                  className="text-gray-500 hover:text-red-500 dark:text-gray-400 dark:hover:text-red-400 p-1 rounded-full hover:bg-gray-200 dark:hover:bg-gray-600"
-                                  aria-label="Remove Google Drive link"
-                                >
-                                  <X className="w-4 h-4" />
-                                </button>
-                              </div>
+                              <span className="text-xs text-green-600 dark:text-green-400">
+                                {Math.round(uploadProgress[file.name] || 0)}%
+                              </span>
                             </div>
-                          ))}
+                          )}
                         </div>
-                      )}
+                      </div>
                     </div>
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        removeNewAttachment(index);
+                      }}
+                      className="w-8 h-8 rounded-lg bg-red-100 dark:bg-red-900/30 hover:bg-red-200 dark:hover:bg-red-900/50 flex items-center justify-center transition-colors"
+                      disabled={isLoading}
+                    >
+                      <Trash2 className="w-4 h-4 text-red-600 dark:text-red-400" />
+                    </button>
                   </div>
-                  </div>
-                )}
-              </>
+                ))}
+              </div>
             )}
           </div>
-          
-          {/* Submit button - improved mobile positioning */}
-          <div className="sticky bottom-0 left-0 right-0 flex justify-end px-4 sm:px-6 py-3 sm:py-4 bg-white dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700 z-10 gap-3">
+
+          {/* Action Buttons */}
+          <div className="flex gap-3 pt-4">
             <button
               type="button"
               onClick={onClose}
-              className="px-4 py-2 text-sm sm:text-base text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-xl"
-              disabled={isSubmitting}
+              className="flex-1 py-3 px-4 bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 rounded-xl hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors font-medium"
+              disabled={isLoading}
             >
               Cancel
             </button>
             <button
               type="submit"
-              disabled={isSubmitting}
-              className={`px-4 py-2 text-sm sm:text-base bg-blue-600 text-white rounded-xl hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-colors ${
-                isSubmitting ? 'opacity-70 cursor-not-allowed' : ''
-              }`}
+              disabled={isLoading || !formData.name.trim() || !formData.dueDate || !formData.description.trim()}
+              className="flex-1 py-3 px-4 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-300 dark:disabled:bg-gray-700 text-white rounded-xl transition-colors font-medium flex items-center justify-center gap-2"
             >
-              {isSubmitting ? (
-                <span className="flex items-center gap-2">
-                  <svg className="animate-spin h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                  </svg>
-                  Saving...
-                </span>
+              {isLoading ? (
+                <>
+                  <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                  {newAttachments.length > 0 ? 'Uploading & Saving...' : 'Saving...'}
+                </>
               ) : (
-                'Save Changes'
+                <>
+                  <Save className="w-4 h-4" />
+                  Save Changes
+                </>
               )}
             </button>
           </div>
-          
-          {/* Add improved mobile responsive success state */}
-          {showSuccess && (
-            <div className="fixed inset-x-0 top-4 flex justify-center items-center z-50 px-4">
-              <div className="bg-green-100 dark:bg-green-900/30 border border-green-200 dark:border-green-800 rounded-xl shadow-lg px-4 py-3 flex items-center gap-2 max-w-md animate-slideDown">
-                <CheckCircle className="w-5 h-5 text-green-600 dark:text-green-400 flex-shrink-0" />
-                <span className="text-green-800 dark:text-green-200 text-sm">Task updated successfully</span>
-              </div>
-            </div>
-          )}
         </form>
       </div>
     </div>

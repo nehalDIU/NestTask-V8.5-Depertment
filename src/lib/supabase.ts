@@ -19,7 +19,7 @@ if (!supabaseUrl || !supabaseAnonKey) {
   throw new Error('Missing Supabase environment variables. Please click "Connect to Supabase" to set up your project.');
 }
 
-// Create Supabase client with session persistence enabled for authentication
+// Create optimized Supabase client with retry logic
 export const supabase = createClient<Database>(supabaseUrl, supabaseAnonKey, {
   auth: {
     persistSession: true,

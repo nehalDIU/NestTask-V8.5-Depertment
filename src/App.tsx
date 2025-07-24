@@ -7,7 +7,7 @@ import { AuthPage } from './pages/AuthPage';
 import { LoadingScreen } from './components/LoadingScreen';
 import { Navigation } from './components/Navigation';
 import { BottomNavigation } from './components/BottomNavigation';
-// PWA functionality removed
+import { InstallPWA } from './components/InstallPWA';
 import { isSameDay } from './utils/dateUtils';
 import { InstantTransition } from './components/InstantTransition';
 import type { NavPage } from './types/navigation';
@@ -402,7 +402,7 @@ export default function App() {
         todayTaskCount={todayTaskCount}
       />
 
-
+      <InstallPWA />
     </div>
   );
 }

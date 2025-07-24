@@ -16,106 +16,68 @@ import {
   getRoutinesBySemester as getRoutinesBySemesterService
 } from '../services/routine.service';
 import type { Routine, RoutineSlot } from '../types/routine';
-import { useOfflineStatus } from './useOfflineStatus';
-import { setCache, getCache, clearCacheByPrefix } from '../utils/cache';
-
-// Define cache keys
-const ROUTINES_CACHE_KEY = 'routines';
 
 export function useRoutines(userId?: string) {
-  const [routines, setRoutines] = useState<Routine[]>(() => getCache<Routine[]>(ROUTINES_CACHE_KEY) || []);
-  const [loading, setLoading] = useState(routines.length === 0);
+  const [routines, setRoutines] = useState<Routine[]>([]);
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [syncInProgress, setSyncInProgress] = useState(false);
-  const isOffline = useOfflineStatus();
 
   const loadRoutines = useCallback(async () => {
     try {
       setLoading(true);
       setError(null);
 
-      if (isOffline) {
-        // If offline, try to use cached data
-        console.log('[Debug] Offline mode: Using cached routine data');
-        const cachedRoutines = getCache<Routine[]>(ROUTINES_CACHE_KEY);
-        if (cachedRoutines && cachedRoutines.length > 0) {
-          setRoutines(cachedRoutines);
-        } else {
-          setRoutines([]);
-          setError('Offline mode: No cached routines available.');
-        }
-        return;
-      }
-
       // Always fetch fresh data from server
       console.log('[Debug] Fetching fresh routines from server');
       const data = await fetchRoutines();
       console.log(`[Debug] Received ${data.length} routines from server`);
       setRoutines(data);
-      
-      // Update the cache
-      setCache(ROUTINES_CACHE_KEY, data);
     } catch (err: any) {
       console.error('Error fetching routines:', err);
       setError(err.message || 'Failed to load routines');
-      
-      // Try to use cached data as fallback
-      const cachedRoutines = getCache<Routine[]>(ROUTINES_CACHE_KEY);
-      if (cachedRoutines && cachedRoutines.length > 0) {
-        console.log('[Debug] Using cached routines as fallback');
-        setRoutines(cachedRoutines);
-      }
     } finally {
       setLoading(false);
     }
-  }, [isOffline]);
+  }, []);
 
   useEffect(() => {
     // Load routines on initial mount
     loadRoutines();
 
-    // Set up real-time subscription for routines updates when online
-    if (!isOffline) {
-      const subscription = supabase
-        .channel('routines_channel')
-        .on('postgres_changes', {
-          event: '*',
-          schema: 'public',
-          table: 'routines'
-        }, () => {
-          loadRoutines(); // Reload on database changes
-        })
-        .subscribe();
+    // Set up real-time subscription for routines updates
+    const subscription = supabase
+      .channel('routines_channel')
+      .on('postgres_changes', {
+        event: '*',
+        schema: 'public',
+        table: 'routines'
+      }, () => {
+        loadRoutines(); // Reload on database changes
+      })
+      .subscribe();
 
-      // Additional event listener for page visibility changes
-      const handleVisibilityChange = () => {
-        if (document.visibilityState === 'visible') {
-          // Force refresh when the page becomes visible again
-          loadRoutines();
-        }
-      };
+    // Additional event listener for page visibility changes
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        // Force refresh when the page becomes visible again
+        loadRoutines();
+      }
+    };
 
-      document.addEventListener('visibilitychange', handleVisibilityChange);
+    document.addEventListener('visibilitychange', handleVisibilityChange);
 
-      return () => {
+    return () => {
         subscription.unsubscribe();
         document.removeEventListener('visibilitychange', handleVisibilityChange);
       };
-    }
-  }, [loadRoutines, isOffline]);
-
-  // Create a new routine
+  }, [loadRoutines]); // Create a new routine
   const handleCreateRoutine = async (routine: Omit<Routine, 'id' | 'createdAt' | 'createdBy'>) => {
-    if (isOffline) {
-      throw new Error('Cannot create routines while offline. Please connect to the internet and try again.');
-    }
-
     try {
       const createdRoutine = await createRoutineService(routine);
       // Update local state with the created routine
       setRoutines(prev => {
         const updated = [...prev, createdRoutine];
-        setCache(ROUTINES_CACHE_KEY, updated);
         return updated;
       });
       return createdRoutine;
@@ -127,10 +89,6 @@ export function useRoutines(userId?: string) {
 
   // Update a routine
   const handleUpdateRoutine = async (routineId: string, updates: Partial<Routine>) => {
-    if (isOffline) {
-      throw new Error('Cannot update routines while offline. Please connect to the internet and try again.');
-    }
-
     try {
       await updateRoutineService(routineId, updates);
       
@@ -139,7 +97,6 @@ export function useRoutines(userId?: string) {
         const updated = prev.map(routine => 
           routine.id === routineId ? { ...routine, ...updates } : routine
         );
-        setCache(ROUTINES_CACHE_KEY, updated);
         return updated;
       });
       
@@ -158,17 +115,12 @@ export function useRoutines(userId?: string) {
 
   // Delete a routine
   const handleDeleteRoutine = async (routineId: string) => {
-    if (isOffline) {
-      throw new Error('Cannot delete routines while offline. Please connect to the internet and try again.');
-    }
-
     try {
       await deleteRoutineService(routineId);
       
       // Update local state by removing the deleted routine
       setRoutines(prev => {
         const updated = prev.filter(routine => routine.id !== routineId);
-        setCache(ROUTINES_CACHE_KEY, updated);
         return updated;
       });
       
@@ -181,10 +133,6 @@ export function useRoutines(userId?: string) {
 
   // Refresh routines manually
   const refreshRoutines = () => {
-    if (isOffline) {
-      console.log('Cannot refresh routines while offline');
-      return Promise.reject('Cannot refresh routines while offline');
-    }
     return loadRoutines();
   };
 
@@ -209,10 +157,6 @@ export function useRoutines(userId?: string) {
 
   // Activate a routine
   const activateRoutine = async (routineId: string) => {
-    if (isOffline) {
-      throw new Error('Cannot activate routines while offline');
-    }
-
     try {
       await activateRoutineService(routineId);
       
@@ -221,7 +165,6 @@ export function useRoutines(userId?: string) {
         const updated = prev.map(routine => 
           routine.id === routineId ? { ...routine, isActive: true } : routine
         );
-        setCache(ROUTINES_CACHE_KEY, updated);
         return updated;
       });
       
@@ -234,10 +177,6 @@ export function useRoutines(userId?: string) {
 
   // Deactivate a routine
   const deactivateRoutine = async (routineId: string) => {
-    if (isOffline) {
-      throw new Error('Cannot deactivate routines while offline');
-    }
-
     try {
       await deactivateRoutineService(routineId);
       
@@ -246,7 +185,6 @@ export function useRoutines(userId?: string) {
         const updated = prev.map(routine => 
           routine.id === routineId ? { ...routine, isActive: false } : routine
         );
-        setCache(ROUTINES_CACHE_KEY, updated);
         return updated;
       });
       
@@ -259,10 +197,6 @@ export function useRoutines(userId?: string) {
 
   // Add a routine slot
   const handleAddRoutineSlot = async (routineId: string, slot: Omit<RoutineSlot, 'id' | 'routineId' | 'createdAt'>) => {
-    if (isOffline) {
-      throw new Error('Cannot add routine slots while offline');
-    }
-
     try {
       const addedSlot = await addRoutineSlot(routineId, slot);
       
@@ -275,7 +209,6 @@ export function useRoutines(userId?: string) {
           }
           return routine;
         });
-        setCache(ROUTINES_CACHE_KEY, updated);
         return updated;
       });
       
@@ -288,10 +221,6 @@ export function useRoutines(userId?: string) {
 
   // Update a routine slot
   const handleUpdateRoutineSlot = async (routineId: string, slotId: string, updates: Partial<RoutineSlot>) => {
-    if (isOffline) {
-      throw new Error('Cannot update routine slots while offline');
-    }
-
     try {
       await updateRoutineSlot(routineId, slotId, updates);
       
@@ -306,7 +235,6 @@ export function useRoutines(userId?: string) {
           }
           return routine;
         });
-        setCache(ROUTINES_CACHE_KEY, updated);
         return updated;
       });
       
@@ -319,10 +247,6 @@ export function useRoutines(userId?: string) {
 
   // Delete a routine slot
   const handleDeleteRoutineSlot = async (routineId: string, slotId: string) => {
-    if (isOffline) {
-      throw new Error('Cannot delete routine slots while offline');
-    }
-
     try {
       await deleteRoutineSlot(routineId, slotId);
       
@@ -335,7 +259,6 @@ export function useRoutines(userId?: string) {
           }
           return routine;
         });
-        setCache(ROUTINES_CACHE_KEY, updated);
         return updated;
       });
       
@@ -347,10 +270,6 @@ export function useRoutines(userId?: string) {
   };
 
   const bulkImportSlots = async (routineId: string, slotsData: any[]): Promise<{ success: number; errors: any[] }> => {
-    if (isOffline) {
-      throw new Error('Cannot import slots while offline');
-    }
-
     try {
       const result = await bulkImportRoutineSlotsService(routineId, slotsData);
       

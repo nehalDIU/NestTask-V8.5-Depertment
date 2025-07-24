@@ -1,12 +1,13 @@
 import { supabase } from '../lib/supabase';
+import { getCachedResponse, cacheResponse } from './instantCache';
 
-// All caching functionality disabled - this file now provides direct Supabase access
-console.warn('InstantSupabase caching functionality has been disabled');
+// Set cache TTL
+const CACHE_TTL = 5 * 60 * 1000; // 5 minutes
 
 // Define supported filter types
 type FilterType = 'eq' | 'neq' | 'gt' | 'lt' | 'gte' | 'lte' | 'like' | 'ilike' | 'in' | 'is';
 
-// Cache parameters type (kept for compatibility)
+// Cache parameters type
 interface CacheOptions {
   cacheName?: string;
   ttl?: number;
@@ -24,20 +25,65 @@ interface QueryParams {
   [key: string]: any;
 }
 
+// Generate a cache key from table name and query parameters
+function generateCacheKey(table: string, queryParams: QueryParams): string {
+  const paramsString = Object.entries(queryParams || {})
+    .sort(([keyA], [keyB]) => keyA.localeCompare(keyB))
+    .map(([key, value]) => `${key}=${JSON.stringify(value)}`)
+    .join('&');
+  
+  return `supabase:${table}${paramsString ? `?${paramsString}` : ''}`;
+}
+
 /**
- * Direct read from Supabase - caching disabled
- *
+ * Instant cached read from Supabase that uses cached data for immediate display
+ * while refreshing in the background
+ * 
  * @param table Supabase table name
  * @param queryParams Query parameters
- * @param options Cache options (ignored)
- * @returns Promise with data, error, and isFromCache flag (always false)
+ * @param options Cache options
+ * @returns Promise with data, error, and isFromCache flag
  */
 export async function instantRead(
   table: string,
   queryParams: QueryParams = {},
   options: CacheOptions = {}
 ) {
-  // Caching disabled - perform direct Supabase query
+  const {
+    cacheName = 'supabase-cache',
+    ttl = CACHE_TTL,
+    skipCache = false,
+    forceFresh = false
+  } = options;
+  
+  const cacheKey = generateCacheKey(table, queryParams);
+  let isFromCache = false;
+  
+  // Try to get from cache first unless forceFresh is true
+  if (!skipCache && !forceFresh && 'caches' in window) {
+    try {
+      const cachedResponse = await getCachedResponse(cacheKey, cacheName);
+      
+      if (cachedResponse) {
+        const { data, timestamp } = await cachedResponse.json();
+        
+        if (data && Date.now() - timestamp < ttl) {
+          isFromCache = true;
+          
+          // Update in background if online
+          if (navigator.onLine) {
+            refreshInBackground(table, queryParams, cacheName);
+          }
+          
+          return { data, error: null, isFromCache };
+        }
+      }
+    } catch (err) {
+      console.warn('Error reading from cache:', err);
+    }
+  }
+  
+  // If we get here, we either don't have a cache hit or forceFresh is true
   try {
     // Start building the query
     let query = supabase.from(table).select('*');
@@ -110,22 +156,79 @@ export async function instantRead(
     
     // Execute the query
     const { data, error } = await query;
-
-    // Return data without caching
-    return { data, error, isFromCache: false };
+    
+    if (!error && data && 'caches' in window && !skipCache) {
+      // Cache the successful response
+      const responseData = {
+        data,
+        timestamp: Date.now()
+      };
+      
+      const response = new Response(JSON.stringify(responseData), {
+        headers: {
+          'Content-Type': 'application/json',
+          'Cache-Control': 'max-age=300'
+        }
+      });
+      
+      await cacheResponse(cacheKey, response, cacheName);
+    }
+    
+    return { data, error, isFromCache };
   } catch (err) {
     console.error('Error fetching from Supabase:', err);
-    return { data: null, error: err, isFromCache: false };
+    return { data: null, error: err, isFromCache };
   }
 }
 
 /**
- * Clear the Supabase cache - DISABLED
+ * Refresh data in the background without blocking UI
+ */
+async function refreshInBackground(
+  table: string,
+  queryParams: QueryParams = {},
+  cacheName: string
+) {
+  setTimeout(async () => {
+    try {
+      await instantRead(table, queryParams, { 
+        cacheName, 
+        forceFresh: true,
+        skipCache: false
+      });
+    } catch (err) {
+      console.warn('Background refresh failed:', err);
+    }
+  }, 0);
+}
+
+/**
+ * Clear the Supabase cache for a specific table or all tables
+ * @param table Optional table name to clear cache for
+ * @param cacheName Cache name
  */
 export async function clearCache(
   table?: string,
-  cacheName?: string
+  cacheName: string = 'supabase-cache'
 ) {
-  // Cache functionality disabled
-  return Promise.resolve();
-}
+  if (!('caches' in window)) return;
+  
+  try {
+    const cache = await caches.open(cacheName);
+    const keys = await cache.keys();
+    
+    if (table) {
+      // Clear cache for specific table
+      const tableKeys = keys.filter(key => 
+        key.url.includes(`supabase:${table}`)
+      );
+      
+      await Promise.all(tableKeys.map(key => cache.delete(key)));
+    } else {
+      // Clear all Supabase cache
+      await Promise.all(keys.map(key => cache.delete(key)));
+    }
+  } catch (err) {
+    console.error('Error clearing cache:', err);
+  }
+} 

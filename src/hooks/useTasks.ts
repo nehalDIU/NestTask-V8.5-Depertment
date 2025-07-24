@@ -1,17 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { supabase, testConnection } from '../lib/supabase';
 import { fetchTasks, createTask, updateTask, deleteTask } from '../services/task.service';
-import { useOfflineStatus } from './useOfflineStatus';
 import type { Task, NewTask } from '../types/task';
-
-// Cache for tasks by user ID
-const tasksCache = new Map<string, {
-  tasks: Task[],
-  timestamp: number
-}>();
-
-// Cache TTL in milliseconds (5 minutes)
-const CACHE_TTL = 5 * 60 * 1000;
 
 // Task fetch timeout in milliseconds (increased from 20 seconds to 45 seconds)
 const TASK_FETCH_TIMEOUT = 45000;
@@ -25,7 +15,6 @@ export function useTasks(userId: string | undefined) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [retryCount, setRetryCount] = useState(0);
-  const isOffline = useOfflineStatus();
   
   // Track if a request is in progress to prevent duplicate requests
   const loadingRef = useRef(false);
@@ -80,29 +69,9 @@ export function useTasks(userId: string | undefined) {
       return;
     }
 
-    // Check cache first for non-forced loads
-    if (!options.force && tasksCache.has(userId)) {
-      const cachedData = tasksCache.get(userId)!;
-      // If cache is still valid
-      if (now - cachedData.timestamp < CACHE_TTL) {
-        console.log('Using cached tasks data');
-        if (isMountedRef.current) {
-          setTasks(cachedData.tasks);
-          setLoading(false);
-          setError(null);
-        }
-        return;
-      } else {
-        // Cache expired but still usable while refreshing in background
-        if (isMountedRef.current) {
-          setTasks(cachedData.tasks);
-        }
-      }
-    }
-
     try {
-      // Only set loading state if there's no cached data or force refresh
-      if ((!tasksCache.has(userId) || options.force) && isMountedRef.current) {
+      // Always set loading state for admin dashboard
+      if (isMountedRef.current) {
         setLoading(true);
       }
       loadingRef.current = true;
@@ -115,25 +84,6 @@ export function useTasks(userId: string | undefined) {
       if (process.env.NODE_ENV !== 'development') {
         // Get user data to check role and section
         const { data: { user } } = await supabase.auth.getUser();
-        
-        if (isOffline) {
-          // Use cached data if available when offline
-          if (tasksCache.has(userId)) {
-            const cachedData = tasksCache.get(userId)!;
-            if (isMountedRef.current) {
-              setTasks(cachedData.tasks);
-              setLoading(false);
-              setError('Using cached tasks while offline');
-            }
-            return;
-          }
-          
-          if (isMountedRef.current) {
-            setTasks([]);
-            setError('Cannot fetch tasks while offline');
-          }
-          return;
-        }
 
         // Test connection before fetching
         isConnected = await testConnection();
@@ -172,11 +122,6 @@ export function useTasks(userId: string | undefined) {
       // Only update state if component is mounted and request not aborted
       if (isMountedRef.current && !signal.aborted) {
         setTasks(data);
-        // Update cache
-        tasksCache.set(userId, {
-          tasks: data,
-          timestamp: Date.now()
-        });
         
         setError(null);
         lastLoadTimeRef.current = Date.now();
@@ -188,41 +133,33 @@ export function useTasks(userId: string | undefined) {
       if (isMountedRef.current && (!abortControllerRef.current || !abortControllerRef.current.signal.aborted)) {
         console.error('Error fetching tasks:', err);
         
-        // Use cached data if available when fetch fails
-        if (tasksCache.has(userId)) {
-          const cachedData = tasksCache.get(userId)!;
-          setTasks(cachedData.tasks);
-          
-          // Provide a more informative error message for timeouts
-          if (err.message === 'Task fetch timeout') {
-            setError(`Using cached data. Failed to refresh: Task fetch timeout after ${TASK_FETCH_TIMEOUT/1000}s. Network may be slow or server overloaded.`);
-          } else {
-            setError(`Using cached data. Failed to refresh: ${err.message || 'Unknown error'}`);
-          }
+        // Provide a more informative error message for timeouts
+        if (err.message === 'Task fetch timeout') {
+          setError(`Failed to refresh: Task fetch timeout after ${TASK_FETCH_TIMEOUT/1000}s. Network may be slow or server overloaded.`);
         } else {
           setError(err.message || 'Failed to load tasks');
+        }
+        
+        // Increase retry limit for timeouts
+        const maxRetries = err.message === 'Task fetch timeout' ? MAX_RETRIES_TIMEOUT : MAX_RETRIES_OTHER;
+        
+        if (retryCount < maxRetries) {
+          // Use exponential backoff with some randomness
+          const randomOffset = Math.floor(Math.random() * 1000);
+          const timeout = Math.min(1000 * Math.pow(2, retryCount) + randomOffset, 15000);
           
-          // Increase retry limit for timeouts
-          const maxRetries = err.message === 'Task fetch timeout' ? MAX_RETRIES_TIMEOUT : MAX_RETRIES_OTHER;
+          console.log(`Retrying task fetch in ${timeout}ms (attempt ${retryCount + 1}/${maxRetries})`);
           
-          if (!isOffline && retryCount < maxRetries) {
-            // Use exponential backoff with some randomness
-            const randomOffset = Math.floor(Math.random() * 1000);
-            const timeout = Math.min(1000 * Math.pow(2, retryCount) + randomOffset, 15000);
-            
-            console.log(`Retrying task fetch in ${timeout}ms (attempt ${retryCount + 1}/${maxRetries})`);
-            
-            setTimeout(() => {
-              if (isMountedRef.current) {
-                setRetryCount(prev => prev + 1);
-              }
-            }, timeout);
-          } else if (retryCount >= maxRetries) {
-            // After max retries, we should try to reset and make a forced refresh
-            // next time the user interacts or becomes active
-            tabSwitchRecoveryRef.current = true;
-            console.warn(`Maximum retries (${maxRetries}) reached for task fetching. Will force refresh next time.`);
-          }
+          setTimeout(() => {
+            if (isMountedRef.current) {
+              setRetryCount(prev => prev + 1);
+            }
+          }, timeout);
+        } else if (retryCount >= maxRetries) {
+          // After max retries, we should try to reset and make a forced refresh
+          // next time the user interacts or becomes active
+          tabSwitchRecoveryRef.current = true;
+          console.warn(`Maximum retries (${maxRetries}) reached for task fetching. Will force refresh next time.`);
         }
       }
     } finally {
@@ -234,7 +171,7 @@ export function useTasks(userId: string | undefined) {
         loadingRef.current = false;
       }, 100);
     }
-  }, [userId, retryCount, isOffline]);
+  }, [userId, retryCount]);
 
   useEffect(() => {
     if (!userId) {
@@ -246,121 +183,97 @@ export function useTasks(userId: string | undefined) {
     // Set mounted ref
     isMountedRef.current = true;
     
-    // Initial load - use cache first then refresh
-    if (tasksCache.has(userId)) {
-      const cachedData = tasksCache.get(userId)!;
-      setTasks(cachedData.tasks);
-      setLoading(false);
-      
-      // Refresh in background after short delay
-      setTimeout(() => {
+    // Initial load - always fetch fresh data for admin dashboard
+    loadTasks();
+
+    // Debounced realtime subscription to prevent excessive refreshes
+    let realtimeTimeout: number | null = null;
+
+    const subscription = supabase
+      .channel('tasks_channel')
+      .on('postgres_changes', {
+        event: '*',
+        schema: 'public',
+        table: 'tasks',
+        filter: `user_id=eq.${userId}`
+      }, () => {
         if (isMountedRef.current) {
-          loadTasks();
-        }
-      }, 100);
-    } else {
-      loadTasks();
-    }
+          // Debounce realtime updates to prevent rapid-fire refreshes
+          if (realtimeTimeout) {
+            clearTimeout(realtimeTimeout);
+          }
 
-    if (!isOffline) {
-      // Debounced realtime subscription to prevent excessive refreshes
-      let realtimeTimeout: number | null = null;
-
-      const subscription = supabase
-        .channel('tasks_channel')
-        .on('postgres_changes', {
-          event: '*',
-          schema: 'public',
-          table: 'tasks',
-          filter: `user_id=eq.${userId}`
-        }, () => {
-          if (isMountedRef.current) {
-            // Debounce realtime updates to prevent rapid-fire refreshes
-            if (realtimeTimeout) {
-              clearTimeout(realtimeTimeout);
+          realtimeTimeout = window.setTimeout(() => {
+            if (isMountedRef.current && !loadingRef.current) {
+              loadTasks();
             }
-
-            realtimeTimeout = window.setTimeout(() => {
-              if (isMountedRef.current && !loadingRef.current) {
-                loadTasks();
-              }
-            }, 1000); // 1 second debounce
-          }
-        })
-        .subscribe();
-
-      // Optimized visibility change handler to prevent excessive refreshes
-      const handleVisibilityChange = () => {
-        if (document.visibilityState === 'visible') {
-          const now = Date.now();
-          const timeSinceLastLoad = now - lastLoadTimeRef.current;
-
-          // Always reset stuck state on tab focus
-          if (loadingRef.current) {
-            console.log('Resetting loading state on visibility change');
-            loadingRef.current = false;
-          }
-
-          // Only refresh if we've been away for more than 5 minutes to prevent excessive refreshes
-          if (timeSinceLastLoad > 300000) { // 5 minutes
-            console.log('Page visible after long absence, refreshing tasks');
-            loadTasks({ force: true });
-          } else if (tabSwitchRecoveryRef.current) {
-            // Only force refresh if we're in recovery mode
-            console.warn('Task loading needs recovery, forcing refresh');
-            loadTasks({ force: true });
-          } else {
-            // Check cache staleness only if we haven't refreshed recently
-            if (tasksCache.has(userId)) {
-              const cachedData = tasksCache.get(userId)!;
-              if (now - cachedData.timestamp > CACHE_TTL && timeSinceLastLoad > 60000) { // 1 minute minimum
-                loadTasks();
-              }
-            }
-          }
+          }, 1000); // 1 second debounce
         }
-      };
+      })
+      .subscribe();
 
-      // Set up regular polling to check for stuck state with increased timeout value
-      const pollInterval = setInterval(() => {
-        if (loadingRef.current && Date.now() - lastLoadTimeRef.current > TASK_FETCH_TIMEOUT + 5000) {
-          console.warn('Task loading stuck in polling check, resetting state');
+    // Optimized visibility change handler to prevent excessive refreshes
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        const now = Date.now();
+        const timeSinceLastLoad = now - lastLoadTimeRef.current;
+
+        // Always reset stuck state on tab focus
+        if (loadingRef.current) {
+          console.log('Resetting loading state on visibility change');
           loadingRef.current = false;
-          if (isMountedRef.current) {
-            setLoading(false);
-            tabSwitchRecoveryRef.current = true;
-          }
-        }
-      }, 5000);
-
-      document.addEventListener('visibilitychange', handleVisibilityChange);
-
-      return () => {
-        // Mark component as unmounted
-        isMountedRef.current = false;
-
-        // Cleanup realtime timeout
-        if (realtimeTimeout) {
-          clearTimeout(realtimeTimeout);
         }
 
-        // Clean up
-        subscription.unsubscribe();
-        document.removeEventListener('visibilitychange', handleVisibilityChange);
-        clearInterval(pollInterval);
-        // Abort any in-progress request
-        if (abortControllerRef.current) {
-          abortControllerRef.current.abort();
+        // Only refresh if we've been away for more than 5 minutes to prevent excessive refreshes
+         if (timeSinceLastLoad > 300000) { // 5 minutes
+           console.log('Page visible after long absence, refreshing tasks');
+           loadTasks({ force: true });
+         } else if (tabSwitchRecoveryRef.current) {
+           // Only force refresh if we're in recovery mode
+           console.warn('Task loading needs recovery, forcing refresh');
+           loadTasks({ force: true });
+         } else if (timeSinceLastLoad > 60000) { // 1 minute minimum
+           // Always refresh for admin dashboard after 1 minute
+           loadTasks();
+         }
+      }
+    };
+
+    // Set up regular polling to check for stuck state with increased timeout value
+    const pollInterval = setInterval(() => {
+      if (loadingRef.current && Date.now() - lastLoadTimeRef.current > TASK_FETCH_TIMEOUT + 5000) {
+        console.warn('Task loading stuck in polling check, resetting state');
+        loadingRef.current = false;
+        if (isMountedRef.current) {
+          setLoading(false);
+          tabSwitchRecoveryRef.current = true;
         }
-      };
-    }
-  }, [userId, loadTasks, isOffline]);
+      }
+    }, 5000);
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
+    return () => {
+      // Mark component as unmounted
+      isMountedRef.current = false;
+
+      // Cleanup realtime timeout
+      if (realtimeTimeout) {
+        clearTimeout(realtimeTimeout);
+      }
+
+      // Clean up
+      subscription.unsubscribe();
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      clearInterval(pollInterval);
+      // Abort any in-progress request
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+      }
+    };
+  }, [userId, loadTasks]);
 
   const handleCreateTask = async (newTask: NewTask, sectionId?: string) => {
-    if (isOffline) {
-      throw new Error('Cannot create tasks while offline');
-    }
-
     if (!userId) {
       throw new Error('User ID is required');
     }
@@ -387,10 +300,6 @@ export function useTasks(userId: string | undefined) {
   };
 
   const handleUpdateTask = async (taskId: string, updates: Partial<Task>) => {
-    if (isOffline) {
-      throw new Error('Cannot update tasks while offline');
-    }
-
     try {
       const updatedTask = await updateTask(taskId, updates);
       if (isMountedRef.current) {
@@ -418,10 +327,6 @@ export function useTasks(userId: string | undefined) {
   };
 
   const handleDeleteTask = async (taskId: string) => {
-    if (isOffline) {
-      throw new Error('Cannot delete tasks while offline');
-    }
-
     try {
       await deleteTask(taskId);
       if (isMountedRef.current) {
@@ -455,6 +360,6 @@ export function useTasks(userId: string | undefined) {
     createTask: handleCreateTask,
     updateTask: handleUpdateTask,
     deleteTask: handleDeleteTask,
-    refreshTasks
+    refreshTasks: () => loadTasks({ force: true })
   };
 }

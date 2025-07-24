@@ -18,12 +18,11 @@ export function useAuth() {
   const [retryCount, setRetryCount] = useState(0);
 
   useEffect(() => {
-    // Restore saved email for authentication
     const savedEmail = localStorage.getItem(SAVED_EMAIL_KEY);
     if (savedEmail) {
       setSavedEmail(savedEmail);
     }
-
+    
     checkSession();
     const { data: { subscription } } = supabase.auth.onAuthStateChange(handleAuthChange);
     return () => {
@@ -52,7 +51,6 @@ export function useAuth() {
       }
       
       if (session?.user) {
-        console.log('Active session found, updating user state');
         await updateUserState(session.user);
       } else {
         console.log('No active session found');
@@ -96,13 +94,19 @@ export function useAuth() {
   const handleInvalidSession = async () => {
     setUser(null);
     updateAuthStatus(false);
-
-    // localStorage and sessionStorage functionality removed
-
+    
+    localStorage.removeItem('supabase.auth.token');
+    localStorage.removeItem('nesttask_user');
+    sessionStorage.removeItem('supabase.auth.token');
+    
+    if (localStorage.getItem(REMEMBER_ME_KEY) !== 'true') {
+      localStorage.removeItem(SAVED_EMAIL_KEY);
+    }
+    
     document.cookie.split(";").forEach(function(c) {
       document.cookie = c.replace(/^ +/, "").replace(/=.*/, "=;expires=" + new Date().toUTCString() + ";path=/");
     });
-
+    
     // Clear caches without page reload
     forceCleanReload();
   };
@@ -189,7 +193,6 @@ export function useAuth() {
     try {
       setError(null);
       
-      // Handle remember me functionality for authentication
       if (rememberMe) {
         localStorage.setItem(REMEMBER_ME_KEY, 'true');
         localStorage.setItem(SAVED_EMAIL_KEY, credentials.email);
@@ -204,7 +207,29 @@ export function useAuth() {
                           window.location.hostname === 'localhost' ||
                           window.location.hostname === '127.0.0.1';
       
-      // Demo user localStorage functionality removed
+      // Try to load demo user from localStorage first (for development mode)
+      if (isDevelopment && localStorage.getItem('nesttask_demo_user')) {
+        try {
+          const demoUser = JSON.parse(localStorage.getItem('nesttask_demo_user') || '{}');
+          if (demoUser && demoUser.email === credentials.email) {
+            console.log('Using cached demo user from localStorage:', demoUser);
+            setUser(demoUser);
+            updateAuthStatus(true);
+            
+            // Handle superadmin redirect for demo users too
+            if (demoUser.role === 'super-admin' || demoUser.email === 'superadmin@nesttask.com') {
+              console.log('Demo super admin detected');
+              localStorage.setItem('is_super_admin', 'true');
+              sessionStorage.setItem('is_super_admin', 'true');
+              localStorage.setItem('auth_completed', 'true');
+            }
+            
+            return demoUser;
+          }
+        } catch (err) {
+          console.warn('Failed to parse demo user from localStorage');
+        }
+      }
       
       // Regular login process with the backend
       const user = await loginUser(credentials);
@@ -238,7 +263,9 @@ export function useAuth() {
           console.warn('Error fetching super admin data, using default values', err);
         }
         
-        // localStorage and sessionStorage functionality removed
+        localStorage.setItem('is_super_admin', 'true');
+        sessionStorage.setItem('is_super_admin', 'true');
+        localStorage.setItem('auth_completed', 'true');
         
         setUser(user);
         
@@ -353,11 +380,10 @@ export function useAuth() {
       
       console.log('Logout API call successful');
       
-      // Clear authentication-related localStorage (but preserve remember me if set)
       if (localStorage.getItem(REMEMBER_ME_KEY) !== 'true') {
         localStorage.removeItem(SAVED_EMAIL_KEY);
       }
-
+      
       localStorage.removeItem('supabase.auth.token');
       localStorage.removeItem('nesttask_user');
       

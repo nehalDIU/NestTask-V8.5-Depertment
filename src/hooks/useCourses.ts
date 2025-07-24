@@ -12,30 +12,24 @@ import {
   bulkImportCourses
 } from '../services/course.service';
 import type { Course, NewCourse, StudyMaterial, NewStudyMaterial } from '../types/course';
-// Offline functionality removed
-
-// Cache functionality disabled
 
 export function useCourses() {
   const [courses, setCourses] = useState<Course[]>([]);
   const [materials, setMaterials] = useState<StudyMaterial[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  // Offline functionality removed
 
   const loadCourses = useCallback(async (forceRefresh = false) => {
     try {
       setLoading(true);
       
-      // Always fetch fresh data - caching disabled
-      console.log('Fetching fresh course data');
+      // Always fetch fresh data for admin dashboard
+      console.log('Admin dashboard: Fetching fresh course data');
       const data = await fetchCourses();
       setCourses(data);
     } catch (err: any) {
       console.error('Error loading courses:', err);
       setError(err.message);
-      
-      // Cache fallback disabled
     } finally {
       setLoading(false);
     }
@@ -45,15 +39,13 @@ export function useCourses() {
     try {
       setLoading(true);
       
-      // Always fetch fresh data - caching disabled
-      console.log('Fetching fresh materials data');
+      // Always fetch fresh data for admin dashboard
+      console.log('Admin dashboard: Fetching fresh materials data');
       const data = await fetchStudyMaterials();
       setMaterials(data);
     } catch (err: any) {
       console.error('Error loading materials:', err);
       setError(err.message);
-      
-      // Cache fallback disabled
     } finally {
       setLoading(false);
     }
@@ -88,10 +80,10 @@ export function useCourses() {
     try {
       // Create course
       const newCourse = await createCourse(course);
-
+      
       // Update state
       setCourses(prev => [...prev, newCourse]);
-
+      
       return newCourse;
     } catch (err: any) {
       setError(err.message);
@@ -103,8 +95,8 @@ export function useCourses() {
     try {
       // Update course
       await updateCourse(id, updates);
-
-      // Update state
+      
+      // Get the updated course for state
       const updatedCourses = courses.map(c => c.id === id ? { ...c, ...updates } : c);
       setCourses(updatedCourses);
     } catch (err: any) {
@@ -117,7 +109,7 @@ export function useCourses() {
     try {
       // Delete course
       await deleteCourse(id);
-
+      
       // Update state
       const filteredCourses = courses.filter(c => c.id !== id);
       setCourses(filteredCourses);
@@ -129,9 +121,9 @@ export function useCourses() {
 
   const handleCreateMaterial = async (material: NewStudyMaterial) => {
     try {
-      // Create study material
+      // Create material
       await createStudyMaterial(material);
-
+      
       // Refresh to get updated list
       await loadMaterials(true);
     } catch (err: any) {
@@ -142,9 +134,9 @@ export function useCourses() {
 
   const handleUpdateMaterial = async (id: string, updates: Partial<StudyMaterial>) => {
     try {
-      // Update study material
+      // Update material
       await updateStudyMaterial(id, updates);
-
+      
       // Refresh to get updated list
       await loadMaterials(true);
     } catch (err: any) {
@@ -155,9 +147,9 @@ export function useCourses() {
 
   const handleDeleteMaterial = async (id: string) => {
     try {
-      // Delete study material
+      // Delete material
       await deleteStudyMaterial(id);
-
+      
       // Update state
       const filteredMaterials = materials.filter(m => m.id !== id);
       setMaterials(filteredMaterials);

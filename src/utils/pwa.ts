@@ -9,7 +9,9 @@ const isStackBlitz = Boolean(
    window.location.hostname.includes('.webcontainer.io'))
 );
 
-// localStorage functionality disabled
+// Service worker metadata in localStorage for persistence across browser sessions
+const SW_METADATA_KEY = 'sw_metadata';
+const APP_LAST_ACTIVE_KEY = 'app_last_active';
 const OFFLINE_DURATION_THRESHOLD = 60 * 60 * 1000; // 1 hour in milliseconds
 
 // Track service worker registration state
@@ -28,7 +30,16 @@ interface ServiceWorkerMetadata {
 
 // Initialize or get service worker metadata
 function getServiceWorkerMetadata(): ServiceWorkerMetadata {
-  // localStorage functionality disabled - return default metadata
+  try {
+    const metadataStr = localStorage.getItem(SW_METADATA_KEY);
+    if (metadataStr) {
+      return JSON.parse(metadataStr);
+    }
+  } catch (e) {
+    console.error('Error parsing service worker metadata:', e);
+  }
+  
+  // Default metadata
   return {
     lastPing: 0,
     lastResponse: 0,
@@ -40,20 +51,33 @@ function getServiceWorkerMetadata(): ServiceWorkerMetadata {
   };
 }
 
-// Save service worker metadata - DISABLED
+// Save service worker metadata
 function saveServiceWorkerMetadata(metadata: ServiceWorkerMetadata): void {
-  // localStorage functionality disabled
+  try {
+    localStorage.setItem(SW_METADATA_KEY, JSON.stringify(metadata));
+  } catch (e) {
+    console.error('Error saving service worker metadata:', e);
+  }
 }
 
-// Update last active timestamp - DISABLED
+// Update last active timestamp
 function updateLastActiveTimestamp(): void {
-  // localStorage functionality disabled
+  try {
+    localStorage.setItem(APP_LAST_ACTIVE_KEY, Date.now().toString());
+  } catch (e) {
+    console.error('Error updating last active timestamp:', e);
+  }
 }
 
-// Get last active timestamp - DISABLED
+// Get last active timestamp
 function getLastActiveTimestamp(): number {
-  // localStorage functionality disabled
-  return 0;
+  try {
+    const timestamp = localStorage.getItem(APP_LAST_ACTIVE_KEY);
+    return timestamp ? parseInt(timestamp, 10) : 0;
+  } catch (e) {
+    console.error('Error getting last active timestamp:', e);
+    return 0;
+  }
 }
 
 // Check if we're running in StackBlitz
@@ -520,7 +544,12 @@ async function performMaintenanceIfNeeded(): Promise<void> {
         await reinstallServiceWorker();
       }
       
-      // localStorage functionality disabled
+      // Add a marker in localStorage that we've performed maintenance
+      try {
+        localStorage.setItem('last_maintenance', now.toString());
+      } catch (e) {
+        console.error('Error setting maintenance timestamp:', e);
+      }
       
     } catch (e) {
       console.error('[PWA] Error performing maintenance after inactivity:', e);
@@ -618,13 +647,32 @@ function setupOfflineDetection(): void {
     
     // Trigger a service worker health check when coming online
     setTimeout(async () => {
-      // localStorage functionality disabled - skip offline duration check
+      // If we've been offline for more than 5 minutes, check service worker and potentially reload
+      const lastOfflineTimestamp = localStorage.getItem('lastOfflineTimestamp');
+      if (lastOfflineTimestamp) {
+        const offlineTime = Date.now() - parseInt(lastOfflineTimestamp, 10);
+        const fiveMinutes = 5 * 60 * 1000;
+        
+        if (offlineTime > fiveMinutes) {
+          const isHealthy = await checkServiceWorkerHealth();
+          if (!isHealthy) {
+            console.log('[PWA] Service worker unhealthy after coming online, performing recovery');
+            await reinstallServiceWorker();
+          }
+          
+          // Reload if we've been offline for more than an hour
+          if (offlineTime > OFFLINE_DURATION_THRESHOLD) {
+            console.log('[PWA] Coming online after extended offline period, reloading');
+            window.location.reload();
+          }
+        }
+      }
     }, 1000);
   });
   
   window.addEventListener('offline', () => {
     document.body.classList.add('offline');
-    // localStorage functionality disabled
+    localStorage.setItem('lastOfflineTimestamp', Date.now().toString());
   });
   
   // Initial offline check

@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useLocalStorage } from 'usehooks-ts';
 import { prefetchApiData, prefetchRoute } from '../utils/prefetch';
 
 // Define pattern types
@@ -37,8 +38,8 @@ export function usePredictivePreload(
   const [previousPage, setPreviousPage] = useState<string | null>(null);
   const [isInitialized, setIsInitialized] = useState(false);
   
-  // Store navigation patterns in memory only (localStorage disabled)
-  const [patterns, setPatterns] = useState<Pattern[]>([]);
+  // Store navigation patterns in local storage
+  const [patterns, setPatterns] = useLocalStorage<Pattern[]>('nesttask_user_patterns', []);
   
   // User behavior tracking - record transitions between pages
   useEffect(() => {
